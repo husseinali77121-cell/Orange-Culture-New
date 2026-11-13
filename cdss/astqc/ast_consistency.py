@@ -249,6 +249,82 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
         "fix_en": "Repeat both disks.",
         "reference": "CLSI M100 Ed36 — tetracycline-class predictive note",
     },
+    # ── Added v6.6 (2026-11-13, final review) — both passed silently before ──
+    {
+        "id": "hier_van_vs_tei_enterococcus",
+        "organisms": ["enterococcus", "enterococc", "vre"],
+        "better": "vancomycin", "better_exclude": [],
+        "worse": "teicoplanin", "worse_needle_extra": "",
+        "reason_ar": ("Vancomycin حسّاس بينما Teicoplanin مقاوم في Enterococcus — نمط غير "
+                      "موجود: VanA مقاوم للاثنين، و VanB و VanC مقاومان للفانكومايسين "
+                      "وحسّاسان للتيكوبلانين. العكس لا تنتجه أي آلية معروفة."),
+        "reason_en": ("Vancomycin susceptible with teicoplanin resistant in an "
+                      "Enterococcus matches no known mechanism: VanA is resistant to "
+                      "both, VanB and VanC are vancomycin-resistant and "
+                      "teicoplanin-susceptible. The reverse does not occur."),
+        "fix_ar": "أعِد اختبار الجليكوببتيدات بـ MIC على مستعمرة نقية وأكّد التعريف.",
+        "fix_en": "Repeat both glycopeptides by an MIC method on a pure colony and confirm the identification.",
+        "reference": "EUCAST Expert Rules v3.2 — glycopeptides in enterococci · CLSI M100 Ed36",
+    },
+    {
+        "id": "hier_pen_vs_cro_pneumococcus",
+        "organisms": ["streptococcus pneumoniae", "pneumococc"],
+        "better": "penicillin", "better_exclude": ["piperacillin", "benzathine", "non-mening", "nonmening", "oral"],
+        "worse": "ceftriaxone", "worse_needle_extra": "",
+        "reason_ar": ("Penicillin حسّاس بينما Ceftriaxone مقاوم في S. pneumoniae — "
+                      "المكورة الرئوية الحسّاسة للبنسلين تُعتبر حسّاسة للسيفالوسبورينات "
+                      "الممتدة والكاربابينيمات (قاعدة EUCAST التنبّؤية)."),
+        "reason_en": ("Penicillin susceptible with ceftriaxone resistant in "
+                      "S. pneumoniae: a penicillin-susceptible pneumococcus is "
+                      "susceptible to the extended-spectrum cephalosporins and "
+                      "carbapenems (EUCAST predictive rule)."),
+        "fix_ar": ("أعِد الاختبار بـ MIC (لا يُعتمد على القرص للبيتا-لاكتام في المكورة "
+                   "الرئوية) وتأكّد من نقطة القطع المستخدمة (سحايا أم غير سحايا)."),
+        "fix_en": ("Repeat by MIC (disk diffusion is not used for beta-lactams in "
+                   "pneumococci) and check which breakpoint was applied (meningitis or not)."),
+        "reference": "EUCAST Clinical Breakpoint Tables v16.1 — S. pneumoniae, beta-lactams",
+    },
+    {
+        "id": "hier_pen_vs_ctx_pneumococcus",
+        "organisms": ["streptococcus pneumoniae", "pneumococc"],
+        "better": "penicillin", "better_exclude": ["piperacillin", "benzathine", "non-mening", "nonmening", "oral"],
+        "worse": "cefotaxime", "worse_needle_extra": "",
+        "reason_ar": ("Penicillin حسّاس بينما Cefotaxime مقاوم في S. pneumoniae — "
+                      "نفس القاعدة التنبّؤية: لا يُتوقّع هذا النمط."),
+        "reason_en": ("Penicillin susceptible with cefotaxime resistant in "
+                      "S. pneumoniae contradicts the same predictive rule."),
+        "fix_ar": "أعِد الاختبار بـ MIC وتأكّد من نقطة القطع المستخدمة.",
+        "fix_en": "Repeat by MIC and check which breakpoint was applied.",
+        "reference": "EUCAST Clinical Breakpoint Tables v16.1 — S. pneumoniae, beta-lactams",
+    },
+]
+
+
+# ── UNUSUAL BUT POSSIBLE (v6.6) ──────────────────────────────────────────────
+# Not an impossibility, so not an `error`: a real mechanism produces it, but it
+# is rare enough that the result must be confirmed before anyone acts on the S.
+UNUSUAL_COMBINATIONS: List[Dict[str, Any]] = [
+    {
+        "id": "unusual_czav_r_carbapenem_s",
+        "organisms": ENTEROBACTERALES,
+        "resistant": "ceftazidime-avibactam", "resistant_tokens": ("ceftazidime", "avibactam"),
+        "susceptible_any": ("meropenem", "imipenem"),
+        "reason_ar": ("Ceftazidime-avibactam مقاوم مع كاربابينيم حسّاس — نادر. له سببان "
+                      "حقيقيان: KPC متحوّر (مثل D179Y) بعد علاج بـ Ceftazidime-avibactam، أو "
+                      "إنزيم MBL (NDM / VIM / IMP — شائع في مصر) بـ MIC كاربابينيم منخفض "
+                      "يقع تحت نقطة القطع. وإلا فخطأ قراءة."),
+        "reason_en": ("Ceftazidime-avibactam resistant with a carbapenem susceptible is "
+                      "rare. Two real causes: a KPC variant (e.g. D179Y) selected during "
+                      "ceftazidime-avibactam therapy, or a metallo-beta-lactamase (NDM / "
+                      "VIM / IMP) with a low carbapenem MIC; otherwise a reading error."),
+        "fix_ar": ("أكّد بـ MIC، واطلب اختبار كاربابينيميز (mCIM / NG-Test CARBA-5) — لا تعتمد "
+                   "على الكاربابينيم الحسّاس قبل استبعاد MBL — واسأل عن علاج سابق بـ "
+                   "Ceftazidime-avibactam."),
+        "fix_en": ("Confirm by MIC and test for a carbapenemase (mCIM / NG-Test CARBA-5) "
+                   "before relying on the susceptible carbapenem; ask about prior "
+                   "ceftazidime-avibactam therapy."),
+        "reference": "IDSA AMR Guidance 2026 — CRE; Shields et al., Antimicrob Agents Chemother 2017",
+    },
 ]
 
 
@@ -442,6 +518,30 @@ def check_consistency(organism: str, sir_map: Dict[str, str]) -> List[Dict[str, 
             })
 
     # ── exceptional phenotypes ────────────────────────────────────────────
+    for rule in UNUSUAL_COMBINATIONS:
+        if rule["organisms"] and not _org_in(organism, rule["organisms"]):
+            continue
+        d_r = next((d for d in sir_map
+                    if all(_nk(t) in _nk(d) for t in rule["resistant_tokens"])), None)
+        if not d_r or str(sir_map.get(d_r, "")).strip().upper() != "R":
+            continue
+        d_s = [d for d in sir_map
+               if any(_nk(t) in _nk(d) for t in rule["susceptible_any"])
+               and not any(_nk(x) in _nk(d) for x in ("vaborbactam", "relebactam"))
+               and str(sir_map.get(d, "")).strip().upper() == "S"]
+        if not d_s:
+            continue
+        issues.append({
+            "id": f'{rule["id"]}:{d_r}|{d_s[0]}',
+            "category": "unusual",
+            "severity": "warning",
+            "drugs": [d_r, d_s[0]],
+            "results": {d_r: sir_map[d_r], d_s[0]: sir_map[d_s[0]]},
+            "reason_ar": rule["reason_ar"], "reason_en": rule["reason_en"],
+            "fix_ar": rule["fix_ar"], "fix_en": rule["fix_en"],
+            "reference": rule["reference"],
+        })
+
     for rule in EXCEPTIONAL_PHENOTYPES:
         if rule["organisms"] and not _org_in(organism, rule["organisms"]):
             continue
@@ -473,8 +573,12 @@ def check_consistency(organism: str, sir_map: Dict[str, str]) -> List[Dict[str, 
 def format_issue(issue: Dict[str, Any], lang: str = "ar") -> Dict[str, str]:
     """Render one discrepancy into the {message, fix} shape run_ast_qc uses."""
     drugs = " ↔ ".join(f'{d} [{issue["results"][d]}]' for d in issue["drugs"])
-    head = ("🔴 **تناقض في اللوحة — أعِد الاختبار** — " if lang == "ar"
-            else "🔴 **Panel discrepancy — repeat testing** — ")
+    if issue.get("category") == "unusual":
+        head = ("⚠️ **نمط نادر — أكّد قبل الإصدار** — " if lang == "ar"
+                else "⚠️ **Unusual combination — confirm before release** — ")
+    else:
+        head = ("🔴 **تناقض في اللوحة — أعِد الاختبار** — " if lang == "ar"
+                else "🔴 **Panel discrepancy — repeat testing** — ")
     reason = issue["reason_ar"] if lang == "ar" else issue["reason_en"]
     fix = issue["fix_ar"] if lang == "ar" else issue["fix_en"]
     return {
