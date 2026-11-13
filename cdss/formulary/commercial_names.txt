@@ -1,0 +1,151 @@
+# Orange Lab — Commercial (Brand) Names Dictionary
+# © Dr. Hussein Ali — Orange Lab, 6 October City, Egypt
+# =========================================================
+# Format: Antibiotic Generic Name = Brand1 / Brand2 / Brand3
+# يمكن تعديل هذا الملف بحرية — لن يؤثر على كود البرنامج
+# =========================================================
+
+# ── Penicillins ──────────────────────────────────────────
+Amoxicillin = Amoxil / Flemoxin / Ospamox / Amox
+Amoxicillin-Clavulanate = Augmentin / Curam / Amoxiclav / Co-Amoxiclav / Synermox
+Amoxicillin + Clavulanic acid = Augmentin / Curam / Amoxiclav / Co-Amoxiclav / Synermox
+Ampicillin = Ampicin / Penbritin / Ampiclox (with Cloxacillin)
+Penicillin = Penicillin G / Benzathine Penicillin / Retarpen / Pen-V
+Oxacillin = Prostaphlin / Bristopen
+Ampicillin-Sulbactam = Unasyn / Duocid / Ampictam
+Piperacillin-Tazobactam = Tazocin / Piptaz / Zosyn
+Cloxacillin = Cloxapen / Orbenin
+
+# ── Cephalosporins (1st Gen) ─────────────────────────────
+Cephalexin = Keflex / Ceporex / Ospexin / Cephin
+Cephradine = Velosef / Sefril / Eskacef
+Cefazolin = Kefzol / Ancef / Cefazol
+
+# ── Cephalosporins (2nd Gen) ─────────────────────────────
+Cefuroxime = Zinnat / Zinacef / Ketocef / Sharox
+Cefuroxime sodium = Zinacef / Cefurox IV
+Cefadroxil = Duricef / Biodroxil / Cefadrox
+Cefaclor = Ceclor / Alfatil / Distaclor
+Cefoxitin = Mefoxin
+
+# ── Cephalosporins (3rd Gen) ─────────────────────────────
+Cefixime = Suprax / Cefix / Fixim / Starcef / Cefspan
+Ceftriaxone = Rocephin / Ceftri / Biotrakson / Ceftriax / Intracef
+Cefotaxime = Claforan / Taxime
+Ceftazidime = Fortum / Fortaz / Tazidime
+Cefpodoxime = Orelox / Vantin / Cefpod
+Cefdinir = Omnicef / Cefdinir
+Ceftibuten = Cedax
+
+Cefoperazone = Cefobid / Peracef
+Cefoperazone-Sulbactam = Sulperazon / Sulperazone / Bakperazone / Cefsul
+
+# ── Cephalosporins (4th Gen) ─────────────────────────────
+Cefepime = Maxipime / Cefim / Fepime
+
+# ── Cephalosporins (5th Gen / Anti-MRSA) ─────────────────
+Ceftaroline = Teflaro / Zinforo
+Ceftolozane-Tazobactam = Zerbaxa
+
+# ── Carbapenems ──────────────────────────────────────────
+Imipenem-Cilastatin = Tienam / Primaxin / Cilapenem
+Meropenem = Meronem / Merrem / Meropenem Hikma
+Ertapenem = Invanz
+Doripenem = Doribax
+
+# ── Monobactams ──────────────────────────────────────────
+Aztreonam = Azactam
+
+# ── Aminoglycosides ──────────────────────────────────────
+Gentamicin = Garamycin / Genticyn / Gentamicin Hikma
+Amikacin = Amikin / Biklin / Amikacin Sandoz
+Tobramycin = Nebcin / Tobi
+Netilmicin = Netromycin
+
+Streptomycin = Strepto / Streptomycin sulfate
+
+# ── Fluoroquinolones ─────────────────────────────────────
+Ciprofloxacin = Ciprobay / Ciproxin / Cipro / Ciprolak / Cifran
+Levofloxacin = Tavanic / Levaquin / Lebact / Levoflox
+Ofloxacin = Tarivid / Floxin / Zanocin
+Norfloxacin = Noroxin / Utinor / Quinabic
+Moxifloxacin = Avelox / Vigamox (ophthalmic)
+
+Gatifloxacin = Tequin / Gatiflo
+
+# ── Tetracyclines ────────────────────────────────────────
+Doxycycline = Vibramycin / Doxylin / Doxycap
+Minocycline = Minocin / Acnamino
+Tigecycline = Tygacil
+
+Tetracycline = Achromycin / Tetracyn
+Minocycline = Minocin / Minoclir
+
+# ── Macrolides ───────────────────────────────────────────
+Azithromycin = Zithromax / Sumamed / Azithrocin / Azithro
+Clarithromycin = Klacid / Biaxin / Klaricid
+Erythromycin = Erythrocin / Ilosone / Erymax
+
+Roxithromycin = Rulid / Roxit
+Spiramycin = Rovamycine / Spiramycin
+
+# ── Lincosamides ─────────────────────────────────────────
+Clindamycin = Dalacin-C / Cleocin / Clinacin
+
+# ── Glycopeptides ────────────────────────────────────────
+Vancomycin = Vancocin / Vancomycin Hikma / Vanco
+Teicoplanin = Targocid / Teicobact
+
+# ── Oxazolidinones ───────────────────────────────────────
+Linezolid = Zyvox / Zyvoxid / Linox
+
+# ── Polymyxins ───────────────────────────────────────────
+Colistin = Colomycin / Colistimethate / Colistin Hikma
+Polymyxin B = Poly-Rx
+
+# ── Sulfonamides / Trimethoprim ──────────────────────────
+Trimethoprim-Sulfamethoxazole = Bactrim / Septrin / Co-trimoxazole / Cotrimol
+Trimethoprim = Monotrim / Triprim
+
+# ── Nitrofurans ──────────────────────────────────────────
+Nitrofurantoin = Macrobid / Macrodantin / Furadantin / Uvamin
+
+# ── Nitroimidazoles ──────────────────────────────────────
+Metronidazole = Flagyl / Metrozol / Anaeromet
+Tinidazole = Fasigyn / Tinidazole
+Ornidazole = Tiberal / Ornizol
+
+# ── Anti-MRSA / Special ──────────────────────────────────
+Daptomycin = Cubicin
+Rifampicin = Rifadin / Rimactane / Rifampin
+Fosfomycin = Monurol / Fosfocin
+Fusidic Acid = Fucidin / Fucithalmic (ophthalmic)
+Mupirocin = Bactroban / Mupiderm (topical)
+Chloramphenicol = Chloromycetin / Kemicetine
+
+# ── Anti-tuberculous (companions to Rifampicin) ──────────
+# NOTE: TB is diagnosed by AFB smear / culture / GeneXpert, not by routine
+# bacterial C&S. These are listed for name lookup only -- this CDSS does not
+# interpret TB susceptibility, which follows a separate WHO algorithm.
+Isoniazid = Nidrazid / Isoniazid / INH
+Ethambutol = Myambutol / Etapiam
+Pyrazinamide = Pyrazinamide / Pirazin
+
+# ── Antifungals (if used in Culture context) ─────────────
+Fluconazole = Diflucan / Flucoran / Forcan
+Voriconazole = Vfend
+Amphotericin B = Fungizone / AmBisome (liposomal)
+Caspofungin = Cancidas
+Micafungin = Mycamine
+Itraconazole = Sporanox / Itrazol
+Ketoconazole = Nizoral / Ketazol
+Clotrimazole = Canesten / Clotrim
+Nystatin = Mycostatin / Nilstat
+Terbinafine = Lamisil / Terbifin
+
+# ── Scope note ───────────────────────────────────────────
+# Antivirals are deliberately EXCLUDED. This dictionary supports a bacterial
+# culture & sensitivity workflow; viruses are not isolated on routine bacterial
+# media, so an antiviral name here would imply a capability the lab does not
+# have. Antifungals are included because yeasts DO grow on routine culture
+# (Candida in urine, sputum and wound swabs) and get reported from this bench.
