@@ -10,6 +10,12 @@ and names the ones that differ.
 Line endings are normalised before hashing (a Windows checkout converts LF to
 CRLF), so the same release gives the same hashes on every runner.
 
+Since 2026-11-13 it also names EXTRA files: a file that is not part of the
+release, typically a release file uploaded into the wrong folder (on the first
+upload of v6.1 `streamlit_app.py` and `page_setup.py` landed inside `cdss/`,
+and four test failures were the only symptom). When an extra file has the name
+of a release file, the line says where that file belongs.
+
 Usage:  python verify_upload.py            report only, always exits 0
         python verify_upload.py --strict   exit 1 if anything differs
         python verify_upload.py --write    regenerate the manifest (release step)
@@ -32,7 +38,8 @@ def _files():
     for root, dirs, files in os.walk(HERE):
         dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS)
         for n in sorted(files):
-            if n in SKIP_FILES or n.endswith((".pyc", ".spec", ".exe")):
+            if (n in SKIP_FILES and root == HERE) or n.endswith((".pyc", ".exe")) or (
+                    n.endswith(".spec") and n != "orange_cdss.spec"):
                 continue
             p = os.path.join(root, n)
             yield os.path.relpath(p, HERE).replace(os.sep, "/"), p
@@ -66,15 +73,27 @@ def main():
             missing.append(rel)
         elif _digest(p) != h:
             stale.append(rel)
+    home_of = {}                                   # file name -> its release path(s)
+    for rel in expected:
+        home_of.setdefault(rel.rsplit("/", 1)[-1], []).append(rel)
+    extra = [rel for rel, _p in _files() if rel not in expected]
     print(f"verify_upload: {len(expected)} files in the release manifest {release}".rstrip())
-    if not stale and not missing:
+    if not stale and not missing and not extra:
         print("  OK — every file matches the release.")
         return 0
     for rel in missing:
         print(f"  MISSING  {rel}")
     for rel in stale:
         print(f"  DIFFERS  {rel}   (old copy, or edited after the release)")
-    print("  -> Re-upload the files listed above from the release zip, then re-run.")
+    for rel in extra:
+        homes = [h for h in home_of.get(rel.rsplit("/", 1)[-1], []) if h != rel]
+        where = f"   -> wrong folder? this file belongs at: {', '.join(homes)}" if homes \
+            else "   (not part of the release)"
+        print(f"  EXTRA    {rel}{where}")
+    if missing or stale:
+        print("  -> Re-upload the MISSING / DIFFERS files from the release zip, then re-run.")
+    if extra:
+        print("  -> Delete the EXTRA files that were uploaded into the wrong folder.")
     return 1 if "--strict" in sys.argv else 0
 
 
