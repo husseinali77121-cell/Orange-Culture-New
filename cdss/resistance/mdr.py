@@ -282,6 +282,12 @@ def classify_mdr(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
     else:
         applicable, _group, _basis = (MDR_CATEGORIES_GRAM_NEG, "gram-negative",
                                       "Magiorakos 2012, Tables 3-5")
+        # Magiorakos Table 5 (Acinetobacter) has no glycylcycline category:
+        # counting tigecycline-S as a susceptible category moved a CRAB with
+        # only polymyxin + minocycline left from XDR down to MDR (v6.6).
+        if "acinetobacter" in org_l:
+            applicable = applicable - {"Glycylcyclines"}
+            _basis = "Magiorakos 2012, Table 5"
     # An isolate identified only by its Gram stain is not one of the organisms
     # Magiorakos tabulated; say so rather than quote the paper for it.
     if (("unidentified" in org_l or "unspeciated" in org_l or "non-fermenting" in org_l)
@@ -387,6 +393,23 @@ def classify_mdr(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
     if r_count >= 3 and (total_cats - r_count) <= 2 and not (_enough_for_xdr and _enough_multidrug):
         _capped = True
 
+    # ── "Possible" XDR / PDR (Magiorakos 2012, v6.6) ─────────────────────────
+    # The paper defines XDR and PDR against ALL the categories of the organism's
+    # table and calls the result "possible XDR" / "possible PDR" when the
+    # isolate was not tested in all of them. A category left out because every
+    # agent in it is intrinsically inactive is not "untested".
+    untested_cats = []
+    for cat in sorted(applicable):
+        cat_drugs = MDR_CATEGORIES.get(cat, [])
+        if not cat_drugs or any(d in clean_map for d in cat_drugs):
+            continue
+        if cat == "Fosfomycins" and "pseudomonas" in org_l:
+            continue   # in Magiorakos Table 4, but no CLSI/EUCAST breakpoint today: cannot be tested
+        if _remove_intrinsic_resistance(organism, {d: "R" for d in cat_drugs},
+                                        keep_acquired=True):
+            untested_cats.append(cat)
+    provisional = level in ("XDR", "PDR") and bool(untested_cats)
+
     # Reliability flag
     reliable = total_cats >= 4
     warnings = []
@@ -402,6 +425,10 @@ def classify_mdr(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
         warnings.append(f"ℹ️ أساس التصنيف: {_basis}. Magiorakos 2012 يغطي "
                         "S. aureus · Enterococcus · Enterobacteriaceae · "
                         "P. aeruginosa · Acinetobacter فقط.")
+    if provisional:
+        warnings.append(
+            f"⚠️ {level} محتمل (possible {level} — Magiorakos 2012): التصنيف يُؤكَّد فقط عند "
+            f"اختبار كل الفئات. لم تُختبر {len(untested_cats)} فئة: {', '.join(untested_cats)}.")
     if _capped:
         warnings.append("⚠️ Resistance pattern suggests XDR/PDR, but the evidence is too thin "
                         "(few categories, or resistant categories rest on a single agent each) -- "
@@ -423,7 +450,21 @@ def classify_mdr(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
         "basis":                  _basis,
         "mrsa_rule_applied":      bool(_is_mrsa_mdr),
         "not_applicable":         False,
+        "untested_categories":    untested_cats,
+        "provisional":            provisional,
     }
+
+
+def mdr_display_label(mdr_result: Dict[str, Any]) -> str:
+    """The label to print: 'possible XDR' when not every category was tested."""
+    level = (mdr_result or {}).get("level")
+    if not level:
+        return ""
+    label = MDR_INFO.get(level, {}).get("label", level)
+    if (mdr_result or {}).get("provisional"):
+        n = len(mdr_result.get("untested_categories") or [])
+        label = f"Possible {label} ({n} categor{'y' if n == 1 else 'ies'} not tested)"
+    return label
 
 MDR_INFO = {
     "MDR": {
