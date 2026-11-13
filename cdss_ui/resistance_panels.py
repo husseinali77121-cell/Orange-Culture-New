@@ -19,6 +19,7 @@ from cdss.health import _check_panel_completeness_ext
 from cdss.health import run_ast_qa_engine
 from cdss.reports.qa_pdf import generate_qa_report_pdf
 from cdss.resistance.mdr import MDR_INFO
+from cdss.resistance.mdr import mdr_display_label
 from cdss.resistance.mdr import classify_mdr
 from cdss.resistance.mechanism import predict_esbl
 from cdss.resistance.phenotypes import detect_resistance_phenotypes
@@ -46,7 +47,7 @@ def render_resistance_profile(page):
             _rt = _mdr_r["total_tested"]
             _cats = ", ".join(_mdr_r["resistant_categories"])
             _gram = _mdr_r.get("gram", "")
-            _msg = (f"{_mi['icon']} **{_mi['label']}**  \n"
+            _msg = (f"{_mi['icon']} **{mdr_display_label(_mdr_r)}**  \n"
                     f"{_mi['detail']}  \n"
                     f"Resistant categories ({_rc}/{_rt}, Gram-{_gram}): {_cats}  \n"
                     f"🔹 {_mi['action']}")
@@ -274,7 +275,7 @@ def render_resistance(page):
                 _rt  = page.mdr_result["total_tested"]
                 _cats = ", ".join(page.mdr_result["resistant_categories"])
                 _gram = page.mdr_result.get("gram", "")
-                _msg = (f"{info['icon']} **{info['label']}**  \n"
+                _msg = (f"{info['icon']} **{mdr_display_label(page.mdr_result)}**  \n"
                         f"{info['detail']}  \n"
                         f"Resistant categories ({_rc}/{_rt}, Gram-{_gram}): {_cats}  \n"
                         f"🔹 {info['action']}")

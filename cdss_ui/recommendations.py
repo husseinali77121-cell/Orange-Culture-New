@@ -10,6 +10,7 @@ import streamlit as st
 from cdss.common.catalog import AWARE_COLORS
 from cdss.common.util import get_route_label
 from cdss.stewardship.ranking import rank_sensitive_antibiotics
+from cdss.stewardship.ranking import route_label
 from cdss.stewardship.syndrome import get_infection_syndrome
 from cdss.therapy.notes import warned_note_for
 from cdss.therapy.tables import preg_status_of
@@ -20,19 +21,24 @@ def render_recommendations(page):
     # ── Smart Antibiotic Ranking ──────────────────────────────────────
     if page.allowed:
         ranked = rank_sensitive_antibiotics(
-            page.allowed, page.culture_type, page.organism_type, page.sir_map, page.phenotypes
+            page.allowed, page.culture_type, page.organism_type, page.sir_map, page.phenotypes,
+            carbapenemase_type=getattr(page, "_carb_type_now", None),
+            uti_syndrome=getattr(page, "_uti_syn_now", None),
         )
         with st.expander("🏆 Smart Antibiotic Ranking", expanded=False):
-            st.caption("مرتب حسب: نتيجة المزرعة + WHO AWaRe + طريق الإعطاء + ملاءمة العينة")
+            st.caption("مرتب حسب: نتيجة المزرعة ← المفضّل في الإرشادات للآلية والموقع (IDSA 2026) "
+                       "← WHO AWaRe ← طريق الإعطاء (لا أفضلية للفموي في الدم/السائل النخاعي) ← الأولوية. "
+                       "⭐ = مفضّل في الإرشادات لهذه الآلية والموقع")
             _aic = {"Access": "🟢", "Watch": "🟡", "Reserve": "🔴"}
             for i, item in enumerate(ranked[:8], 1):
                 sir_badge  = item.get("_sir", "--")
                 aware      = item.get("aware", "")
-                route      = "💊 Oral" if item.get("high_po") else "💉 IV/IM"
+                route      = "💊 Oral" if route_label(item, page.culture_type) == "PO" else "💉 IV/IM"
                 score      = item.get("_score", 0)
                 aware_icon = _aic.get(aware, "⚪")
+                _guide = " ⭐" if item.get("_guideline_preferred") else ""
                 st.markdown(
-                    f"**{i}.** {item['name']} &nbsp; "
+                    f"**{i}.** {item['name']}{_guide} &nbsp; "
                     f"`{sir_badge}` &nbsp; {aware_icon} {aware} &nbsp; {route} &nbsp;"
                     f"<small style='color:gray'>score:{score}</small>",
                     unsafe_allow_html=True)
@@ -167,6 +173,8 @@ def render_recommendations(page):
                 st.write(f"**Note:** {item.get('note','-')}")
                 if item.get("clinical_note"):
                     st.info(f"🧭 {item['clinical_note']}")
+                if item.get("gate_dose_note"):
+                    st.info(f"💉 {item['gate_dose_note']}")
                 spec_note = (item.get("specimen_notes") or {}).get(page.culture_type, "")
                 if spec_note:
                     st.info(f"**{page.culture_type} Note:** {spec_note}")

@@ -42,7 +42,9 @@ def prepare_report_inputs(page):
     # مصدر الترتيب الموحّد — يُحسب هنا لضمان توفره بغضّ النظر عن أي
     # حساب سابق مشروط (كان يُعرّف داخل expander منفصل → NameError محتمل).
     ranked = rank_sensitive_antibiotics(
-        page.allowed, page.culture_type, page.organism_type, page.sir_map, page.phenotypes
+        page.allowed, page.culture_type, page.organism_type, page.sir_map, page.phenotypes,
+        carbapenemase_type=getattr(page, "_carb_type_now", None),
+        uti_syndrome=getattr(page, "_uti_syn_now", None),
     )
 
     # بناء قوائم الصورة
@@ -61,6 +63,7 @@ def prepare_report_inputs(page):
     page.preferred_with_badge = [
         (f"{item['name']} [A]" if item.get('aware') == 'Access'
          else f"{item['name']} [W]" if item.get('aware') == 'Watch'
+         else f"{item['name']} [NR]" if item.get('aware') == 'Not Recommended'
          else item['name'])
         for item in preferred_sorted
     ]
@@ -111,6 +114,11 @@ def prepare_report_inputs(page):
         d for d in _ranked_names
         if d in _profile_fl and d in _allowed_names
     ]
+    # v6.6: a guideline order for this mechanism and site outranks the organism's
+    # generic first-line list (same rule as the PDF's FIRST-LINE tier).
+    _guide_fl = [it.get("name", "") for it in ranked if it.get("_guideline_preferred")]
+    if _guide_fl:
+        page.first_line_l = _guide_fl
 
     page.notes: List[str] = []
     if page.is_renal:
@@ -365,6 +373,8 @@ def render_pdf_export(page):
                         child_pugh=_cp_pdf,
                         hepatic_recs=_hep_for_pdf,
                         lang=_pdf_lang,
+                        carbapenemase_type=getattr(page, "_carb_type_now", None),
+                        uti_syndrome=getattr(page, "_uti_syn_now", None),
                     )
                     if _new_pdf:
                         st.session_state._pdf_bytes = _new_pdf
