@@ -4,7 +4,7 @@
 
 | File | Purpose |
 |---|---|
-| `launcher.py` | The actual .exe entry point — starts a local Streamlit server pointed at the bundled `streamlit_app.py`, opens the browser, sets env vars so Tesseract/GTK3/fonts resolve to the bundle instead of a system install. |
+| `launcher.py` | The actual .exe entry point — starts a local Streamlit server pointed at the bundled `streamlit_app.py`, opens it in its own app window (Edge/Chrome app mode; the default browser if neither exists — see the 2026-11-13 section), sets env vars so Tesseract/GTK3/fonts resolve to the bundle instead of a system install. |
 | `orange_cdss.spec` | PyInstaller build spec. Bundles every application `.py` module as a loose file (required — see the spec's own header comment for why Streamlit needs this, not the normal frozen-import mechanism), plus `tesseract/`, `gtk3-runtime/`, `fonts/` if present. |
 | `.github/workflows/build-exe.yml` | Runs on `windows-latest` (the only place a `.exe` can actually be built — PyInstaller does not cross-compile). Stages Tesseract, the GTK3 runtime, and fonts; runs a Windows pass of the clinical-engine tests first; builds; smoke-tests that the exe actually serves a page; uploads the result as a downloadable Actions artifact. |
 
@@ -104,12 +104,14 @@ PDF generation (`weasyprint`) needs the GTK3 runtime (Pango, Cairo, GDK-Pixbuf, 
 
 The automated smoke test only proves the server starts. These need a human, once, on a real Windows machine:
 
-- [ ] Double-click `Orange-CDSS.exe` from a fresh folder (not the build machine) — does the browser open automatically?
+- [ ] Double-click `Orange-CDSS.exe` from a fresh folder (not the build machine) — does its own window (no address bar, no tabs) open automatically?
+- [ ] Double-click it again while it is open — a second window, and still one `Orange-CDSS.exe` in Task Manager?
+- [ ] With `secrets.toml` next to the exe — can a subscriber log in?
 - [ ] Upload a real antibiogram image — does OCR detect drugs? (Tests Tesseract bundling.)
 - [ ] Generate a PDF report — does it render, and is Arabic text shaped correctly (connected letters, not disconnected glyphs)? (Tests GTK3 + font bundling together — the single riskiest combination in this whole build.)
 - [ ] Disconnect from the internet entirely, repeat both steps above — confirms nothing silently depends on network access.
 - [ ] Check the page header shows the 🟢 Offline badge.
-- [ ] Close the window / end the process — does it shut down cleanly, or does a Python process linger?
+- [ ] Close the window(s) — is `Orange-CDSS.exe` gone from Task Manager within a few seconds?
 
 ## What deliberately was not attempted
 
@@ -129,3 +131,22 @@ The application moved from ~20 root-level `.py` files to `streamlit_app.py` + `c
 - `build-exe.yml` runs `python -m pytest tests` and checks the new paths in the bundle.
 
 **Not yet verified:** none of the above has been through a real `windows-latest` build. Run the *Build Windows EXE* workflow once and read the self-test section of the log before distributing an exe.
+
+---
+
+## 2026-11-13 — its own window instead of a browser tab (v6.5)
+
+**Before:** the exe opened the default browser (address bar, tabs), and closing the tab left the server running in the background — a windowed exe has no console to close, so it stayed until Task Manager, and every double-click started one more.
+
+**Now (`launcher.py`):**
+- The page opens in an **app window** of Microsoft Edge (part of Windows 10/11) or Chrome: `--app=http://127.0.0.1:<port>` — no address bar, no tabs. It runs with its own profile in `%LOCALAPPDATA%\Orange-CDSS\window-profile`, separate from the user's own browser, history and sign-ins.
+- **Closing the window stops the server.** With its own profile, the browser process the launcher starts is the window's process and ends when its last window closes; the launcher waits for that and exits.
+- **A second double-click** while it is open opens one more window on the same server (`%LOCALAPPDATA%\Orange-CDSS\server.json` + `/_stcore/health`; a server still starting is waited for, up to 3 minutes).
+- **No Edge and no Chrome** → the default browser, as before. `Orange-CDSS.exe --browser` (or `ORANGE_CDSS_BROWSER=default`) asks for that on purpose.
+- **Login data:** a `secrets.toml` placed **next to `Orange-CDSS.exe`** is used (same content as the Streamlit Cloud secrets). Notepad's habits are handled: a hidden `.txt` ending, a UTF-8 BOM, an ANSI file. A file with a TOML error is reported in a message box and not used. Removing the file removes the login data at the next start.
+- The browser gets the PATH Windows started the exe with, not the bundle's Tesseract/GTK DLL folders.
+- `--selftest` reports which browser the window will use (informational: never fails the self-test).
+- Still fully offline: the window shows a page served by the exe itself on 127.0.0.1.
+
+**Verified:** `tests/test_launcher_window.py` (25 tests: browser choice, command line, environment, what the end of the window means, one server per user, the health check with a proxy configured, secrets handling). With a real Chromium window under a virtual display: the launcher opens the window, a second start hands a second window to it and exits, and closing both windows ends the launcher and frees the port. **Not verified:** the same with Microsoft Edge on Windows — Edge uses the same Chromium process model, but the checklist above is the real test. On Windows the real-window test runs with `ORANGE_CDSS_WINDOW_TEST=1`.
+

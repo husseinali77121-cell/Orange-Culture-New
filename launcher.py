@@ -60,26 +60,71 @@ crash message was thrown away — the failure was invisible. So:
     TESSERACT_CMD variable, which neither pytesseract nor this app ever
     reads — OCR inside the exe would have failed even with the server up.
 
-Environment switches (all optional; used by CI):
+2026-11-13 — ITS OWN WINDOW, NOT A BROWSER TAB (v6.5)
+The exe used to open the user's default browser: an address bar, tabs, and a
+server that kept running in the background after the tab was closed (a windowed
+exe has no console to close, so it lingered until Task Manager; every
+double-click started one more). Now:
+  * The page opens in an APP WINDOW of Microsoft Edge (part of Windows 10/11)
+    or Chrome: `--app=<url>` -- no address bar, no tabs, its own window -- with
+    its own profile under %LOCALAPPDATA%\\Orange-CDSS\\window-profile, so it
+    never mixes with the user's own browser windows, history or sign-ins.
+  * Closing that window stops the server. With its own profile the browser
+    process the launcher starts IS the window's process, and it exits when the
+    last window of that profile is closed (checked against a real Chromium).
+  * A second double-click while the app is running opens one more window on
+    the SAME server instead of starting another one (server.json in the same
+    folder records the port; /_stcore/health tells whether it is alive).
+  * No Edge and no Chrome found -> the default browser, exactly as before.
+    `Orange-CDSS.exe --browser` asks for that on purpose.
+  * secrets.toml placed next to Orange-CDSS.exe is used for the login
+    (subscribers, password hashes) -- a lab PC has no Streamlit Cloud secrets.
+Nothing here needs the internet: the window shows http://127.0.0.1:<port>.
+
+Environment switches (all optional; used by CI and the tests):
     ORANGE_CDSS_LOG          full path of the log file
     ORANGE_CDSS_PORT         preferred port (default 8501)
-    ORANGE_CDSS_NO_BROWSER   "1" -> do not open a browser / show dialogs
+    ORANGE_CDSS_NO_BROWSER   "1" -> do not open a window / browser / show dialogs
+    ORANGE_CDSS_BROWSER      "default" -> the default browser, as --browser does
+    ORANGE_CDSS_APP_BROWSER  full path of the browser to use for the app window
+    ORANGE_CDSS_WINDOW_FLAGS extra command-line flags for that browser
 """
 
 from __future__ import annotations
 
+import json
 import os
+import shutil
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
 import time
 import traceback
+import urllib.request
 import webbrowser
 
 # Keep a module-level reference so the log file object is never garbage
 # collected while sys.stdout / sys.stderr point at it.
 _LOG_FH = None
+# PATH as Windows gave it, before _configure_environment() puts the bundled
+# Tesseract and GTK folders in front: the app window's browser gets this one.
+_ORIGINAL_PATH = os.environ.get("PATH", "")
+
+
+def _state_dir() -> str:
+    """Per-user folder for the log, the window profile and server.json."""
+    root = (os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP")
+            or tempfile.gettempdir())
+    return os.path.join(root, "Orange-CDSS")
+
+
+def _exe_dir() -> str:
+    """The folder the user sees: where Orange-CDSS.exe is (or this file, from source)."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
 
 
 def _bundle_root() -> str:
@@ -96,9 +141,7 @@ def _setup_logging() -> str:
     path = os.environ.get("ORANGE_CDSS_LOG", "")
     frozen = bool(getattr(sys, "frozen", False))
     if not path and frozen:
-        root = (os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP")
-                or tempfile.gettempdir())
-        path = os.path.join(root, "Orange-CDSS", "launcher.log")
+        path = os.path.join(_state_dir(), "launcher.log")
     if not path:
         return ""          # plain `python launcher.py` in a terminal: no-op
     try:
@@ -216,7 +259,7 @@ def _configure_environment(base: str) -> None:
         os.environ["ORANGE_CDSS_OFFLINE_MODE"] = "1"
 
 
-def _show_fatal(message: str) -> None:
+def _show_fatal(message: str, title: str = "Orange CDSS — startup error") -> None:
     """On a real Windows desktop, show startup failures in a message box so a
     lab tech sees *something* (a windowed exe otherwise just vanishes). Never
     in CI / headless runs, where a modal box would hang the job."""
@@ -224,10 +267,205 @@ def _show_fatal(message: str) -> None:
         return
     try:
         import ctypes
-        ctypes.windll.user32.MessageBoxW(
-            0, message[:1500], "Orange CDSS — startup error", 0x10)
+        ctypes.windll.user32.MessageBoxW(0, message[:1500], title, 0x10)
     except Exception:
         pass
+
+
+# ── Login data on a lab PC ────────────────────────────────────────────────
+# Streamlit reads secrets from <working dir>/.streamlit/secrets.toml, and the
+# working directory of the exe is its _internal folder. A lab tech can put a
+# file NEXT TO Orange-CDSS.exe; this copies it to where Streamlit looks, on every
+# start, so an edit or a removal takes effect at the next start. Notepad's
+# habits are allowed for: a hidden ".txt" ending, a UTF-8 BOM, or an ANSI file.
+SECRETS_NAMES = ("secrets.toml", "secrets.toml.txt", "secrets.txt")
+
+
+def _use_local_secrets(base: str, exe_dir: str) -> str:
+    """Install <exe_dir>/secrets.toml as Streamlit's secrets. Returns what happened."""
+    dst = os.path.join(base, ".streamlit", "secrets.toml")
+    src = next((os.path.join(exe_dir, n) for n in SECRETS_NAMES
+                if os.path.isfile(os.path.join(exe_dir, n))), "")
+    if not src:
+        if os.path.exists(dst):           # the file next to the exe was removed
+            os.remove(dst)
+        return f"no {SECRETS_NAMES[0]} next to the exe -- nobody can log in until one is placed there"
+    with open(src, "rb") as fh:
+        raw = fh.read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        import locale
+        text = raw.decode(locale.getpreferredencoding(False), errors="replace")
+    try:
+        import tomllib
+        tomllib.loads(text)
+    except ImportError:
+        pass
+    except Exception as exc:              # a typo would otherwise surface as "unknown e-mail"
+        if os.path.exists(dst):
+            os.remove(dst)
+        raise RuntimeError(f"{src} is not valid TOML: {exc}") from None
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    with open(dst, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
+    return f"login data from {src}"
+
+
+# ── The app window ────────────────────────────────────────────────────────
+# Edge first: it is part of Windows 10/11, so it is there on every lab PC.
+APP_BROWSERS = (("Microsoft", "Edge", "Application", "msedge.exe"),
+                ("Google", "Chrome", "Application", "chrome.exe"))
+# A window that is gone within this many seconds was never ours to watch: the
+# window profile's browser was already running and took the window over.
+HANDOFF_SECONDS = 5.0
+
+
+def _find_app_browser() -> str:
+    """Full path of Edge or Chrome, or "" if neither is installed."""
+    override = os.environ.get("ORANGE_CDSS_APP_BROWSER", "")
+    if override:
+        return override if os.path.isfile(override) else ""
+    roots = [os.environ.get(v, "") for v in ("PROGRAMFILES(X86)", "PROGRAMFILES", "LOCALAPPDATA")]
+    for parts in APP_BROWSERS:
+        for root in roots:
+            if root and os.path.isfile(os.path.join(root, *parts)):
+                return os.path.join(root, *parts)
+    for name in ("msedge", "chrome", "google-chrome", "chromium", "chromium-browser"):
+        found = shutil.which(name)
+        if found:
+            return found
+    return ""
+
+
+def _window_command(browser: str, url: str, profile_dir: str) -> list:
+    return [browser, f"--app={url}", f"--user-data-dir={profile_dir}",
+            "--no-first-run", "--no-default-browser-check", "--disable-background-mode",
+            "--start-maximized"] + os.environ.get("ORANGE_CDSS_WINDOW_FLAGS", "").split()
+
+
+def _open_app_window(url: str):
+    """Start the app window. Returns its process, or None when there is no
+    Edge/Chrome (or it would not start) -- the caller then uses the browser."""
+    browser = _find_app_browser()
+    if not browser:
+        print("[launcher] no Edge or Chrome found -- using the default browser", flush=True)
+        return None
+    profile = os.path.join(_state_dir(), "window-profile")
+    try:
+        os.makedirs(profile, exist_ok=True)
+        cmd = _window_command(browser, url, profile)
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("TESSDATA_PREFIX", "TESSERACT_CMD", "WEASYPRINT_DLL_DIRECTORIES")}
+        env["PATH"] = _ORIGINAL_PATH     # not the bundle's Tesseract/GTK DLL folders
+        proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, close_fds=True)
+    except OSError as exc:
+        print(f"[launcher] could not start {browser}: {exc!r} -- using the default browser", flush=True)
+        return None
+    print(f"[launcher] app window opened (pid {proc.pid}): {' '.join(cmd)}", flush=True)
+    return proc
+
+
+def _watch_window(proc, on_closed, on_failed, handoff_seconds: float = HANDOFF_SECONDS) -> str:
+    """Wait for the window's process to end and say what that meant:
+      "closed"  it lived, then the user closed the window   -> on_closed()
+      "handoff" gone at once with exit code 0: the window profile's browser was
+                already running and took the window; nothing of ours to watch
+      "failed"  gone at once with an error                 -> on_failed()"""
+    started = time.monotonic()
+    code = proc.wait()
+    if time.monotonic() - started >= handoff_seconds:
+        print(f"[launcher] the app window was closed (exit code {code})", flush=True)
+        on_closed()
+        return "closed"
+    if code == 0:
+        print("[launcher] the window went to an app window that was already open; "
+              "this server keeps running", flush=True)
+        return "handoff"
+    print(f"[launcher] the app window could not start (exit code {code})", flush=True)
+    on_failed()
+    return "failed"
+
+
+# ── One server per user ───────────────────────────────────────────────────
+STARTUP_GRACE_SECONDS = 180.0     # a first start on a lab PC can be that slow (antivirus)
+
+
+def _instance_file() -> str:
+    return os.path.join(_state_dir(), "server.json")
+
+
+def _record_instance(port: int) -> None:
+    try:
+        os.makedirs(_state_dir(), exist_ok=True)
+        with open(_instance_file(), "w", encoding="utf-8") as fh:
+            json.dump({"port": port, "pid": os.getpid(), "started": time.time()}, fh)
+    except OSError as exc:
+        print(f"[launcher] note: could not write {_instance_file()}: {exc!r}", flush=True)
+
+
+def _forget_instance() -> None:
+    try:
+        with open(_instance_file(), encoding="utf-8") as fh:
+            mine = json.load(fh).get("pid") == os.getpid()
+        if mine:
+            os.remove(_instance_file())
+    except (OSError, ValueError):
+        pass
+
+
+def _healthy(url: str, timeout: float = 2.0) -> bool:
+    # No proxy: a lab PC with a proxy configured would otherwise send even a
+    # request for 127.0.0.1 to it.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(url + "/_stcore/health", timeout=timeout) as resp:
+            return resp.status == 200 and resp.read(16).strip() == b"ok"
+    except Exception:
+        return False
+
+
+def _running_instance(grace: float = STARTUP_GRACE_SECONDS, poll: float = 1.0) -> str:
+    """URL of this user's Orange-CDSS server if one is running (waiting for one
+    that is still starting), or "" if there is none."""
+    try:
+        with open(_instance_file(), encoding="utf-8") as fh:
+            info = json.load(fh)
+        url = f"http://127.0.0.1:{int(info['port'])}"
+        deadline = float(info.get("started", 0)) + grace
+    except (OSError, ValueError, KeyError, TypeError):
+        return ""
+    while True:
+        if _healthy(url):
+            return url
+        if time.time() >= deadline:
+            return ""
+        time.sleep(poll)
+
+
+def _stop_server() -> None:
+    _forget_instance()
+    print("[launcher] stopping the server", flush=True)
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
+    os._exit(0)
+
+
+def _show(url: str, watch: bool) -> None:
+    """Open the app window (or the browser). When `watch`, closing the window
+    stops this process's server."""
+    use_browser = ("--browser" in sys.argv[1:]
+                   or os.environ.get("ORANGE_CDSS_BROWSER", "").lower() == "default")
+    proc = None if use_browser else _open_app_window(url)
+    if proc is None:
+        webbrowser.open(url)
+        return
+    if watch:
+        threading.Thread(target=_watch_window, daemon=True,
+                         args=(proc, _stop_server, lambda: webbrowser.open(url))).start()
 
 
 def _serve(base: str, log_path: str) -> int:
@@ -240,13 +478,21 @@ def _serve(base: str, log_path: str) -> int:
         _show_fatal(msg)
         return 1
 
+    no_browser = os.environ.get("ORANGE_CDSS_NO_BROWSER") == "1"
+    if not no_browser:
+        running = _running_instance()
+        if running:
+            print(f"[launcher] already running on {running} -- opening one more window", flush=True)
+            _show(running, watch=False)
+            return 0
+
     port = _find_free_port()
     url = f"http://127.0.0.1:{port}"
     print(f"[launcher] serving {app_path} on {url}", flush=True)
+    if not no_browser:
+        _record_instance(port)
 
-    no_browser = os.environ.get("ORANGE_CDSS_NO_BROWSER") == "1"
-
-    def _open_browser_when_ready() -> None:
+    def _open_window_when_ready() -> None:
         # Streamlit needs a moment to bind its socket; poll rather than
         # guess a fixed sleep. The first launch of a freshly installed bundle
         # is slow (antivirus scans every file once), so allow up to 2 min.
@@ -257,13 +503,14 @@ def _serve(base: str, log_path: str) -> int:
                 if s.connect_ex(("127.0.0.1", port)) == 0:
                     print(f"[launcher] server is accepting connections on {url}", flush=True)
                     if not no_browser:
-                        webbrowser.open(url)
+                        _record_instance(port)
+                        _show(url, watch=True)
                     return
             time.sleep(0.5)
         print(f"[launcher] server did not come up within 120s -- open {url} manually. "
               f"Log: {log_path or '(none)'}", flush=True)
 
-    threading.Thread(target=_open_browser_when_ready, daemon=True).start()
+    threading.Thread(target=_open_window_when_ready, daemon=True).start()
 
     # Hand off to Streamlit's own CLI exactly as `streamlit run` would --
     # streamlit_app.py itself is completely unmodified by being frozen.
@@ -479,6 +726,15 @@ def _selftest(base: str) -> int:
         return f"{len(pdf)} bytes"
     step("PDF generation inside the exe (WeasyPrint + GTK3)", chk_pdf)
 
+    # ── The app window (informational: without Edge/Chrome the exe uses the
+    #    default browser, so this never fails the self-test) ──────────────
+    def chk_app_browser():
+        found = _find_app_browser()
+        if not found:
+            raise RuntimeError("no Edge or Chrome -- the app opens in the default browser")
+        return found
+    step("browser for the app window (Edge / Chrome)", chk_app_browser, critical=False)
+
     print(f"[selftest] SUMMARY: {len(failures)} critical failure(s), "
           f"{len(warnings)} warning(s)", flush=True)
     for name, reason in warnings:
@@ -512,6 +768,13 @@ def main() -> int:
 
         if "--selftest" in sys.argv[1:]:
             return _selftest(base)
+        if getattr(sys, "frozen", False):
+            try:
+                print("[launcher] " + _use_local_secrets(base, _exe_dir()), flush=True)
+            except (RuntimeError, OSError) as exc:
+                print(f"[launcher] login data NOT loaded: {exc}", flush=True)
+                _show_fatal(f"{exc}\n\nThe program will start, but nobody can log in "
+                            "until secrets.toml is corrected.", "Orange CDSS — secrets.toml")
         return _serve(base, log_path)
     except SystemExit:
         raise
