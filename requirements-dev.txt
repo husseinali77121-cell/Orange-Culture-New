@@ -1,0 +1,3 @@
+# Test-only dependencies.  The whole suite runs WITHOUT streamlit installed
+# (the page is driven by tests/support/fake_streamlit.py).
+pytest>=8
