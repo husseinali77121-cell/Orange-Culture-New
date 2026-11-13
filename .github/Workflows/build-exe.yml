@@ -1,0 +1,446 @@
+name: Build Windows EXE (offline desktop)
+
+# WHY THIS WORKFLOW EXISTS
+# PyInstaller cannot cross-compile: a Windows .exe can only be built ON
+# Windows. This repo's development and CI both run on Linux (see
+# cdss-tests.yml), so this is the one place in the project that runs on
+# windows-latest specifically. Push to main, or run it manually from the
+# Actions tab, and it produces a downloadable zip under this run's Artifacts
+# -- no local Windows machine required to get a working build.
+#
+# WHAT THIS BUILD PROVES (updated 2026-10-19)
+# cdss-tests.yml's 21 guards test the CLINICAL ENGINE. This workflow proves
+# the PACKAGING succeeded, in three layers:
+#   1. "Verify bundle contents"  -- the files the exe cannot live without
+#      (Streamlit's web frontend + metadata, the app modules, Tesseract, GTK3)
+#      are physically inside dist/.
+#   2. "Frozen self-test"        -- the exe, run with --selftest, imports
+#      every bundled module, runs the bundled Tesseract and renders a PDF
+#      (incl. Arabic) from INSIDE the frozen process.
+#   3. "Smoke test"              -- the exe starts, binds a port and serves
+#      Streamlit's start page. On failure it prints the exe's own log.
+# It is still not a click-through test with a real antibiogram image -- see
+# the manual verification checklist in EXE_BUILD_NOTES.md.
+#
+# THE SINGLE HIGHEST-RISK STEP HERE
+# WeasyPrint's PDF rendering needs the GTK3 runtime (Pango, Cairo, GDK-Pixbuf,
+# HarfBuzz) -- not a Windows-native dependency, historically the hardest part
+# of shipping WeasyPrint on Windows. This workflow stages it from the
+# community-maintained GTK3 Runtime installer for Windows via a silent
+# install, then copies the DLLs out. If this step ever starts failing, that
+# installer having moved or changed its layout is the first thing to check --
+# see EXE_BUILD_NOTES.md for the fallback plan if it does.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "streamlit_app.py"
+      - "launcher.py"
+      - "orange_cdss.spec"
+      - "cdss/**"
+      - "cdss_ui/**"
+      - "requirements.txt"
+      - ".github/workflows/build-exe.yml"
+  workflow_dispatch: {}   # manual "Run workflow" button in the Actions tab
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      # 2026-08-22: windows-latest's default console codepage (cp1252-style
+      # "charmap") cannot encode most of the Unicode this codebase prints --
+      # checkmarks (\u2717/\u2713), emoji status icons, Arabic text in report
+      # strings. Every python invocation in this job crashed the first time
+      # it tried to print one, with a UnicodeEncodeError that has nothing to
+      # do with test logic. This is a job-level fix rather than editing each
+      # test file's print statements individually, since the same failure
+      # class would recur in any future file (this workflow's own PDF smoke
+      # test step prints Unicode-adjacent text too) -- one environment
+      # variable protects all of them at once, at the source.
+      PYTHONIOENCODING: "utf-8"
+    steps:
+      - uses: actions/checkout@v4
+
+      # Run the real clinical-engine test suite FIRST -- there is no reason
+      # to spend 20+ minutes building an exe around a broken engine. This
+      # step runs the same suites as cdss-tests.yml (Linux) on Windows too,
+      # since path-handling bugs (the exact class of thing this build is
+      # about to introduce more of) sometimes only show up on Windows.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 2026-08-22: previously ran a 5-suite subset here (intrinsic invariant,
+      # guidelines, panel completeness, UI combination path, QC freshness).
+      # A second-opinion audit correctly pointed out that left 11 other
+      # suites -- dose adjustment, clinical matrix, render layer, engine
+      # agreement, the full scenario matrix, etc. -- completely unchecked
+      # before a "successful" EXE build. Now runs every suite cdss-tests.yml
+      # runs, in the same order, so a build can only succeed if the full
+      # clinical engine is green on Windows too, not just a sample of it.
+      # Added 2026-11-11: name any file that is not the released version BEFORE
+      # the suites run, so a stale upload is not misread as a clinical failure.
+      # Report-only: legitimate later edits show up here but do not block.
+      - name: "Guard 0 — files match the release manifest"
+        run: python verify_upload.py
+
+      - name: Clinical engine tests (full suite, Windows sanity pass)
+        run: |
+          python -m pip install --upgrade pip
+          pip install streamlit numpy opencv-python-headless pytesseract Pillow arabic-reshaper python-bidi weasyprint
+          pip install -r requirements-dev.txt
+          python -m pytest tests
+        shell: bash
+
+      # ── Stage Tesseract (OCR) ──────────────────────────────────────────
+      # 2026-08-22: the previous version of this step downloaded from
+      # github.com/UB-Mannheim/tesseract/releases/... and failed -- turns out
+      # that repo does NOT publish the Windows installer as a GitHub Release
+      # asset at all (it's hosted on Mannheim University's own server
+      # instead), so GitHub served its own HTML page in place of a binary,
+      # and Invoke-WebRequest happily saved that HTML as "tesseract-setup.exe"
+      # with no error. Installing it then failed with a confusing, unrelated-
+      # looking PowerShell parse error (the HTML got interpreted as a script).
+      # Switched to Chocolatey, which is pre-installed on windows-latest
+      # runners specifically for this kind of case -- it resolves the actual
+      # current download location itself, so this step doesn't need to track
+      # where Tesseract happens to be hosted at all.
+      - name: Download Tesseract-OCR for Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          choco install tesseract -y --no-progress
+          $tessDir = "C:\Program Files\Tesseract-OCR"
+          if (-not (Test-Path "$tessDir\tesseract.exe")) {
+            throw "choco install tesseract succeeded but $tessDir\tesseract.exe is missing -- Chocolatey may have changed this package's install layout. Check https://community.chocolatey.org/packages/tesseract for the current path."
+          }
+          New-Item -ItemType Directory -Force -Path tesseract, tesseract\tessdata | Out-Null
+          Copy-Item "$tessDir\tesseract.exe" "tesseract\" -Force
+          Copy-Item "$tessDir\*.dll" "tesseract\" -Force -ErrorAction SilentlyContinue
+          Copy-Item "$tessDir\tessdata\eng.traineddata" "tesseract\tessdata\" -Force
+          Copy-Item "$tessDir\tessdata\ara.traineddata" "tesseract\tessdata\" -Force -ErrorAction SilentlyContinue
+          if (-not (Test-Path "tesseract\tessdata\ara.traineddata")) {
+            # The choco package doesn't always bundle Arabic -- pull it
+            # directly from Tesseract's own tessdata repo (a raw file URL,
+            # not a release asset, so no naming-convention risk here).
+            $araUrl = "https://github.com/tesseract-ocr/tessdata/raw/main/ara.traineddata"
+            Invoke-WebRequest -Uri $araUrl -OutFile "tesseract\tessdata\ara.traineddata" -UserAgent "Mozilla/5.0"
+            $head = [System.IO.File]::ReadAllBytes("tesseract\tessdata\ara.traineddata")
+            if (-not $head -or $head.Length -lt 2) {
+              Write-Warning "ara.traineddata download looks suspicious (empty/tiny) -- Arabic OCR may not work in this build. Check $araUrl manually."
+            }
+          }
+          Write-Host "Tesseract staged: $(Get-ChildItem tesseract\tessdata | Measure-Object | Select -ExpandProperty Count) tessdata files"
+
+      # ── Stage GTK3 runtime (WeasyPrint's PDF dependency) ────────────────
+      # See the workflow-level comment above: this is the highest-risk step.
+      # Pinned to the exact release tag (2022-01-04, still the latest as of
+      # this writing -- the project has had no release since) rather than
+      # /releases/latest/download/, since that repo's release PAGE was seen
+      # rendering "There was an error while loading" during verification --
+      # a sign its /latest/ alias resolution is worth not depending on even
+      # though the direct tagged URL works fine.
+      - name: Download GTK3 runtime for Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases/download/2022-01-04/gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe"
+          try {
+            Invoke-WebRequest -Uri $url -OutFile gtk3-setup.exe -UserAgent "Mozilla/5.0"
+            # An HTML error page saved as .exe starts with "<", not the "MZ"
+            # DOS-header magic bytes every real Windows executable has. This
+            # is exactly the failure class that hit the Tesseract step above
+            # -- catching it here means a clear error now, not a confusing
+            # PowerShell parse error three steps later.
+            # NOTE 2026-08-22: `-Encoding Byte` (used here originally) was
+            # removed in PowerShell Core / pwsh 7, which is what `shell: pwsh`
+            # actually runs on windows-latest -- it broke this exact check
+            # with "'Byte' is not a supported encoding name". ReadAllBytes()
+            # works identically on Windows PowerShell 5.1 and PowerShell 7+,
+            # so it's used everywhere in this file now instead of Get-Content.
+            $head = [System.IO.File]::ReadAllBytes("gtk3-setup.exe")
+            if ($head[0] -ne 0x4D -or $head[1] -ne 0x5A) {
+              throw "Downloaded file is not a valid Windows executable (missing MZ header) -- $url likely served an HTML page instead of the installer. Check the URL manually."
+            }
+
+            # 2026-08-22: the previous version of this step ran
+            #   Start-Process ... -ArgumentList "/S /D=$PWD\gtk3-install" -Wait
+            # -- a SINGLE combined string. Start-Process's -ArgumentList is
+            # documented to sometimes pass a combined string through as ONE
+            # argument rather than splitting it, which NSIS's installer does
+            # not parse the way `/S /D=...` looks like it should -- the
+            # install can silently proceed to its DEFAULT location instead of
+            # $PWD\gtk3-install, or silently fail to actually be silent. No
+            # exception was thrown either way, so this step reported success
+            # while gtk3-install\bin never actually existed -- the PDF smoke
+            # test only caught the consequence three steps later. Fixed two
+            # ways: (a) pass arguments as a proper ARRAY, the form
+            # Start-Process is documented to handle correctly, and (b) use
+            # ONLY the officially-documented, confirmed-working silent switch
+            # (winget/wingetly both document "/S" alone for this exact
+            # installer) and read from its real default install location
+            # instead of trying to redirect it -- removing the /D= parsing
+            # risk entirely rather than trying to get it right blind.
+            $proc = Start-Process -FilePath .\gtk3-setup.exe -ArgumentList @("/S") -Wait -PassThru
+            if ($proc.ExitCode -ne 0) {
+              throw "gtk3-setup.exe /S exited with code $($proc.ExitCode) -- the silent install itself reported failure."
+            }
+
+            $gtkSrc = "${env:ProgramFiles}\GTK3-Runtime Win64\bin"
+            if (-not (Test-Path $gtkSrc)) {
+              # 32-bit fallback path, in case a future runner image differs
+              $gtkSrc = "${env:ProgramFiles(x86)}\GTK3-Runtime Win64\bin"
+            }
+            if (-not (Test-Path $gtkSrc)) {
+              throw "GTK3 install directory not found at the expected default " +
+                    "location after a silent install that reported success. " +
+                    "The installer's actual install path may have changed -- " +
+                    "check Program Files manually on a real Windows machine."
+            }
+            $dllCount = (Get-ChildItem "$gtkSrc\*.dll" -ErrorAction SilentlyContinue | Measure-Object).Count
+            if ($dllCount -lt 20) {
+              # A real GTK3 runtime install has 50+ DLLs in bin\ -- catches a
+              # partial/corrupted install early with a clear count, instead of
+              # silently proceeding with (as happened here) zero files.
+              throw "Only $dllCount DLLs found in $gtkSrc -- expected 50+ for a " +
+                    "complete GTK3 runtime install. The silent install likely " +
+                    "did not fully complete."
+            }
+
+            New-Item -ItemType Directory -Force -Path "gtk3-runtime\bin" | Out-Null
+            Copy-Item "$gtkSrc\*.dll" "gtk3-runtime\bin\" -Force
+            $copied = (Get-ChildItem "gtk3-runtime\bin\*.dll" | Measure-Object).Count
+            if ($copied -lt 20) {
+              throw "Copy step only produced $copied DLLs in gtk3-runtime\bin -- " +
+                    "expected 50+. Something failed silently during the copy."
+            }
+            Write-Host "GTK3 runtime staged from $gtkSrc -- $copied DLLs"
+          } catch {
+            # 2026-08-22: this used to warn and let the build continue
+            # anyway, which meant "Build successful" / "exe created" /
+            # "smoke test passed" could all be true while PDF generation was
+            # silently broken -- the smoke test only proves the app starts,
+            # not that it can generate a report. A build that ships with a
+            # known-broken clinical output is not a successful build. See
+            # EXE_BUILD_NOTES.md's GTK3 fallback plan if this step fails --
+            # fix it there, don't relax this gate.
+            Write-Error "GTK3 runtime staging failed: $_"
+            throw "PDF generation (WeasyPrint/GTK3) could not be staged -- failing the build rather than shipping an exe with silently broken PDF reports. See EXE_BUILD_NOTES.md."
+          }
+
+      # ── Stage fonts (Arabic shaping + PDF/report rendering) ─────────────
+      - name: Stage fonts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path fonts | Out-Null
+          # Windows already ships DejaVu-equivalent fallbacks for most Latin
+          # text, but Arabic shaping specifically needs Amiri/Noto bundled --
+          # Windows has no built-in equivalent guaranteed present.
+          $fonts = @{
+            "NotoNaskhArabic-Regular.ttf" = "https://github.com/notofonts/arabic/raw/main/fonts/NotoNaskhArabic/hinted/ttf/NotoNaskhArabic-Regular.ttf"
+            "Amiri-Regular.ttf"           = "https://github.com/aliftype/amiri/releases/latest/download/Amiri-Regular.ttf"
+          }
+          foreach ($name in $fonts.Keys) {
+            try {
+              Invoke-WebRequest -Uri $fonts[$name] -OutFile "fonts\$name" -UserAgent "Mozilla/5.0"
+              $bytes = [System.IO.File]::ReadAllBytes("fonts\$name")
+              # Real .ttf files start with 00 01 00 00 (or "OTTO" for .otf) --
+              # an HTML error page would start with "<" (0x3C).
+              if ($bytes[0] -eq 0x3C) {
+                Remove-Item "fonts\$name" -Force
+                Write-Warning "$name download returned HTML, not a font file -- skipped. Arabic text may fall back to an unshaped font."
+              }
+            } catch {
+              Write-Warning "Could not stage font $name -- Arabic text in generated PDFs may fall back to an unshaped font."
+            }
+          }
+
+      # ── Build ─────────────────────────────────────────────────────────
+      - name: Install Python build dependencies
+        run: |
+          pip install pyinstaller weasyprint
+        shell: bash
+
+      # 2026-08-22: proves the STAGED gtk3-runtime/bin DLLs actually work
+      # with WeasyPrint -- a much stronger signal than the MZ-header check
+      # above, which only proves "we downloaded a real .exe", not "the DLLs
+      # extracted from it actually render a PDF". Fails the build here, with
+      # a clear message, rather than shipping an exe where PDF generation
+      # silently breaks -- the same "make PDF failure a hard gate" principle
+      # as the GTK3 staging step above, one layer deeper.
+      - name: PDF generation smoke test (GTK3 + WeasyPrint)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $env:PATH = "$PWD\gtk3-runtime\bin;" + $env:PATH
+          python -c "import weasyprint; html = '<html><body><h1>Orange Lab CDSS</h1><p>PDF generation smoke test</p></body></html>'; weasyprint.HTML(string=html).write_pdf('smoke_test.pdf'); import os; size = os.path.getsize('smoke_test.pdf'); assert size > 500, f'PDF suspiciously small ({size} bytes) -- GTK3 likely not actually working'; print(f'PDF generation smoke test passed: smoke_test.pdf ({size} bytes)')"
+          if ($LASTEXITCODE -ne 0) {
+            throw "PDF generation smoke test failed -- WeasyPrint could not render a PDF with the staged GTK3 DLLs. This means the shipped exe's PDF reports would not work. Do not relax this gate; fix the GTK3 staging step instead."
+          }
+
+      - name: Build with PyInstaller
+        run: pyinstaller orange_cdss.spec --clean --noconfirm
+        shell: bash
+
+      # ── Verify the bundle BEFORE launching it ─────────────────────────
+      # 2026-10-19: a launch failure inside a windowed exe is hard to read,
+      # but "this file is not in the bundle" is easy -- so check the files
+      # the exe cannot work without, and say exactly which one is missing.
+      - name: Verify bundle contents
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $root = "dist\Orange-CDSS"
+          if (-not (Test-Path "$root\Orange-CDSS.exe")) { throw "Build did not produce $root\Orange-CDSS.exe" }
+          # PyInstaller 6 keeps everything under _internal\; PyInstaller 5 beside the exe.
+          $int = if (Test-Path "$root\_internal") { "$root\_internal" } else { $root }
+          Write-Host "Bundle data directory: $int"
+          $size = (Get-ChildItem $root -Recurse -File | Measure-Object Length -Sum).Sum / 1MB
+          Write-Host ("Bundle size: {0:N0} MB" -f $size)
+
+          $required = @(
+            "streamlit_app.py",
+            "cdss\pipeline.py", "cdss\therapy\engine.py", "cdss\therapy\rules\host.py",
+            "cdss\organisms\clinical_data.py", "cdss\reports\report_service.py",
+            "cdss\formulary\commercial_names.txt", "cdss_ui\app.py",
+            "streamlit\static\index.html",
+            "tesseract\tesseract.exe", "tesseract\tessdata\eng.traineddata",
+            "gtk3-runtime\bin"
+          )
+          $missing = @()
+          foreach ($r in $required) {
+            if (-not (Test-Path (Join-Path $int $r))) { $missing += $r }
+          }
+          $meta = Get-ChildItem $int -Directory -Filter "streamlit-*.dist-info" -ErrorAction SilentlyContinue
+          if (-not $meta) { $missing += "streamlit-*.dist-info (Streamlit package metadata)" }
+          $dllCount = (Get-ChildItem "$int\gtk3-runtime\bin\*.dll" -ErrorAction SilentlyContinue | Measure-Object).Count
+          Write-Host "GTK3 DLLs in bundle: $dllCount"
+          if ($dllCount -lt 20) { $missing += "gtk3-runtime\bin\*.dll (only $dllCount found)" }
+          if (-not (Test-Path (Join-Path $int "tesseract\tessdata\ara.traineddata"))) {
+            Write-Warning "ara.traineddata is not in the bundle -- Arabic OCR will not work."
+          }
+          if ($missing.Count -gt 0) {
+            Write-Host "Top-level entries actually present in ${int}:"
+            Get-ChildItem $int | Select-Object -First 80 | ForEach-Object { Write-Host "  $($_.Name)" }
+            throw "Bundle is missing: $($missing -join ', ')"
+          }
+          Write-Host "Bundle contents verified."
+
+      # ── Self-test INSIDE the frozen exe ───────────────────────────────
+      # An HTTP 200 on the start page cannot tell you whether OCR, PDF or
+      # an application module will work. `Orange-CDSS.exe --selftest` checks
+      # those from inside the frozen process and exits 0/1; its log is
+      # printed here whether it passes or fails.
+      - name: Frozen self-test (imports, Tesseract, PDF inside the exe)
+        shell: pwsh
+        run: |
+          $exe = "dist\Orange-CDSS\Orange-CDSS.exe"
+          $log = Join-Path $PWD "selftest-launcher.log"
+          $env:ORANGE_CDSS_LOG = $log
+          $env:ORANGE_CDSS_NO_BROWSER = "1"
+          $p = Start-Process -FilePath $exe -ArgumentList @("--selftest") -PassThru
+          $null = $p.Handle          # cache the handle so ExitCode is readable after exit
+          $finished = $p.WaitForExit(300000)
+          if (-not $finished) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+          Write-Host "===== exe self-test log ====="
+          if (Test-Path $log) { Get-Content $log -Encoding UTF8 | ForEach-Object { Write-Host $_ } }
+          else { Write-Host "(the exe wrote no log file at all -- it died before logging started; see 'Verify bundle contents' output and check for a missing VC++ runtime / blocked DLL)" }
+          Write-Host "===== end of log ====="
+          if (-not $finished) { throw "Frozen self-test did not finish within 5 minutes" }
+          if ($p.ExitCode -ne 0) {
+            # Repeat each failure WITH its traceback at the very end, so it is
+            # the first thing visible instead of being buried in the log above.
+            Write-Host "===== FAILURE DETAILS ====="
+            if (Test-Path $log) {
+              $lines = @(Get-Content $log -Encoding UTF8)
+              for ($i = 0; $i -lt $lines.Count; $i++) {
+                if ($lines[$i] -match '^\[selftest\] FAIL ') {
+                  $end = [Math]::Min($i + 25, $lines.Count - 1)
+                  $lines[$i..$end] | ForEach-Object { Write-Host $_ }
+                  Write-Host "-----"
+                }
+              }
+            }
+            throw "Frozen self-test failed (exit code $($p.ExitCode)) -- see FAILURE DETAILS above"
+          }
+          Write-Host "Frozen self-test passed."
+
+      # ── Smoke test the frozen exe ────────────────────────────────────
+      # Proves the exe launches, binds a local port and serves Streamlit's
+      # start page (which also proves the bundled web frontend is there).
+      # Not a click-through of OCR/PDF with a real image -- see
+      # EXE_BUILD_NOTES.md for that manual checklist.
+      #
+      # 2026-10-19: the previous version gave the exe 60 s and printed
+      # nothing about WHY it failed. Now: up to 4 min (the first launch of a
+      # fresh bundle is slow while antivirus scans it), gives up at once if
+      # the process dies, uses a private port, and always prints the exe's own
+      # log so the failure explains itself.
+      - name: Smoke test — exe starts and serves a page
+        shell: pwsh
+        run: |
+          $exe  = "dist\Orange-CDSS\Orange-CDSS.exe"
+          $log  = Join-Path $PWD "smoke-launcher.log"
+          $port = 8765
+          if (-not (Test-Path $exe)) { throw "Build did not produce $exe" }
+          $env:ORANGE_CDSS_LOG = $log
+          $env:ORANGE_CDSS_PORT = "$port"
+          $env:ORANGE_CDSS_NO_BROWSER = "1"
+          $proc = Start-Process -FilePath $exe -PassThru
+          $null = $proc.Handle
+          $ok = $false
+          $why = "no response before the 4-minute deadline"
+          $started = Get-Date
+          $deadline = $started.AddSeconds(240)
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 3
+            if ($proc.HasExited) { $why = "the exe EXITED early with code $($proc.ExitCode)"; break }
+            try {
+              $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$port/" -UseBasicParsing -TimeoutSec 5
+              if ($resp.StatusCode -eq 200) { $ok = $true; break }
+              $why = "start page returned HTTP $($resp.StatusCode)"
+            } catch {
+              $why = "last probe failed: $($_.Exception.Message)"
+            }
+          }
+          $secs = [int]((Get-Date) - $started).TotalSeconds
+          if ($ok) {
+            try {
+              $h = Invoke-WebRequest -Uri "http://127.0.0.1:$port/_stcore/health" -UseBasicParsing -TimeoutSec 5
+              Write-Host "Health endpoint: HTTP $($h.StatusCode) '$($h.Content)'"
+            } catch { Write-Host "Health endpoint not reachable (informational only): $($_.Exception.Message)" }
+          }
+          Write-Host "===== exe log (smoke test) ====="
+          if (Test-Path $log) { Get-Content $log -Encoding UTF8 | ForEach-Object { Write-Host $_ } }
+          else { Write-Host "(the exe wrote no log file -- it died before logging started)" }
+          Write-Host "===== end of log ====="
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) {
+            Write-Host "===== LAST 30 LINES OF THE EXE LOG ====="
+            if (Test-Path $log) { Get-Content $log -Tail 30 -Encoding UTF8 | ForEach-Object { Write-Host $_ } }
+            throw "exe did not serve a page: $why (waited ${secs}s) -- see the exe log above"
+          }
+          Write-Host "Smoke test passed in ${secs}s: exe served a page on 127.0.0.1:$port"
+
+      # Keep the exe's own logs even when a step above failed -- they are the
+      # only record of what happened inside the windowed process.
+      - name: Upload exe logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Orange-CDSS-exe-logs
+          path: |
+            selftest-launcher.log
+            smoke-launcher.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Orange-CDSS-Windows
+          path: dist/Orange-CDSS/
+          retention-days: 30
