@@ -10,6 +10,7 @@ safety gate switched off -- until it was rebooted by hand.
 The test replays that sequence in a fresh process, on a copy of the repository:
 run the entry point with cdss/therapy/ absent, put the folder back, run again.
 """
+import os
 import pathlib
 import shutil
 import subprocess
@@ -58,7 +59,8 @@ def test_first_run_after_the_missing_folder_arrives_is_complete(tmp_path):
     (tmp_path / "replay.py").write_text(SCRIPT, encoding="utf-8")
 
     r = subprocess.run([sys.executable, "replay.py", str(ROOT / "tests")], cwd=tmp_path,
-                       capture_output=True, text=True, timeout=300)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       timeout=300, env={**os.environ, "PYTHONIOENCODING": "utf-8"})
     assert r.returncode == 0, r.stderr[-2000:]
     out = dict(ln.split("=", 1) for ln in r.stdout.splitlines() if "=" in ln and ln.split("=")[0].isupper())
 

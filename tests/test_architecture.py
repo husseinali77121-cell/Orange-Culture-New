@@ -32,6 +32,13 @@ def test_engine_never_imports_streamlit_or_the_page():
     assert not bad, f"the clinical engine must stay UI-free: {bad}"
 
 
+def _utf8_env():
+    """The child writes UTF-8 and the parent reads UTF-8, on Windows too (whose
+    default is cp1252: a few Arabic letters encode to bytes cp1252 cannot decode)."""
+    import os
+    return {**os.environ, "PYTHONIOENCODING": "utf-8"}
+
+
 def test_engine_imports_in_a_process_that_has_no_streamlit():
     code = ("import sys, importlib, pkgutil\n"
             "sys.modules['streamlit'] = None      # any import of it now raises ImportError\n"
@@ -39,7 +46,8 @@ def test_engine_imports_in_a_process_that_has_no_streamlit():
             "names = [m.name for m in pkgutil.walk_packages(cdss.__path__, 'cdss.')]\n"
             "[importlib.import_module(n) for n in names]\n"
             "print('CDSS_MODULES=%d' % len(names))\n")
-    r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace", env=_utf8_env())
     assert r.returncode == 0, r.stderr[-1500:]
     # Third-party libraries may print to stdout while importing (WeasyPrint does
     # when GTK is not installed yet -- the Windows build's test step): read only
