@@ -157,6 +157,7 @@ _AI = "AI-assisted review (Claude, code-review session 2026-07-23)"
 #     approved where they agree with the guidelines. It clears the release
 #     queue; it is NOT a clinician's countersignature and never claims to be.
 _AI2 = "AI-assisted source check (Claude, review session 2026-11-10)"
+_AI3 = "AI-assisted review (Claude, final review 2026-11-13)"
 _OWNER = ("2026-11-10 — approved on the lab owner's instruction (Hussein) after the "
           "AI-assisted source check recorded in this row. NOT a clinician countersignature.")
 
@@ -209,7 +210,12 @@ RULES: Dict[str, Dict[str, Any]] = {
                 "do not share a category -- and Vancomycin is WATCH for both the "
                 "IV and the oral route. The previous note flagged Aztreonam but "
                 "declined to change it without reading the source; the source "
-                "has now been read.",
+                "has now been read. 2026-11-13 (v6.6, re-checked against the WHO "
+                "AWaRe antibiotic list): Cefoperazone + Sulbactam is in WHO's "
+                "NOT RECOMMENDED group, not Watch (TAG-AWaRe 2025 deferred a "
+                "move); Minocycline is Watch orally and Reserve IV (noted on the "
+                "drug); Sulbactam-durlobactam is not yet classified and is kept "
+                "as Reserve.",
     },
     "class_magiorakos_mdr": {
         "assertion": "MDR = non-susceptible to >=1 agent in >=3 antimicrobial "
@@ -743,6 +749,44 @@ RULES: Dict[str, Dict[str, Any]] = {
         "verified": "source", "checked_by": _AI, "checked_on": "2026-07-22",
         "countersigned_by": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03",
         "note": "CLSI M100 footnote q VERBATIM: 'Organisms that are susceptible to tetracycline are also considered susceptible to doxycycline and minocycline. However, some organisms that are intermediate or resistant to tetracycline may be susceptible to doxycycline, minocycline, or both.' The code already flags ONLY the safe direction (tet-S + doxy-R) and states the reverse is allowed, so it matches the footnote exactly and does NOT suppress an active minocycline.",
+    },
+
+    # ── Added v6.6 (2026-11-13, final review) ────────────────────────────────
+    "hier_van_vs_tei_enterococcus": {
+        "assertion": "In enterococci vancomycin-S with teicoplanin-R matches no known "
+                     "mechanism (VanA: both R; VanB/VanC: vancomycin R, teicoplanin S).",
+        "source": "EUCAST_EXPERT", "locus": "glycopeptides, enterococci",
+        "verified": "secondary", "checked_by": _AI3, "checked_on": "2026-11-13",
+        "source_check": "2026-11-13: read a secondary summary of the van phenotypes (VanA vancomycin R / teicoplanin R; VanB vancomycin R / teicoplanin S); no phenotype described as vancomycin-S with teicoplanin-R. EUCAST v16.1 Enterococcus table read: no glycopeptide note beyond the vancomycin zone-edge note A.",
+        "awaiting_countersignature": "queued 2026-11-13 for Dr. Tarek El-Shafei (added in the v6.6 final review)",
+        "note": "VanC/VanD/VanE/VanG teicoplanin status from standard texts, not re-read here.",
+    },
+    "hier_pen_vs_cro_pneumococcus": {
+        "assertion": "A penicillin-susceptible S. pneumoniae is susceptible to "
+                     "ceftriaxone; penicillin-S with ceftriaxone-R is to be repeated.",
+        "source": "EUCAST_BP", "locus": "S. pneumoniae, notes 1/A and 1/B",
+        "verified": "source", "checked_by": _AI3, "checked_on": "2026-11-13",
+        "source_check": "EUCAST Breakpoint Tables v16.1 read 2026-11-13: when the screen is negative (oxacillin zone >= 20 mm or benzylpenicillin MIC <= 0.06 mg/L) 'all beta-lactam agents for which clinical breakpoints are available ... can be reported susceptible without further testing'.",
+        "awaiting_countersignature": "queued 2026-11-13 for Dr. Tarek El-Shafei (added in the v6.6 final review)",
+        "note": "A CLSI non-meningitis penicillin S (MIC <= 2) is outside that note; the rule therefore asks to repeat by MIC and check the breakpoint used.",
+    },
+    "hier_pen_vs_ctx_pneumococcus": {
+        "assertion": "A penicillin-susceptible S. pneumoniae is susceptible to "
+                     "cefotaxime; penicillin-S with cefotaxime-R is to be repeated.",
+        "source": "EUCAST_BP", "locus": "S. pneumoniae, notes 1/A and 1/B",
+        "verified": "source", "checked_by": _AI3, "checked_on": "2026-11-13",
+        "source_check": "As hier_pen_vs_cro_pneumococcus (EUCAST v16.1 read 2026-11-13).",
+        "awaiting_countersignature": "queued 2026-11-13 for Dr. Tarek El-Shafei (added in the v6.6 final review)",
+        "note": "As hier_pen_vs_cro_pneumococcus.",
+    },
+    "unusual_czav_r_carbapenem_s": {
+        "assertion": "Ceftazidime-avibactam R with a carbapenem S in Enterobacterales is "
+                     "rare (KPC variants such as D179Y); confirm before release.",
+        "source": "IDSA_AMR", "locus": "CRE section",
+        "verified": "source", "checked_by": _AI3, "checked_on": "2026-11-13",
+        "source_check": "Shields RK et al., Antimicrob Agents Chemother 2017;61:e02097-16 read 2026-11-13: KPC-3 D179Y (and D179Y/T243M) conferred ceftazidime-avibactam resistance and 'mutations reduced meropenem MICs >=4-fold from baseline, restoring susceptibility'.",
+        "awaiting_countersignature": "queued 2026-11-13 for Dr. Tarek El-Shafei (added in the v6.6 final review)",
+        "note": "Warning, not an error: a real mechanism exists.",
     },
 
     # ── Inline rules in streamlit_app.py ─────────────────────────────────────
