@@ -38,16 +38,25 @@ def test_engine_imports_in_a_process_that_has_no_streamlit():
             "import cdss\n"
             "names = [m.name for m in pkgutil.walk_packages(cdss.__path__, 'cdss.')]\n"
             "[importlib.import_module(n) for n in names]\n"
-            "print(len(names))\n")
+            "print('CDSS_MODULES=%d' % len(names))\n")
     r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-1500:]
-    assert int(r.stdout.strip()) > 40
+    # Third-party libraries may print to stdout while importing (WeasyPrint does
+    # when GTK is not installed yet -- the Windows build's test step): read only
+    # our own line.
+    counts = [ln for ln in r.stdout.splitlines() if ln.startswith("CDSS_MODULES=")]
+    assert counts, r.stdout[-800:]
+    assert int(counts[-1].split("=")[1]) > 40
 
 
 def test_entry_point_is_only_an_entry_point():
-    lines = [ln for ln in (ROOT / "streamlit_app.py").read_text(encoding="utf-8").splitlines()
-             if ln.strip() and not ln.lstrip().startswith(("#", '"""'))]
-    assert lines == ["from cdss_ui.app import main", "main()"]
+    """Imports the page and runs it; the only other thing it may do is the
+    partial-upload clean-up (tests/test_partial_upload.py)."""
+    tree = ast.parse((ROOT / "streamlit_app.py").read_text(encoding="utf-8"))
+    body = [n for n in tree.body if not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant))]
+    assert [type(n).__name__ for n in body] == ["Import", "Try", "Expr"]
+    assert ast.unparse(body[1].body[0]) == "from cdss_ui.app import main"
+    assert ast.unparse(body[-1]) == "main()"
 
 
 def test_every_exported_name_exists():
