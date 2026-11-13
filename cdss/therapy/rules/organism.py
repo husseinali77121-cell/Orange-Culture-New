@@ -152,6 +152,31 @@ def rule_pseudomonas_aminoglycosides(cx, dg, out):
             "aminoglycoside_pseudomonas")
 
 
+def rule_surrogate_and_no_breakpoint(cx, dg, out):
+    """Agents that are a screening surrogate, or have no clinical breakpoint, for this organism."""
+    # ── Added v6.6 (2026-11-13, final review) ─────────────────────────────
+    # Cefoxitin in staphylococci is the mecA SCREEN (CLSI M100, EUCAST): the
+    # result is reported as oxacillin and is never a cefoxitin treatment option.
+    # It was on the recommended list for MSSA bacteraemia, after vancomycin.
+    if dg.name == "Cefoxitin" and cx.is_staph_r2 and dg.result in ("S", "I"):
+        out.ban(build_banned_item(
+            dg.name, "no_breakpoint",
+            "Cefoxitin في Staphylococcus = اختبار كشف MRSA فقط — يُقرأ كـ Oxacillin وليس علاجاً.",
+            "CLSI M100 و EUCAST: قرص Cefoxitin في المكورات العنقودية بديل (surrogate) لكشف "
+            "mecA، ونتيجته تُبلَّغ كـ Oxacillin (S = MSSA ← Cefazolin أو Oxacillin؛ R = MRSA). "
+            "Cefoxitin نفسه لا يُستخدم لعلاج المكورات العنقودية."))
+        return
+    # Vancomycin and Listeria: no CLSI (M45) or EUCAST breakpoint, and treatment
+    # failures in meningitis are documented. It ranked second for Listeria CSF.
+    if dg.name == "Vancomycin" and "listeria" in cx.org_l and dg.result in ("S", "I"):
+        out.ban(build_banned_item(
+            dg.name, "no_breakpoint",
+            "Listeria: لا توجد نقاط قطع لـ Vancomycin — ليس خياراً علاجياً.",
+            "CLSI M45 و EUCAST لا يضعان breakpoints لـ Vancomycin مع Listeria monocytogenes، "
+            "وفشل العلاج به في التهاب السحايا موثّق. الخيار: Ampicillin أو Penicillin G بجرعة "
+            "عالية (± Gentamicin)؛ البديل: TMP-SMX (IDSA bacterial meningitis)."))
+
+
 def rule_organism_cautions(cx, dg, out):
     """Organism-specific cautions and agent notes from ORGANISM_PROFILE."""
     # ── Organism-specific clinical cautions (2026-11-10) ──────────────────
