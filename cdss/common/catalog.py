@@ -14,4 +14,5 @@ AWARE_COLORS = {
     "Access":  "🟢 Access",
     "Watch":   "🟡 Watch",
     "Reserve": "🔴 Reserve",
+    "Not Recommended": "⚪ Not Recommended (WHO)",
 }
