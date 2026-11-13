@@ -1,8 +1,6 @@
 # © 2025 Dr / Hussein Ali -- Orange Lab, 6 October City, Egypt
 # Microbiology CDSS -- All Rights Reserved
 """Availability flags for the QC / safety modules."""
-from typing import Dict
-from typing import List
 
 from cdss.common.log import logger
 
@@ -69,18 +67,20 @@ except Exception as _panel_completeness_exc:
 
 # Terminal safety gate + unified clinical constraint map. This is the layer that
 # adds site penetration (can the drug physically reach the infection?) on top of
-# the organism/host reasoning the main engine already does. Treated as CRITICAL
-# in _MODULE_HEALTH: without it the app silently loses meningeal-penetration
-# checking and the hepatic layer, and nothing on screen would say so.
-try:
-    from cdss.therapy.safety_gate import apply_safety_gate, GATE_VERSION
-    from cdss.therapy.clinical_matrix import MATRIX_VERSION
-    SAFETY_GATE_AVAILABLE = True
-except Exception as _sg_exc:
-    apply_safety_gate = None
-    GATE_VERSION = MATRIX_VERSION = "unavailable"
-    SAFETY_GATE_AVAILABLE = False
-    logger.error("safety_gate/clinical_matrix unavailable: %s", _sg_exc)
+# the organism/host reasoning the main engine already does.
+#
+# MANDATORY since 2026-11-13 -- no try/except. In the single-file app a missing
+# safety_gate.py meant "run degraded, with a red banner". In the package that
+# fallback did harm: during a partial upload (cdss/therapy/ not there yet) this
+# module was imported once with the flag False, Python kept that module object,
+# and after the folder WAS uploaded the running app went on skipping the gate
+# until a reboot. A missing gate is now an import error: the app does not start
+# without it, and the next run after the upload starts clean
+# (see streamlit_app.py). The flag stays, always True, because run_analysis()
+# reports it and tests switch it off to exercise that report.
+from cdss.therapy.safety_gate import apply_safety_gate, GATE_VERSION
+from cdss.therapy.clinical_matrix import MATRIX_VERSION
+SAFETY_GATE_AVAILABLE = True
 
 # ============================================================================
 #  INTRINSIC_RESISTANCE — moved to clinical_data.py (SINGLE SOURCE OF TRUTH)
@@ -99,12 +99,7 @@ except Exception as _sg_exc:
 #  beta-lactams (Ceftazidime/Cefepime/Cefoperazone/Pip-Tazo/Aztreonam/carbapenems)
 #  are deliberately EXCLUDED and judged on their own AST result.
 # ============================================================================
-try:
-    from cdss.organisms.clinical_data import INTRINSIC_RESISTANCE
-    INTRINSIC_TABLE_OK = True
-except Exception as _intrinsic_exc:          # pragma: no cover - deployment fault
-    logger.error("clinical_data.py is missing or unreadable (%s) -- the "
-                 "intrinsic-resistance table is EMPTY; Avoid-routing and MDR "
-                 "stripping are degraded.", _intrinsic_exc)
-    INTRINSIC_RESISTANCE: Dict[str, List[str]] = {}
-    INTRINSIC_TABLE_OK = False
+#  MANDATORY since 2026-11-13, for the same reason as the safety gate above:
+#  an empty intrinsic table is not a mode to run in.
+from cdss.organisms.clinical_data import INTRINSIC_RESISTANCE
+INTRINSIC_TABLE_OK = True
