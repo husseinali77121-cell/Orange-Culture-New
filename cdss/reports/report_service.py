@@ -76,6 +76,7 @@ from cdss.reports.html_utils import (
 )
 from cdss.resistance.mdr import (
     MDR_INFO,
+    mdr_display_label,
     classify_mdr,
 )
 from cdss.resistance.mechanism import (
@@ -86,6 +87,7 @@ from cdss.stewardship.duration import (
 )
 from cdss.stewardship.ranking import (
     rank_sensitive_antibiotics,
+    route_label,
 )
 from cdss.stewardship.syndrome import (
     INFECTION_SYNDROMES,
@@ -131,6 +133,8 @@ def generate_pdf_html_report(
     child_pugh: str = "", hepatic_recs: list = None,
     lang: str = "ar",
     return_html: bool = False,
+    carbapenemase_type: Optional[str] = None,
+    uti_syndrome: Optional[str] = None,
 ) -> Optional[bytes]:
     # `return_html` exists so this document can be INSPECTED without WeasyPrint.
     # Added 2026-08-03: the function returns rendered bytes, so in any
@@ -390,20 +394,27 @@ def generate_pdf_html_report(
         return result
 
     # ── AWaRe helpers ────────────────────────────────────────────────────
-    AWARE_CLR  = {"Access": "#1e8449", "Watch": "#b7770d", "Reserve": "#922b21"}
+    AWARE_CLR  = {"Access": "#1e8449", "Watch": "#b7770d", "Reserve": "#922b21",
+                  "Not Recommended": "#555555"}
     AWARE_PILL = {"Access": "background:#1e8449;color:#fff",
                   "Watch":  "background:#b7770d;color:#fff",
-                  "Reserve":"background:#922b21;color:#fff"}
+                  "Reserve":"background:#922b21;color:#fff",
+                  "Not Recommended": "background:#555555;color:#fff"}
     AWARE_CARD = {"Access": "background:#eafaf1;border:0.8pt solid #1e8449",
                   "Watch":  "background:#fef9e7;border:0.8pt solid #b7770d",
-                  "Reserve":"background:#fdf2f2;border:0.8pt solid #922b21"}
+                  "Reserve":"background:#fdf2f2;border:0.8pt solid #922b21",
+                  "Not Recommended": "background:#f2f2f2;border:0.8pt solid #555555"}
     # NOTE: AWaRe class is NOT used as the therapy "line" anymore (see ranked loop
     # below) — Access!=first-line for a given site. Line labels come from the syndrome.
 
     # المصدر الموحّد للترتيب — نفس منطق الشاشة والصورة (الحساسية أولاً ثم
     # العينة ثم AWaRe ثم الطريق)، بدلاً من ترتيب AWaRe منفصل كان يعطي ترتيباً
     # مختلفاً عن الشاشة.
-    ranked   = rank_sensitive_antibiotics(allowed, specimen, organism, sir_map, phenotypes)
+    # Same order as the screen: the guideline step needs the carbapenemase class and
+    # the UTI syndrome too (v6.6), or the PDF would list a different first choice.
+    ranked   = rank_sensitive_antibiotics(allowed, specimen, organism, sir_map, phenotypes,
+                                          carbapenemase_type=carbapenemase_type,
+                                          uti_syndrome=uti_syndrome)
     mdr_class = mdr_result.get("level","") if mdr_result else ""
     ph_labels = [p.get("phenotype","") for p in phenotypes]
     esbl_prob = esbl_result.get("probability","low")
@@ -610,7 +621,9 @@ hr.dv { border:none; border-top:0.4pt solid #d5d8dc; margin:0.6mm 0; }
     def hdr_html(page_lbl: str) -> str:
         mdr_pills = ""
         # MDR/XDR/PDR — deterministic category count (Magiorakos 2012), always shown
-        if mdr_class: mdr_pills += pill(mdr_class, "background:#922b21;color:#fff")+" "
+        if mdr_class:
+            _mdr_pill = (f"possible {mdr_class}" if (mdr_result or {}).get("provisional") else mdr_class)
+            mdr_pills += pill(_mdr_pill, "background:#922b21;color:#fff")+" "
         # Resistance phenotypes (MRSA/VRE/CRE/CRAB/CRPA) — confirmed via direct AST
         # markers, always shown. Weak/fallback inferences already excluded upstream.
         for ph in _hdr_ph_labels[:3]: mdr_pills += pill(ph, "background:#6e2fa0;color:#fff")+" "
@@ -691,10 +704,18 @@ hr.dv { border:none; border-top:0.4pt solid #d5d8dc; margin:0.6mm 0; }
         _fl_survives = any(
             normalize_abx_key(_r.get("name","")) in _fl_norm for _r in ranked
         ) if _fl_norm else False
+        # v6.6: when a guideline names the preferred agents for this mechanism and
+        # site (IDSA 2026 -- ESBL, AmpC, CRE, DTR-PA, CRAB, MRSA ...), THAT is the
+        # first line, not the organism's generic list (E. coli's generic first
+        # line is the urinary agents, which made TMP-SMX "FIRST-LINE" and the
+        # carbapenems "ALTERNATIVE" for an ESBL bacteraemia).
+        _guide_any = any(_r.get("_guideline_preferred") for _r in ranked)
         for i, _rd in enumerate(ranked, 1):
             _raw  = _rd.get("aware","")
             _nm_norm = normalize_abx_key(_rd.get("name",""))
-            if _fl_norm and _fl_survives:
+            if _guide_any:
+                _tlbl = "FIRST-LINE" if _rd.get("_guideline_preferred") else "ALTERNATIVE"
+            elif _fl_norm and _fl_survives:
                 _tlbl = "FIRST-LINE" if _nm_norm in _fl_norm else "ALTERNATIVE"
             else:                                   # no curated syndrome list -> rank by position
                 _tlbl = "PRIMARY" if i == 1 else "ALTERNATIVE"
@@ -702,8 +723,9 @@ hr.dv { border:none; border-top:0.4pt solid #d5d8dc; margin:0.6mm 0; }
             _hclr = "#1e8449" if _tlbl in ("FIRST-LINE", "PRIMARY") else "#0d3b66"  # header colour = line
             _ccss = AWARE_CARD.get(_raw,"")
             _sirv = sir_map.get(_rd.get("name",""),"S")
-            _rte  = "PO" if _rd.get("high_po") else "IV/IM"
+            _rte  = "PO" if route_label(_rd, specimen) == "PO" else "IV/IM"
             _rnl  = _esc(_rnote(_rd)) if is_renal else ""
+            _dose = _esc(_rd.get("gate_dose_note_en" if lang == "en" else "gate_dose_note") or "")
             if _tlbl != prev_tier:
                 H.append(f'<div class="tier-sep" style="color:{_hclr};border-color:{_hclr}">{_tlbl}</div>')
                 prev_tier = _tlbl
@@ -715,6 +737,7 @@ hr.dv { border:none; border-top:0.4pt solid #d5d8dc; margin:0.6mm 0; }
                 f'font-size:8.5pt;padding:0.3mm 2.5mm;border-radius:1mm">{_sirv}</span>'
                 f'&ensp;<span style="font-size:8.5pt;color:#555">{_rte}</span>'
                 + (f'&ensp;<small style="color:#b7770d">⚠ {_rnl}</small>' if _rnl else "")
+                + (f'&ensp;<small style="color:#0d3b66">💉 {_dose}</small>' if _dose else "")
                 + '</div>'
                 f'<div>{pill(_raw, AWARE_PILL.get(_raw,""))}</div>'
                 '</div>'
@@ -1014,7 +1037,7 @@ hr.dv { border:none; border-top:0.4pt solid #d5d8dc; margin:0.6mm 0; }
                 _mi3 = MDR_INFO.get(_ml3, {})
                 _clr3 = "#922b21" if _ml3 in ("XDR","PDR") else "#b7770d"
                 H.append(f'<div style="font-size:9pt;font-weight:bold;color:{_clr3};margin-top:1mm">'
-                         f'{_mi3.get("icon","")} {_mi3.get("label","")}</div>')
+                         f'{_mi3.get("icon","")} {_esc(mdr_display_label(mdr_result))}</div>')
                 H.append(f'<div style="font-size:8pt;color:#555">'
                          f'Resistant {mdr_result["resistant_count"]}/{mdr_result["total_tested"]} categories: '
                          f'{_esc(_join_more(mdr_result.get("resistant_categories",[]), 6))}</div>')
@@ -1459,6 +1482,7 @@ def generate_decision_tree_image(
     AWARE_NAME_COLORS = {
         "[A]": (20, 138, 68),    # أخضر -- Access
         "[W]": (180, 100,  0),   # برتقالي -- Watch
+        "[NR]": (90, 90, 90),    # رمادي -- WHO "Not Recommended"
     }
 
     def section_box(draw, box, title, title_color, subtitle, items, bg, bd,
@@ -1479,10 +1503,10 @@ def generate_decision_tree_image(
             # استخراج badge [A] أو [W]
             badge = ""
             display_name = item
-            for b in ["[A]", "[W]"]:
+            for b in ["[A]", "[W]", "[NR]"]:
                 if item.endswith(b):
                     badge = b
-                    display_name = item[:-len(b)].rstrip()
+                    display_name = item[:-len(b)].rstrip() + (" (WHO: not recommended)" if b == "[NR]" else "")
                     break
             # لون الاسم حسب AWaRe
             name_color = AWARE_NAME_COLORS.get(badge, DARK)
@@ -1599,7 +1623,8 @@ def generate_decision_tree_image(
         mdr_cats = (mdr_result or {}).get("resistant_categories", [])
         rc = (mdr_result or {}).get("resistant_count", 0)
         rt = (mdr_result or {}).get("total_tested", 0)
-        alerts.append(f"{mdr_lvl}: Resistant {rc}/{rt} categories")
+        _lvl_txt = f"possible {mdr_lvl}" if (mdr_result or {}).get("provisional") else mdr_lvl
+        alerts.append(f"{_lvl_txt}: Resistant {rc}/{rt} categories")
         if mdr_cats:
             alerts.append(f"R-cats: {', '.join(mdr_cats[:3])}")
 
@@ -1934,7 +1959,7 @@ def generate_report(
         mdr_r = classify_mdr(organism, sir_map)
         if mdr_r["level"]:
             info = MDR_INFO[mdr_r["level"]]
-            L += [f"\n{info['icon']} RESISTANCE CLASSIFICATION: {info['label']}", sep2,
+            L += [f"\n{info['icon']} RESISTANCE CLASSIFICATION: {mdr_display_label(mdr_r)}", sep2,
                   info["detail"],
                   f"Resistant ({mdr_r['resistant_count']}/{mdr_r['total_tested']}): "
                   + ", ".join(mdr_r['resistant_categories']),
@@ -1977,6 +2002,8 @@ def generate_report(
                 L += [f"Note      : {item.get('note','')}", f"{specimen}   : {spec_note}"]
             else:
                 L.append(f"Note      : {item.get('note','')}")
+            if item.get("gate_dose_note_en"):
+                L.append(f"Dose      : {item['gate_dose_note_en']}")
             if is_renal:
                 L.append(f"Renal     : {item.get('renal_note','-')}")
             if is_preg and preg_status_of(item) == "Warn":
