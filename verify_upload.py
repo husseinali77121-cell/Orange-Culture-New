@@ -16,13 +16,33 @@ upload of v6.1 `streamlit_app.py` and `page_setup.py` landed inside `cdss/`,
 and four test failures were the only symptom). When an extra file has the name
 of a release file, the line says where that file belongs.
 
-Usage:  python verify_upload.py            report only, always exits 0
-        python verify_upload.py --strict   exit 1 if anything differs
+BLOCKING since 2026-11-13 (later the same day). Every failure of the first
+uploads of v6.x was a broken UPLOAD -- a folder not uploaded, files dropped into
+the wrong folder -- while this check stayed green and the real cause surfaced
+three steps later as cryptic test errors. So the default run now exits 1 for
+the two problems that can only mean a broken upload:
+  * MISSING   an application file (cdss/, cdss_ui/, tests/, the root .py files,
+              requirements, the EXE spec) is not there;
+  * MISPLACED a release file sits in the wrong folder, or a stray .py file sits
+              inside cdss/ or cdss_ui/.
+DIFFERS (an edited or older copy) and other EXTRA files stay report-only: an
+intentional edit on GitHub must not block the build.
+
+Usage:  python verify_upload.py            exit 1 only on a broken upload (above)
+        python verify_upload.py --strict   exit 1 if anything differs at all
         python verify_upload.py --write    regenerate the manifest (release step)
 """
 import hashlib, os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# A MISSING file under these paths breaks the app, its tests or the EXE build.
+CRITICAL_PREFIXES = ("cdss/", "cdss_ui/", "tests/")
+CRITICAL_ROOT_FILES = {"streamlit_app.py", "launcher.py", "verify_upload.py", "orange_cdss.spec",
+                       "requirements.txt", "requirements-dev.txt", "packages.txt", "pytest.ini"}
+
+
+def _critical(rel):
+    return rel.startswith(CRITICAL_PREFIXES) or rel in CRITICAL_ROOT_FILES
 MANIFEST = os.path.join(HERE, "RELEASE_MANIFEST.sha256")
 SKIP_DIRS = {".git", "__pycache__", "build", "dist", ".venv", "venv", ".pytest_cache"}
 SKIP_FILES = {"RELEASE_MANIFEST.sha256"}
@@ -76,13 +96,17 @@ def main():
     home_of = {}                                   # file name -> its release path(s)
     for rel in expected:
         home_of.setdefault(rel.rsplit("/", 1)[-1], []).append(rel)
+    home_of.setdefault("RELEASE_MANIFEST.sha256", ["RELEASE_MANIFEST.sha256"])   # not listed in itself
     extra = [rel for rel, _p in _files() if rel not in expected]
     print(f"verify_upload: {len(expected)} files in the release manifest {release}".rstrip())
     if not stale and not missing and not extra:
         print("  OK — every file matches the release.")
         return 0
+    blocking = []
     for rel in missing:
         print(f"  MISSING  {rel}")
+        if _critical(rel):
+            blocking.append(f"MISSING    {rel}   -> upload it")
     for rel in stale:
         print(f"  DIFFERS  {rel}   (old copy, or edited after the release)")
     for rel in extra:
@@ -90,10 +114,23 @@ def main():
         where = f"   -> wrong folder? this file belongs at: {', '.join(homes)}" if homes \
             else "   (not part of the release)"
         print(f"  EXTRA    {rel}{where}")
+        if homes:
+            blocking.append(f"MISPLACED  {rel}   -> delete it (its place is {', '.join(homes)})")
+        elif rel.endswith(".py") and rel.startswith(("cdss/", "cdss_ui/")):
+            blocking.append(f"STRAY      {rel}   -> delete it (not part of the application)")
     if missing or stale:
         print("  -> Re-upload the MISSING / DIFFERS files from the release zip, then re-run.")
     if extra:
         print("  -> Delete the EXTRA files that were uploaded into the wrong folder.")
+    if blocking:
+        print()
+        print("=" * 72)
+        print("BROKEN UPLOAD -- fix these files first; nothing after this step can pass:")
+        for line in blocking:
+            print("  " + line)
+        print("الرفع ناقص أو في ملفات في مكان غلط -- صلّح الملفات اللي فوق الأول.")
+        print("=" * 72)
+        return 1
     return 1 if "--strict" in sys.argv else 0
 
 
