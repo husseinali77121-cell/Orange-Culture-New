@@ -1,0 +1,20 @@
+{
+ "abx_guidelines": "cdss.formulary.abx_guidelines",
+ "ast_consistency": "cdss.astqc.ast_consistency",
+ "ast_panel_completeness": "cdss.astqc.ast_panel_completeness",
+ "ast_qa_engine": "cdss.astqc.ast_qa_engine",
+ "ast_reportability": "cdss.astqc.ast_reportability",
+ "auth_service": "cdss.security.auth_service",
+ "clinical_data": "cdss.organisms.clinical_data",
+ "clinical_matrix": "cdss.therapy.clinical_matrix",
+ "clinical_utils": "cdss.common.clinical_utils",
+ "final_checklist": "cdss.astqc.final_checklist",
+ "guideline_registry": "cdss.guidelines.guideline_registry",
+ "ocr_parsing": "cdss.ocr.ocr_parsing",
+ "organism_profile": "cdss.organisms.organism_profile",
+ "pathogenicity": "cdss.organisms.pathogenicity",
+ "report_service": "cdss.reports.report_service",
+ "safety_gate": "cdss.therapy.safety_gate",
+ "specimen_organism_map": "cdss.organisms.specimen_organism_map",
+ "therapy_rules": "cdss.therapy.therapy_rules"
+}
