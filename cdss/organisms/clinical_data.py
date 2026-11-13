@@ -1,0 +1,562 @@
+# clinical_data.py
+# © 2025 Dr / Hussein Ali -- Orange Lab, 6 October City, Egypt
+# Microbiology CDSS -- All Rights Reserved
+#
+# SINGLE SOURCE OF TRUTH for intrinsic resistance.
+#
+# Why this file exists
+# --------------------
+# The table below used to live inside streamlit_app.py, while ast_qa_engine.py
+# ── Drug names in this table must match the FORMULARY key exactly ──────────
+# Until 2026-08-05 ten rows named "Ampicillin + Sulbactam" while the formulary
+# key is "Ampicillin/Sulbactam". The engine still excluded the drug correctly —
+# the name matcher is fuzzy enough to bridge "+" and "/" — so nothing was wrong
+# in behaviour. But the rows only worked BY ACCIDENT: tighten the matcher for
+# any reason and ten intrinsic-resistance rules for Morganella, Providencia,
+# Serratia, Citrobacter and the rest go silent with no test failing.
+#
+# The names below now match the formulary keys exactly. The remaining entries
+# that name agents this formulary does not stock — Nalidixic acid, Polymyxin B,
+# Rifampicin, Ticarcillin, Trimethoprim, Chloramphenicol, Cefpodoxime,
+# Ceftibuten, Cefuroxime axetil, Piperacillin — are kept ON PURPOSE: they are
+# EUCAST facts, and the day one of those agents is added to the formulary the
+# rule must already be here rather than remembered.
+
+# tried to `from clinical_data import INTRINSIC_RESISTANCE` -- a module that did
+# not exist in this repository. The import silently fell back to {} , so the QA
+# engine's Level-1 intrinsic-resistance check was DEAD for every Gram-negative
+# and only MRSA / Mycoplasma were ever evaluated. Extracting the table here makes
+# that import resolve, so the clinical engine and the QA engine now read the same
+# rows and can no longer drift apart.
+#
+# Consumers:
+#   * streamlit_app.py   -> Avoid-routing + intrinsic stripping before MDR counting
+#   * ast_qa_engine.py   -> Level 1 "this S contradicts intrinsic resistance"
+#   * test_intrinsic_invariant.py -> guards the two against divergence
+#
+# Editing rule: this file holds DATA ONLY. No imports, no Streamlit, no logic --
+# so it stays importable from a bare test runner with no dependencies.
+#
+# References: EUCAST Intrinsic Resistance and Unusual Phenotypes v3.3 (2021-10-18)
+#             EUCAST Clinical Breakpoint Tables v16.1 (valid from 2026-01-01)
+#             CLSI M100 Ed36 (2026) Appendix B
+
+from __future__ import annotations
+
+from typing import Dict, List
+
+# ============================================================================
+#  INTRINSIC_RESISTANCE — CANONICAL SINGLE SOURCE OF TRUTH
+#  EUCAST Intrinsic Resistance & Unusual Phenotypes Tables v3.3
+#  Keys are substring-matched (org_key in org_l OR org_l in org_key), so both
+#  binomial and abbreviated organism forms are covered. Drug strings include
+#  common formulary VARIANTS (e.g. "Cefuroxime" AND "Cefuroxime sodium") so
+#  exact-string matching in _remove_intrinsic_resistance / is_intrinsically_
+#  avoided never silently misses. Extra variants that match no real drug are
+#  harmless. ONLY intrinsically-INACTIVE agents are listed — anti-pseudomonal
+#  β-lactams (Ceftazidime/Cefepime/Cefoperazone/Pip-Tazo/Aztreonam/carbapenems)
+#  are deliberately EXCLUDED and judged on their own AST result.
+# ============================================================================
+INTRINSIC_RESISTANCE = {
+    # ── Enterobacterales — wild-type susceptible ────────────────────────────
+    "escherichia coli": ["Oxacillin", "Penicillin"],
+    "e. coli":          ["Oxacillin", "Penicillin"],
+
+    # Klebsiella: chromosomal penicillinase (SHV/LEN/OKP) → aminopenicillins.
+    # Amox-clav / cephalosporins remain active (NOT intrinsic).
+    "klebsiella pneumoniae": ["Ampicillin", "Amoxicillin", "Ticarcillin", "Oxacillin", "Penicillin"],
+    "klebsiella oxytoca":    ["Ampicillin", "Amoxicillin", "Ticarcillin", "Oxacillin", "Penicillin"],
+    "klebsiella spp.":       ["Ampicillin", "Amoxicillin", "Ticarcillin", "Oxacillin", "Penicillin"],
+
+    # Proteus/Providencia/Morganella tribe → tetracyclines, nitrofurantoin,
+    # polymyxins are ALL intrinsically inactive.
+    "proteus mirabilis": ["Tetracycline", "Doxycycline", "Minocycline", "Tigecycline",
+                          "Nitrofurantoin", "Colistin", "Polymyxin B", "Oxacillin", "Penicillin"],
+    "proteus spp.":      ["Tetracycline", "Doxycycline", "Minocycline", "Tigecycline",
+                          "Nitrofurantoin", "Colistin", "Polymyxin B", "Oxacillin", "Penicillin"],
+    # P. vulgaris/penneri add inducible β-lactamase → aminopenicillins + 1st/2nd ceph
+    # FIX 2026-11-10 (round 2): amoxicillin-clavulanate, ampicillin-sulbactam and
+    # cefoxitin were listed here. P. vulgaris / P. penneri carry a chromosomal
+    # CLASS A cefuroximase, which clavulanate and sulbactam inhibit and which
+    # does not hydrolyse cephamycins -- none of the three is intrinsic (CLSI
+    # M100 Appendix B; EUCAST Expected Resistant Phenotypes: 7 R marks =
+    # ampicillin, 1st-gen cephalosporins, cefuroxime, tetracyclines,
+    # tigecycline, polymyxins, nitrofurantoin).
+    "proteus vulgaris":  ["Tetracycline", "Doxycycline", "Minocycline", "Tigecycline",
+                          "Nitrofurantoin", "Colistin", "Polymyxin B",
+                          "Ampicillin", "Amoxicillin",
+                          "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                          "Cefaclor", "Cefuroxime", "Cefuroxime sodium",
+                          "Oxacillin", "Penicillin"],
+
+    # Morganella: chromosomal AmpC + tribe intrinsics
+    # FIX 2026-11-10 (round 2): ampicillin-sulbactam and cefoxitin are NOT in the
+    # intrinsic tables of CLSI (Appendix B) or EUCAST for Morganella /
+    # Providencia, and a cefoxitin-S Morganella is a normal finding -- listing
+    # it here made the QA engine call a correct result "impossible". They stay
+    # NOT RECOMMENDED (AmpC) through the organism profile's `avoid`, which is
+    # shown as "not recommended", not as "intrinsic resistance".
+    "morganella morganii": ["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+                            "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                            "Cefuroxime", "Cefuroxime sodium", "Cefaclor",
+                            "Tetracycline", "Doxycycline", "Minocycline", "Tigecycline",
+                            "Nitrofurantoin", "Colistin", "Polymyxin B", "Oxacillin", "Penicillin"],
+
+    # Providencia: AmpC + tribe + intrinsic aminoglycoside (gentamicin/tobramycin)
+    "providencia spp.": ["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+                         "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                         "Cefuroxime", "Cefuroxime sodium", "Cefaclor",
+                         "Tetracycline", "Doxycycline", "Minocycline", "Tigecycline",
+                         "Nitrofurantoin", "Colistin", "Polymyxin B",
+                         "Gentamicin", "Tobramycin", "Oxacillin", "Penicillin"],
+
+    # Serratia: chromosomal AmpC + intrinsic polymyxin/nitrofurantoin
+    # EUCAST v3.3 Table 2 fn.5 -- "S. marcescens is intrinsically resistant to
+    # tetracycline and doxycycline but not to minocycline or tigecycline."
+    # Tigecycline was previously listed here (wrongly banning an active agent for
+    # MDR Serratia) while tetracycline and doxycycline were absent entirely.
+    "serratia marcescens": ["Tetracycline", "Doxycycline",
+                            "Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+                            "Ampicillin/Sulbactam",
+                            "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                            "Cefuroxime", "Cefuroxime sodium", "Cefaclor", "Cefoxitin",
+                            "Colistin", "Polymyxin B", "Nitrofurantoin", "Oxacillin", "Penicillin"],
+    "serratia spp.":       ["Tetracycline", "Doxycycline",
+                            "Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+                            "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                          "Cefuroxime", "Cefuroxime sodium",
+                            "Cefoxitin", "Colistin", "Polymyxin B", "Nitrofurantoin", "Oxacillin", "Penicillin"],
+
+    # Enterobacter / Hafnia: chromosomal inducible AmpC
+    "enterobacter cloacae":  ["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+                             "Ampicillin/Sulbactam",
+                             "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                             "Cefuroxime", "Cefuroxime sodium", "Cefaclor", "Cefoxitin", "Oxacillin", "Penicillin"],
+    "enterobacter aerogenes":["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+                             "Ampicillin/Sulbactam",
+                             "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                             "Cefuroxime", "Cefuroxime sodium", "Cefaclor", "Cefoxitin", "Oxacillin", "Penicillin"],
+    "enterobacter spp.":     ["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+                             "Ampicillin/Sulbactam",
+                             "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                             "Cefuroxime", "Cefuroxime sodium", "Cefaclor", "Cefoxitin", "Oxacillin", "Penicillin"],
+    "hafnia alvei":          ["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+                             "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                          "Cefuroxime", "Cefuroxime sodium",
+                             # 2026-11-10 (round 2): colistin added -- EUCAST lists
+                             # H. alvei as intrinsically polymyxin-resistant
+                             # (Expert Rules v3.2 onwards; Jayol et al. 2017).
+                             "Cefoxitin", "Colistin", "Polymyxin B", "Oxacillin", "Penicillin"],
+
+    # Citrobacter freundii = AmpC; C. koseri = penicillinase only
+    "citrobacter freundii":  ["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+                             "Ampicillin/Sulbactam",
+                             "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                             "Cefuroxime", "Cefuroxime sodium", "Cefaclor", "Cefoxitin", "Oxacillin", "Penicillin"],
+    "citrobacter koseri":    ["Ampicillin", "Amoxicillin", "Ticarcillin", "Oxacillin", "Penicillin"],
+    "citrobacter spp.":      ["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid", "Oxacillin", "Penicillin"],
+
+    # Salmonella / Shigella: 1st/2nd-gen cephalosporins & aminoglycosides may
+    # test S in vitro but are CLINICALLY INEFFECTIVE for invasive infection
+    # (EUCAST/CLSI "do not report S"). Routed to Avoid here.
+    # 2026-11-10 (round 2): Cefoxitin added to both. CLSI M100 Table 2A warning:
+    # for Salmonella and Shigella, 1st/2nd-generation cephalosporins, CEPHAMYCINS
+    # and aminoglycosides may appear active in vitro but are not effective.
+    "salmonella": ["Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefaclor",
+                   "Cefuroxime", "Cefuroxime sodium", "Cefoxitin",
+                   "Gentamicin", "Amikacin", "Tobramycin", "Nitrofurantoin", "Oxacillin", "Penicillin"],
+    "shigella":   ["Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefaclor",
+                   "Cefuroxime", "Cefuroxime sodium", "Cefoxitin",
+                   "Gentamicin", "Amikacin", "Tobramycin", "Nitrofurantoin", "Oxacillin", "Penicillin"],
+
+    # ── Non-fermenters ──────────────────────────────────────────────────────
+    # Pseudomonas aeruginosa — ONLY Ceftazidime/Cefepime/Cefoperazone/Pip-Tazo/
+    # Aztreonam/anti-pseudomonal carbapenems/FQs/aminoglycosides/colistin work.
+    "pseudomonas aeruginosa": [
+        "Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+        "Ampicillin/Sulbactam",
+        "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefaclor",
+        "Cefuroxime", "Cefuroxime sodium", "Cefuroxime axetil", "Cefoxitin",
+        "Cefotaxime", "Ceftriaxone", "Cefixime", "Cefpodoxime", "Ceftibuten",
+        "Ertapenem",
+        "Tetracycline", "Doxycycline", "Minocycline", "Tigecycline",
+        "Chloramphenicol", "Trimethoprim", "Trimethoprim/Sulfamethoxazole",
+        "Nitrofurantoin",
+        "Azithromycin", "Erythromycin", "Clarithromycin", "Oxacillin", "Penicillin",
+    ],
+
+    # Acinetobacter baumannii — NOTE: Ampicillin/Sulbactam is ACTIVE (excluded);
+    # tetracyclines (doxy/minocycline) can be active (excluded).
+    # EUCAST v3.3 Table 2 fn.2 -- "Acinetobacter is intrinsically resistant to
+    # tetracycline and doxycycline but not to minocycline and tigecycline."
+    # Doxycycline was previously ABSENT here and was being offered as an
+    # active option for Acinetobacter, which EUCAST says it is not.
+    "acinetobacter baumannii": ["Tetracycline", "Doxycycline",
+                                
+        "Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+        "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefaclor",
+        "Cefuroxime", "Cefuroxime sodium", "Cefoxitin",
+        "Cefotaxime", "Ceftriaxone", "Ertapenem", "Aztreonam", "Aztreonam + Avibactam",
+        "Trimethoprim", "Fosfomycin", "Nitrofurantoin", "Chloramphenicol", "Oxacillin", "Penicillin",
+    ],
+
+    # Stenotrophomonas maltophilia — L1 MBL (all carbapenems) + aminoglycosides.
+    # Active (excluded): TMP-SMX, Levofloxacin, Minocycline, Tigecycline.
+    # EUCAST v3.3 Table 2 fn.7 -- "Stenotrophomonas maltophilia is intrinsically
+    # resistant to tetracycline but NOT to doxycycline, minocycline and
+    # tigecycline." Deliberately NARROWER than the Acinetobacter/Serratia
+    # footnotes: doxycycline stays reportable and is a real option here.
+    "stenotrophomonas maltophilia": ["Tetracycline",
+                                     
+        "Imipenem/Cilastatin", "Meropenem", "Ertapenem",
+        "Gentamicin", "Amikacin", "Tobramycin",
+        "Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+        "Ampicillin/Sulbactam",
+        "Piperacillin", "Piperacillin + Tazobactam",
+        "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefuroxime", "Cefoxitin", "Cefuroxime sodium",
+        "Cefaclor", "Cefotaxime", "Ceftriaxone", "Ceftazidime", "Cefepime",
+        "Cefoperazone", "Aztreonam",
+        "Ciprofloxacin", "Norfloxacin", "Ofloxacin",
+        "Fosfomycin", "Nitrofurantoin", "Oxacillin", "Penicillin",
+    ],
+
+    # ── Gram-positives ──────────────────────────────────────────────────────
+    # Enterococcus — ALL cephalosporins + low-level aminoglycoside (mono) +
+    # clindamycin + TMP-SMX (in-vivo ineffective) + aztreonam. E. faecalis is
+    # ampicillin-SUSCEPTIBLE (ampicillin deliberately excluded).
+    "enterococcus faecalis": [
+        "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefuroxime", "Cefuroxime sodium",
+        "Cefaclor", "Cefixime", "Ceftriaxone", "Cefotaxime", "Ceftazidime",
+        "Cefepime", "Cefoperazone", "Cefoperazone + Sulbactam", "Cefoxitin",
+        "Gentamicin", "Amikacin", "Tobramycin",
+        "Clindamycin", "Trimethoprim/Sulfamethoxazole", "Aztreonam",
+    ],
+    "enterococcus faecium": [
+        "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefuroxime", "Cefuroxime sodium",
+        "Cefaclor", "Cefixime", "Ceftriaxone", "Cefotaxime", "Ceftazidime",
+        "Cefepime", "Cefoperazone", "Cefoperazone + Sulbactam", "Cefoxitin",
+        "Gentamicin", "Amikacin", "Tobramycin",
+        "Clindamycin", "Trimethoprim/Sulfamethoxazole", "Aztreonam",
+    ],
+    "enterococcus spp.": [
+        "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefuroxime", "Cefuroxime sodium",
+        "Cefaclor", "Cefixime", "Ceftriaxone", "Cefotaxime", "Ceftazidime",
+        "Cefepime", "Cefoperazone", "Cefoperazone + Sulbactam", "Cefoxitin",
+        "Gentamicin", "Amikacin", "Tobramycin",
+        "Clindamycin", "Trimethoprim/Sulfamethoxazole", "Aztreonam",
+    ],
+    "vre": [
+        "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefuroxime", "Cefuroxime sodium",
+        "Cefaclor", "Cefixime", "Ceftriaxone", "Cefotaxime", "Ceftazidime",
+        "Cefepime", "Cefoperazone", "Cefoperazone + Sulbactam", "Cefoxitin",
+        "Gentamicin", "Amikacin", "Tobramycin",
+        "Clindamycin", "Trimethoprim/Sulfamethoxazole", "Aztreonam",
+        "Vancomycin",
+    ],
+
+    # Staphylococcus — Aztreonam + polymyxins intrinsic. (MRSA β-lactam failure
+    # is handled by the mecA/Oxacillin-Cefoxitin logic, NOT this table.)
+    "staphylococcus aureus": ["Aztreonam", "Colistin", "Polymyxin B"],
+    "staphylococcus":        ["Aztreonam", "Colistin", "Polymyxin B"],
+
+    # Streptococcus — low-level aminoglycoside (mono, synergy-only) + aztreonam
+    # + polymyxins + fusidic acid.
+    "streptococcus pneumoniae": ["Gentamicin", "Amikacin", "Tobramycin",
+                                 "Aztreonam", "Colistin", "Polymyxin B", "Fusidic acid"],
+    "streptococcus pyogenes":   ["Gentamicin", "Amikacin", "Tobramycin",
+                                 "Aztreonam", "Colistin", "Polymyxin B", "Fusidic acid"],
+    "streptococcus agalactiae": ["Gentamicin", "Amikacin", "Tobramycin",
+                                 "Aztreonam", "Colistin", "Polymyxin B", "Fusidic acid"],
+
+    # Listeria monocytogenes — ALL cephalosporins intrinsically inactive.
+    "listeria monocytogenes": ["Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                               "Cefuroxime", "Cefuroxime sodium", "Cefaclor",
+                               "Cefotaxime", "Ceftriaxone", "Ceftazidime", "Cefepime",
+                               "Cefoperazone", "Cefoperazone + Sulbactam",
+                               "Cefoxitin", "Aztreonam", "Fosfomycin"],
+}
+
+# ── Aliases for the labels the UI actually offers ────────────────────────────
+#  Matching is substring-based, so a display label that shares no substring with
+#  a table key silently receives NO intrinsic filtering. These rows close that
+#  hole for every organism in the picker.
+#
+#  * "MRSA" / "VRE" are the same organisms as their binomials but share no
+#    substring with them.
+#  * "Mycoplasma" has NO CELL WALL, so every beta-lactam and glycopeptide is
+#    intrinsically inactive -- a textbook fact the table did not encode, leaving
+#    the engine free to recommend ampicillin for an atypical pneumonia.
+#  * "Enterobacterales (unspeciated)" needs the family-level Gram-positive-agent
+#    exclusions (EUCAST Table 1 header).
+_GP_ONLY = ["Vancomycin", "Teicoplanin", "Linezolid", "Daptomycin",
+            "Erythromycin", "Clarithromycin", "Azithromycin", "Clindamycin",
+            "Fusidic acid", "Rifampicin", "Oxacillin", "Penicillin"]
+
+INTRINSIC_RESISTANCE["mrsa"] = list(INTRINSIC_RESISTANCE["staphylococcus aureus"]) + [
+    # MRSA additionally: mecA/mecC alters PBP2a -> ALL beta-lactams inactive
+    # except the anti-MRSA cephalosporins (ceftaroline/ceftobiprole).
+    "Oxacillin", "Penicillin", "Ampicillin", "Amoxicillin",
+    "Amoxicillin + Clavulanic acid", "Ampicillin/Sulbactam",
+    "Piperacillin + Tazobactam", "Cephalexin", "Cefadroxil", "Cephradine",
+    "Cefazolin", "Cefaclor", "Cefuroxime", "Cefuroxime sodium", "Cefoxitin",
+    "Ceftriaxone", "Cefotaxime", "Ceftazidime", "Cefixime", "Cefepime",
+    "Cefoperazone", "Cefoperazone + Sulbactam",
+    "Imipenem/Cilastatin", "Meropenem", "Ertapenem",
+]
+INTRINSIC_RESISTANCE["vre"] = list(dict.fromkeys(
+    INTRINSIC_RESISTANCE["vre"] + INTRINSIC_RESISTANCE["enterococcus faecium"]))
+
+# Mycoplasma / Ureaplasma: no peptidoglycan cell wall.
+INTRINSIC_RESISTANCE["mycoplasma"] = [
+    "Penicillin", "Oxacillin", "Ampicillin", "Amoxicillin",
+    "Amoxicillin + Clavulanic acid", "Ampicillin/Sulbactam",
+    "Piperacillin + Tazobactam", "Cephalexin", "Cefadroxil", "Cephradine",
+    "Cefazolin", "Cefaclor", "Cefuroxime", "Cefuroxime sodium", "Cefoxitin",
+    "Ceftriaxone", "Cefotaxime", "Ceftazidime", "Cefixime", "Cefepime",
+    "Cefoperazone", "Cefoperazone + Sulbactam", "Aztreonam",
+    "Imipenem/Cilastatin", "Meropenem", "Ertapenem",
+    "Vancomycin", "Teicoplanin", "Fosfomycin", "Trimethoprim/Sulfamethoxazole",
+]
+INTRINSIC_RESISTANCE["ureaplasma"] = list(INTRINSIC_RESISTANCE["mycoplasma"])
+# 2026-11-10 (review item 22): species differences inside the genus.
+#   M. hominis -- intrinsically resistant to 14/15-membered macrolides
+#                 (erythromycin, clarithromycin, azithromycin); clindamycin works.
+#   Ureaplasma -- intrinsically resistant to lincosamides (clindamycin).
+# Keys are species-specific, so they never match "Mycoplasma spp." and do not
+# remove azithromycin from M. pneumoniae.
+INTRINSIC_RESISTANCE["mycoplasma hominis"] = list(dict.fromkeys(
+    INTRINSIC_RESISTANCE["mycoplasma"] + ["Erythromycin", "Clarithromycin", "Azithromycin"]))
+INTRINSIC_RESISTANCE["ureaplasma"] = list(dict.fromkeys(
+    INTRINSIC_RESISTANCE["ureaplasma"] + ["Clindamycin"]))
+
+# Family-level fallback for an unspeciated Enterobacterales report.
+INTRINSIC_RESISTANCE["enterobacterales"] = list(_GP_ONLY)
+
+
+# ============================================================================
+#  TAXONOMIC INHERITANCE  (added 2026-08-01)
+#  --------------------------------------------------------------------------
+#  DEFECT THIS FIXES
+#  The row above is correct and complete, and it reached NOBODY. Both consumers
+#  match by literal substring:
+#        org_key in org_l  or  (len(org_l) >= 4 and org_l in org_key)
+#  `"enterobacterales" in "escherichia coli"` is False in both directions, so
+#  the family row was inherited only by the literal string "Enterobacterales
+#  (unspeciated)". Every named species -- E. coli, Klebsiella, Proteus,
+#  Salmonella, Shigella -- inherited nothing, and Vancomycin or Linezolid
+#  reported S on a Gram-negative panel went straight to the RECOMMENDED bucket
+#  while ast_qa_engine printed "[CRITICAL] biologically impossible" beside it.
+#
+#  WHY IT IS DONE HERE AND NOT IN THE MATCHERS
+#  Expanding the rows at import time keeps ONE table with ONE lookup rule, so
+#  streamlit_app.py, ast_qa_engine.py, ast_reportability.py and every test go on
+#  reading INTRINSIC_RESISTANCE unchanged and cannot drift. Teaching two
+#  matchers about a taxonomy would have created exactly the second source of
+#  truth this file exists to prevent.
+#
+#  Group membership is deliberately NARROW. A macrolide is useless against
+#  E. coli but azithromycin is first-line for typhoid, shigellosis and
+#  campylobacteriosis -- so the macrolide/lincosamide block is applied to the
+#  enteric and non-fermenting genera ONLY, never to Salmonella, Shigella,
+#  Campylobacter or H. influenzae. Applying the family row wholesale would have
+#  banned the drug of choice for three of them.
+# ============================================================================
+
+# Agents with NO activity against any Gram-negative, at any site, ever.
+_GRAM_POS_ONLY_CORE = ["Vancomycin", "Teicoplanin", "Linezolid", "Daptomycin",
+                       "Fusidic acid", "Oxacillin", "Penicillin"]
+
+# Additionally inactive against the enteric / non-fermenting Gram-negatives.
+# EXCLUDED for Salmonella / Shigella / Campylobacter / Haemophilus, where
+# azithromycin and clarithromycin are indicated agents.
+_GRAM_POS_ONLY_ENTERIC = ["Erythromycin", "Clarithromycin", "Azithromycin",
+                          "Clindamycin", "Rifampicin"]
+
+# Agents with NO activity against any Gram-positive. The staphylococcal and
+# streptococcal rows already carried these; the three enterococcal rows and VRE
+# carried Aztreonam alone, so Colistin reported S on an Enterococcus faecalis
+# blood isolate was RECOMMENDED.
+# Aztreonam + Avibactam added 2026-11-10: the monobactam has no Gram-positive
+# activity and avibactam does not change that.
+_GRAM_NEG_ONLY_CORE = ["Colistin", "Polymyxin B", "Aztreonam", "Aztreonam + Avibactam",
+                       "Nalidixic acid"]
+
+_ENTERIC_AND_NONFERMENTER = [
+    "escherichia coli", "e. coli",
+    "klebsiella pneumoniae", "klebsiella oxytoca", "klebsiella spp.",
+    "proteus mirabilis", "proteus spp.", "proteus vulgaris",
+    "morganella morganii", "providencia spp.",
+    "serratia marcescens", "serratia spp.",
+    "enterobacter cloacae", "enterobacter aerogenes", "enterobacter spp.",
+    "hafnia alvei",
+    "citrobacter freundii", "citrobacter koseri", "citrobacter spp.",
+    "pseudomonas aeruginosa", "acinetobacter baumannii",
+    "stenotrophomonas maltophilia",
+]
+
+# Gram-negatives where a macrolide IS a legitimate choice -> core block only.
+_GRAM_NEG_MACROLIDE_OK = ["salmonella", "shigella",
+                          "campylobacter jejuni", "campylobacter",
+                          "haemophilus influenzae", "h. influenzae"]
+
+_GRAM_POSITIVE_ROWS = [
+    "enterococcus faecalis", "enterococcus faecium", "enterococcus spp.", "vre",
+    "staphylococcus aureus", "staphylococcus", "mrsa",
+    "streptococcus pneumoniae", "streptococcus pyogenes",
+    "streptococcus agalactiae", "listeria monocytogenes",
+]
+
+# Enterococci are intrinsically resistant to fusidic acid; the staphylococcal
+# rows must NOT inherit it (fusidic acid is an anti-staphylococcal agent).
+_ENTEROCOCCAL_ROWS = ["enterococcus faecalis", "enterococcus faecium",
+                      "enterococcus spp.", "vre"]
+
+
+def _merge_row(key: str, drugs: List[str]) -> None:
+    """Union `drugs` into a row, creating it when absent. Order-preserving."""
+    INTRINSIC_RESISTANCE[key] = list(dict.fromkeys(
+        INTRINSIC_RESISTANCE.get(key, []) + list(drugs)))
+
+
+# Two genera the UI can select but the table never covered at all: a Vancomycin
+# or Linezolid reported S on either of them was previously unflagged by every
+# layer, because there was no row to flag it against.
+INTRINSIC_RESISTANCE.setdefault("haemophilus influenzae", [])
+INTRINSIC_RESISTANCE.setdefault("h. influenzae", [])
+INTRINSIC_RESISTANCE.setdefault("campylobacter jejuni", [])
+INTRINSIC_RESISTANCE.setdefault("campylobacter", [])
+# EUCAST v3.3 Table 2: trimethoprim is intrinsically inactive against
+# Campylobacter. Azithromycin (drug of choice) and the fluoroquinolones are
+# deliberately NOT listed.
+for _k in ("campylobacter jejuni", "campylobacter"):
+    _merge_row(_k, ["Trimethoprim", "Trimethoprim/Sulfamethoxazole"])
+
+for _k in _ENTERIC_AND_NONFERMENTER:
+    _merge_row(_k, _GRAM_POS_ONLY_CORE + _GRAM_POS_ONLY_ENTERIC)
+
+for _k in _GRAM_NEG_MACROLIDE_OK:
+    _merge_row(_k, _GRAM_POS_ONLY_CORE)
+
+for _k in _GRAM_POSITIVE_ROWS:
+    _merge_row(_k, _GRAM_NEG_ONLY_CORE)
+
+for _k in _ENTEROCOCCAL_ROWS:
+    _merge_row(_k, ["Fusidic acid"])
+
+# Anaerobes: selectable in the UI, absent from the table entirely, so Colistin
+# and Gentamicin reported S came back RECOMMENDED. Aminoglycoside uptake is
+# oxygen-dependent and polymyxins need an aerobic outer membrane -- both are
+# inactive in an anaerobic environment regardless of what the disk shows.
+# (Aztreonam and TMP-SMX were already covered by clinical_matrix.INTRINSIC_
+# ADDENDA; they are repeated here so the QA engine sees them too.)
+_merge_row("anaerobes", ["Colistin", "Polymyxin B", "Aztreonam", "Aztreonam + Avibactam",
+                         "Gentamicin", "Amikacin", "Tobramycin",
+                         "Trimethoprim", "Trimethoprim/Sulfamethoxazole"])
+
+del _k
+
+# ── Novel beta-lactams (added 2026-08-03 with the formulary expansion) ──────
+# Nine agents entered the formulary because COMBINATION_THERAPY was already
+# recommending them and the engine could not read a susceptibility result for
+# any of them. An agent added to the formulary must also be added HERE wherever
+# it is intrinsically inactive, or ast_reportability and this table will
+# disagree about the same beta-lactam — which is precisely what
+# test_intrinsic_sync caught the moment they were added.
+#
+# The reasoning is mechanistic, not a copy of the parent drug's row:
+#   * Stenotrophomonas carries the L1 metallo-beta-lactamase. Neither
+#     vaborbactam nor relebactam inhibits a metallo-enzyme, so the carbapenem
+#     combinations are no better than the bare carbapenem — still inactive.
+#   * Enterococci and Listeria are intrinsically resistant to ALL
+#     cephalosporins (low-affinity PBP5 and PBP3 respectively). Adding a
+#     beta-lactamase inhibitor changes nothing: the target is wrong, not the
+#     enzyme. Cefiderocol is a siderophore CEPHALOSPORIN and inherits this.
+#   * Ceftaroline is the deliberate exception for staphylococci (it binds
+#     PBP2a) but has no Listeria activity, so it is listed for Listeria only.
+_NOVEL_CEPHALOSPORINS = ["Ceftazidime + Avibactam", "Ceftolozane + Tazobactam",
+                         "Cefiderocol"]
+_NOVEL_CARBAPENEM_BLI = ["Meropenem + Vaborbactam", "Imipenem + Relebactam"]
+
+for _k in ("stenotrophomonas maltophilia",):
+    _merge_row(_k, _NOVEL_CARBAPENEM_BLI)
+
+for _k in ("enterococcus faecalis", "enterococcus faecium", "enterococcus spp.",
+           "vre"):
+    _merge_row(_k, _NOVEL_CEPHALOSPORINS)
+
+# Listeria: every cephalosporin, ceftaroline included.
+_merge_row("listeria monocytogenes",
+           _NOVEL_CEPHALOSPORINS + ["Ceftaroline"])
+
+# Daptomycin is inactivated by pulmonary surfactant — that is a SITE rule, not
+# an organism rule, and lives in clinical_matrix.SITE_PENETRATION. It is
+# deliberately NOT listed here: the drug works fine against the same organism
+# in blood or soft tissue, and putting it in this table would ban it everywhere.
+
+del _k
+
+# ── Coagulase-negative staphylococci (added 2026-08-03) ─────────────────────
+# DEFECT THIS CLOSES, caught by the 3000-case sweep the same day the organism
+# was added: "Coagulase-negative Staphylococci" entered ORGANISM_PROFILE and
+# matched NO row here. The staphylococcal rows are keyed "staphylococcus
+# aureus" / "staphylococcus" / "mrsa", and "staphylococcus" is not a substring
+# of "coagulase-negative staphylococcI" — the plural breaks it. So a Gram-
+# positive organism inherited nothing, and AZTREONAM, a monobactam with zero
+# Gram-positive activity, came back RECOMMENDED.
+#
+# This is the fifth time in this audit that an organism was added to one table
+# and forgotten in another. The sweep now asserts the Gram-spectrum rule
+# directly, so the sixth time fails the build instead of reaching a report.
+for _k in ("coagulase-negative staphylococci", "coagulase negative staphylococci",
+           "staphylococcus epidermidis", "staphylococcus haemolyticus",
+           "staphylococcus hominis", "staphylococcus saprophyticus",
+           "staphylococcus lugdunensis"):
+    # _GRAM_NEG_ONLY_CORE already IS ["Colistin", "Polymyxin B", "Aztreonam",
+    # "Nalidixic acid"]. This line used to append that same list again by hand,
+    # which was harmless duplication until a mutation test showed what it
+    # really cost: deleting the shared constant here changed nothing, because
+    # the hand-written copy silently covered for it. A duplicate that hides the
+    # loss of its own source is worse than no duplicate.
+    _merge_row(_k, _GRAM_NEG_ONLY_CORE)
+
+# S. saprophyticus is the one CoNS with a real urinary niche, and EUCAST notes
+# it is intrinsically resistant to fosfomycin, fusidic acid and novobiocin —
+# the novobiocin resistance is how the lab identifies it in the first place.
+# (Fusidic acid added 2026-11-10: EUCAST Expected Resistant Phenotypes.)
+_merge_row("staphylococcus saprophyticus", ["Fosfomycin", "Fusidic acid"])
+
+del _k
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  ORGANISMS NOT IDENTIFIED TO SPECIES LEVEL — added 2026-11-10
+#  Built AFTER every merge above so each row inherits the completed list of the
+#  species it is treated as (see organism_profile.UNSPECIATED_AS). The lookup
+#  is by substring of the organism name, so the genus-level key must exist as
+#  its own row: "acinetobacter baumannii" is not a substring of
+#  "acinetobacter spp." and that organism used to inherit nothing.
+# ════════════════════════════════════════════════════════════════════════════
+for _new, _ref in (("acinetobacter spp.", "acinetobacter baumannii"),
+                   ("pseudomonas spp.", "pseudomonas aeruginosa")):
+    INTRINSIC_RESISTANCE[_new] = list(INTRINSIC_RESISTANCE[_ref])
+
+# Unspeciated streptococci: what every streptococcus shares.
+INTRINSIC_RESISTANCE["streptococcus spp."] = list(dict.fromkeys(
+    list(INTRINSIC_RESISTANCE["streptococcus pyogenes"])))
+
+# Gram-level reports: only the agents with no activity on that side of the Gram
+# stain at all. Nothing genus-specific is assumed.
+# Only what NO Gram-negative bacillus is treated with. Macrolides and
+# rifampicin are left out (Haemophilus, Campylobacter, Legionella), and so is
+# penicillin (Pasteurella multocida is penicillin-susceptible).
+INTRINSIC_RESISTANCE["gram-negative bacilli (unidentified)"] = [
+    d for d in _GRAM_POS_ONLY_CORE if d != "Penicillin"]
+INTRINSIC_RESISTANCE["non-fermenting gram-negative bacilli"] = list(dict.fromkeys(
+    _GRAM_POS_ONLY_CORE + _GRAM_POS_ONLY_ENTERIC + [
+        # shared by P. aeruginosa, A. baumannii and S. maltophilia
+        "Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+        "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefaclor",
+        "Cefuroxime", "Cefuroxime sodium", "Cefoxitin",
+        "Cefotaxime", "Ceftriaxone", "Ertapenem", "Nitrofurantoin"]))
+INTRINSIC_RESISTANCE["gram-positive cocci (unidentified)"] = list(_GRAM_NEG_ONLY_CORE)
+del _new, _ref
