@@ -307,7 +307,8 @@ ABX_GUIDELINES = {
         # CRAB. The renal note said "renally safe": sulbactam IS renally
         # cleared and the label caps it below CrCl 30.
         "note": (
-            "💉 (مثل Sulperazone) IV فقط. لا breakpoints للتوليفة في CLSI أو EUCAST، وغير مذكور "
+            "WHO AWaRe: **Not Recommended** (توليفة ثابتة بلا دليل — TAG-AWaRe 2025 أجّل نقلها "
+            "إلى Watch). 💉 (مثل Sulperazone) IV فقط. لا breakpoints للتوليفة في CLSI أو EUCAST، وغير مذكور "
             "في إرشادات IDSA. جرعة السولباكتام فيه (≤ 4 g/يوم) أقل من الجرعة العالية المطلوبة "
             "لـ CRAB (6-9 g/يوم) — لا يُعتمد عليه منفرداً في العدوى الغازية بـ Acinetobacter. "
             "⚠️ يسبب نقص فيتامين K (راقب INR)."
@@ -316,7 +317,7 @@ ABX_GUIDELINES = {
         "renal_note": "Cefoperazone لا يحتاج تعديل، لكن Sulbactam يُطرح كلوياً: CrCl 15-30: أقصى Sulbactam 1 g q12h. CrCl <15: أقصى Sulbactam 500mg q12h. Sulperazon label.",
         "renal_note_en": "Cefoperazone needs no adjustment, but sulbactam is renally cleared: CrCl 15-30: sulbactam max 1 g q12h. CrCl <15: sulbactam max 500 mg q12h. Sulperazon label.",
         "dose_owner_approved": "2026-11-10 · bands checked line by line against Sulperazon product information, 'Use in renal dysfunction' (labeling.pfizer.com id=14308) · AI-assisted source check (Claude) · released on the lab owner's instruction — NOT a clinician countersignature",
-        "hepatic_caution": True, "aware": "Watch", "high_po": False,
+        "hepatic_caution": True, "aware": "Not Recommended", "high_po": False,
         "preg_status": "Safe", "preg_note": "",
         "child_safe": True,
         "interacts_with": ["Warfarin (مضادات التخثر)"],
@@ -818,6 +819,7 @@ ABX_GUIDELINES = {
     "Minocycline": {
         "priority": 2, "class": "Tetracycline (Oral/IV)",
         "note": (
+            "WHO AWaRe: الفموي Watch والوريدي Reserve. "
             "✅ التتراسيكلين الوحيد الفعّال ضد Acinetobacter و Serratia — "
             "EUCAST تنص صراحةً أن مقاومتهما الجوهرية للتتراسيكلين والدوكسيسيكلين "
             "لا تمتد للمينوسيكلين. خيار ضمن توليفة في IDSA AMR Guidance لـ "
@@ -1027,7 +1029,8 @@ ABX_GUIDELINES = {
         },
     },
 }
-VALID_AWARE_VALUES = {"Access", "Watch", "Reserve"}
+# "Not Recommended": WHO's fourth group (fixed-dose combinations without evidence).
+VALID_AWARE_VALUES = {"Access", "Watch", "Reserve", "Not Recommended"}
 DEFAULT_SPECIMENS = ("Urine", "Blood", "Sputum", "Wound Swab", "Pus", "Stool", "CSF")
 
 
@@ -1751,7 +1754,7 @@ ABX_GUIDELINES.update({
     },
     "Sulbactam + Durlobactam": {
         "priority": 10, "class": "Beta-lactam + Beta-lactamase Inhibitor (IV) — anti-Acinetobacter",
-        "note": ("🛡️ (Xacduro) IV فقط. Durlobactam يحمي Sulbactam من OXA-23/24/58 (الكاربابينيميز "
+        "note": ("🛡️ (Xacduro) IV فقط. لم يُصنَّف بعد في WHO AWaRe (قائمة 2025) — يُعامَل كـ Reserve. Durlobactam يحمي Sulbactam من OXA-23/24/58 (الكاربابينيميز "
                  "الأشيع في A. baumannii). **الأولوية الأولى لـ CRAB** مع Meropenem أو Imipenem "
                  "(IDSA 2026؛ ATTACK: وفيات 19% مقابل 32% مع Colistin). لا يُستخدم لغير "
                  "Acinetobacter. لا يغطي MBL."),
