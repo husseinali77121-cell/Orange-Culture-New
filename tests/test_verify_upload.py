@@ -92,3 +92,59 @@ def test_windows_line_endings_are_not_a_difference(release):
     p = release / "cdss" / "pipeline.py"
     p.write_bytes(p.read_bytes().replace(b"\n", b"\r\n"))
     assert guard0(release)[0] == 0
+
+
+def test_a_file_left_at_an_earlier_release_blocks(release):
+    """What happened with v6.3: cdss/health.py on GitHub was still the v6 copy."""
+    health = release / "cdss" / "health.py"
+    now = health.read_text(encoding="utf-8")
+    earlier = now + "\n# the earlier release's version\n"
+    guard_write = lambda title: subprocess.run(                              # noqa: E731
+        [sys.executable, "verify_upload.py", "--write", "--release", title],
+        cwd=release, check=True, capture_output=True)
+    health.write_text(earlier, encoding="utf-8")
+    guard_write("vTEST-1 the earlier release")
+    health.write_text(now, encoding="utf-8")
+    guard_write("vTEST-2 the current release")
+    assert guard0(release)[0] == 0
+
+    health.write_text(earlier, encoding="utf-8")                            # the stale upload
+    code, out = guard0(release)
+    assert code == 1
+    assert "OLD COPY   cdss/health.py   -> upload it again (what is there is the vTEST-1 version)" in out
+
+    health.write_text(now + "\n# an edit made on GitHub, never released\n", encoding="utf-8")
+    code, out = guard0(release)
+    assert code == 0 and "DIFFERS  cdss/health.py   (edited after the release)" in out
+
+
+def test_regenerating_the_manifest_keeps_the_history(release):
+    manifest = release / "RELEASE_MANIFEST.sha256"
+    before = [ln for ln in manifest.read_text(encoding="utf-8").splitlines() if ln.startswith("#old ")]
+    subprocess.run([sys.executable, "verify_upload.py", "--write"], cwd=release, check=True,
+                   capture_output=True)
+    after = [ln for ln in manifest.read_text(encoding="utf-8").splitlines() if ln.startswith("#old ")]
+    assert before and before == after
+
+
+def test_the_shipped_manifest_knows_every_earlier_release():
+    lines = (ROOT / "RELEASE_MANIFEST.sha256").read_text(encoding="utf-8").splitlines()
+    old = {}
+    for ln in lines:
+        if ln.startswith("#old "):
+            _h, rel, label = ln[5:].split("  ")
+            old.setdefault(rel, set()).add(label)
+    assert "v6" in old.get("cdss/health.py", set()), "the v6 health.py (mandatory-gate regression) must be recognised"
+    assert {"single-file", "v6"} <= old.get("streamlit_app.py", set())
+
+
+def test_rewriting_during_a_release_records_no_history(release):
+    """In-between versions of a release never reached anybody: not an 'old copy'."""
+    notes = release / "cdss" / "health.py"
+    notes.write_text(notes.read_text(encoding="utf-8") + "\n# work in progress\n", encoding="utf-8")
+    manifest = release / "RELEASE_MANIFEST.sha256"
+    before = [ln for ln in manifest.read_text(encoding="utf-8").splitlines() if ln.startswith("#old ")]
+    subprocess.run([sys.executable, "verify_upload.py", "--write"], cwd=release, check=True,
+                   capture_output=True)
+    after = [ln for ln in manifest.read_text(encoding="utf-8").splitlines() if ln.startswith("#old ")]
+    assert after == before
