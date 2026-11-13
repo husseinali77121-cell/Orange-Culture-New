@@ -123,7 +123,8 @@ COMBINATION_THERAPY: Dict[str, Dict] = {
              "caution": "Inactive alone against MBL (NDM/VIM/IMP)", "ref": "IDSA AMR Guidance 2026",
              "for_types": ["KPC", "OXA-48", "UNKNOWN"]},
             {"combo": "Meropenem-Vaborbactam", "evidence": "★★★",
-             "indication": "KPC producers -- preferred",
+             "indication": ("KPC producers -- preferred, slightly favoured: resistance emerged in "
+                            "<3% vs ~10% with ceftazidime-avibactam (IDSA 2026)"),
              "caution": "Inactive against OXA-48 and MBL", "ref": "TANGO-II 2018 | IDSA AMR Guidance 2026",
              "for_types": ["KPC", "UNKNOWN"]},
             {"combo": "Imipenem-Relebactam", "evidence": "★★★",
@@ -151,11 +152,16 @@ COMBINATION_THERAPY: Dict[str, Dict] = {
         "title": "ESBL-Producing Enterobacterales",
         "urgency": "MODERATE",
         "options": [
-            {"combo": "Cystitis: Nitrofurantoin or TMP-SMX", "evidence": "★★★",
-             "indication": "Preferred for uncomplicated cystitis if S (fosfomycin oral for E. coli only)",
+            {"combo": "Cystitis: Nitrofurantoin, TMP-SMX or a single dose of an aminoglycoside",
+             "evidence": "★★★",
+             "indication": ("Preferred for uncomplicated cystitis if S (IDSA 2026; pivmecillinam, oral "
+                            "sulopenem and gepotidacin where available). Oral fosfomycin: E. coli "
+                            "only, alternative"),
              "caution": "Not for pyelonephritis or bacteraemia", "ref": "IDSA AMR Guidance 2026"},
             {"combo": "Pyelonephritis / cUTI: TMP-SMX, Ciprofloxacin or Levofloxacin", "evidence": "★★★",
-             "indication": "Preferred if S; carbapenem if resistant. Pip-Tazo an alternative for cUTI",
+             "indication": ("Preferred if S; ertapenem / meropenem / imipenem if resistant. "
+                            "Pip-Tazo an alternative only when not critically ill and not "
+                            "bacteraemic (IDSA 2026)"),
              "caution": "", "ref": "IDSA AMR Guidance 2026"},
             {"combo": "Outside the urinary tract: Meropenem, Imipenem or Ertapenem", "evidence": "★★★",
              "indication": "Preferred for bacteraemia and serious infection; oral TMP-SMX/FQ step-down once stable",
@@ -309,6 +315,13 @@ _COMBO_HOST_FLAGS: List[Tuple[str, List[str], str, str]] = [
      "NEONATE: neonatal safety and dosing data for this agent are limited or "
      "absent. Use only after neonatology and infectious-diseases consultation, "
      "documenting why no alternative exists."),
+    # v6.6: daptomycin is not recommended under 12 months (Cubicin label) --
+    # the engine now bans it below that age; the card must say so too.
+    ("infant", ["daptomycin"],
+     "⛔ رضيع أقل من 12 شهر: Daptomycin غير موصى به (Cubicin label — تأثيرات عضلية وعصبية "
+     "في الدراسات الحيوانية على حديثي الولادة). البديل: Vancomycin.",
+     "INFANT under 12 months: daptomycin is not recommended (Cubicin label — muscular "
+     "and nervous-system effects in neonatal animal studies). Use vancomycin."),
     ("renal", ["colistin", "polymyxin", "amikacin", "gentamicin", "tobramycin",
                "vancomycin"],
      "⚠️ قصور كلوي: يحتاج تعديل جرعة ومتابعة CrCl/TDM — الجرعات المكتوبة هنا "
@@ -361,6 +374,8 @@ def get_combination_therapy(
     _eff_age = _ray(age_years, age_months)
     if _eff_age is not None and _eff_age <= _NMY:
         states.add("neonate")
+    if _eff_age is not None and _eff_age < 1:
+        states.add("infant")
     if is_renal or (cl_cr is not None and cl_cr < 60):
         states.add("renal")
     if is_hepatic:
@@ -384,6 +399,8 @@ def get_combination_therapy(
         if ph == "CRE":
             _kept = [o for o in data["options"]
                      if not o.get("for_types") or _ctype in o["for_types"]]
+            if _ctype == "KPC":   # IDSA 2026 order for KPC: MEV, then CAZ-AVI, then IMI-REL
+                _kept.sort(key=lambda o: 0 if o["combo"].startswith("Meropenem-Vaborbactam") else 1)
             _title = data["title"] + ("" if _ctype == "UNKNOWN" else f" — {_ctype}")
             data = {**data, "title": _title, "options": _kept}
         if not states:
