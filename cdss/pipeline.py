@@ -136,7 +136,9 @@ def run_analysis(
     phenotypes = detect_resistance_phenotypes(organism, sir_map)
     mechanism = predict_esbl(organism, sir_map)
     mdr = classify_mdr(organism, sir_map)
-    ranked = rank_sensitive_antibiotics(allowed, specimen, organism, sir_map, phenotypes)
+    ranked = rank_sensitive_antibiotics(allowed, specimen, organism, sir_map, phenotypes,
+                                        carbapenemase_type=carbapenemase_type,
+                                        uti_syndrome=uti_syndrome)
     combinations = get_combination_therapy(
         phenotypes,
         is_pregnant=k["is_preg"], age_years=k["age"], age_months=k["age_months"],
