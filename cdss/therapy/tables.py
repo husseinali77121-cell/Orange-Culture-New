@@ -69,6 +69,13 @@ ORGANISM_AVOID_CLASS_MAP = {
 # Each entry: drug -> (limit_in_months, ban_or_warn, alternative, reason)
 # ═══════════════════════════════════════════════════════════════════════
 NEONATAL_RESTRICTIONS: Dict[str, Dict[str, Any]] = {
+    # Added v6.6 (2026-11-13): the guideline order now puts daptomycin second for
+    # MRSA bacteraemia, and nothing stopped it in an infant.
+    "Daptomycin": {
+        "months": 12, "action": "ban", "alt": "Vancomycin",
+        "reason": ("🚫 غير موصى به تحت 12 شهر (Cubicin label: تأثيرات على العضلات والأعصاب "
+                   "ظهرت في حديثي الولادة في الدراسات الحيوانية). البديل: Vancomycin."),
+    },
     "Ceftriaxone": {
         # WEB-VERIFIED 2026-08-03. The contraindication is TWO-PART, not one
         # age cutoff:

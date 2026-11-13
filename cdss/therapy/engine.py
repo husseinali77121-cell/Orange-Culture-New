@@ -39,6 +39,7 @@ RULES: Tuple[Rule, ...] = (
     organism.rule_possible_mrsa,
     organism.rule_novel_agents,
     organism.rule_pseudomonas_aminoglycosides,
+    organism.rule_surrogate_and_no_breakpoint,
     organism.rule_organism_cautions,
     organism.rule_colistin,
     organism.rule_oral_fosfomycin,

@@ -278,6 +278,24 @@ _AG_BSI = (CAUTION, "not as monotherapy for bacteraemia — combine with an acti
                     "(monotherapy only for a urinary source; CLSI M100 Ed33)",
            "لا يُستخدم منفرداً في تجرثم الدم — مع بيتا-لاكتام فعّال (المنفرد لمصدر بولي فقط؛ CLSI 2023)")
 
+# Site cautions that only say HOW to give the drug of choice, not WHETHER it may
+# be given (v6.6, 2026-11-13). Every other CAUTION moves a drug to "use with
+# caution"; these leave it on the recommended list with the dose note attached.
+# Found in the final review: for Listeria meningitis ampicillin and penicillin
+# (the drugs of choice, IDSA bacterial meningitis guideline) and for MSSA CNS
+# infection oxacillin were moved to "caution" for "high-dose IV only", and the
+# recommended list then began with meropenem / vancomycin.
+DOSE_ONLY_SITE_CAUTIONS = frozenset({
+    ("Ampicillin", "CSF"), ("Penicillin", "CSF"), ("Oxacillin", "CSF"),
+})
+
+
+def is_dose_only_caution(drug: str, site: Optional[str], verdict: "Verdict") -> bool:
+    """True when every caution on this verdict is a dose qualifier for the site."""
+    return (verdict.level == CAUTION and (drug, site) in DOSE_ONLY_SITE_CAUTIONS
+            and all(r["layer"] == "site" for r in verdict.cautions))
+
+
 SITE_PENETRATION: Dict[str, Dict[str, Tuple[str, str, str]]] = {
     "Amikacin": {"Urine": _OK, "Blood": _AG_BSI, "Sputum": _AG_LUNG, "Wound Swab": _AG_PUS,
                  "Pus": _AG_PUS, "Stool": (DENY, "no role in enteric infection", "لا دور له في عدوى الأمعاء"),

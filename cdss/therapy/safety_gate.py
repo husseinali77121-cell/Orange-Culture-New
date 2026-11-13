@@ -40,7 +40,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from cdss.therapy.clinical_matrix import (
     ALLOW, CAUTION, DENY, MATRIX_VERSION, Verdict, canonical_organism,
-    canonical_site, evaluate,
+    canonical_site, evaluate, is_dose_only_caution,
 )
 
 logger = logging.getLogger("orange_cdss.safety_gate")
@@ -181,6 +181,18 @@ def apply_safety_gate(
                                     # needs.
                                     "reason_ar": _reason_block(v, "ar"),
                                     "reason_en": _reason_block(v, "en")})
+        elif is_dose_only_caution(drug, report["site"], v):
+            # The drug of choice at this site, given a particular way: it stays
+            # recommended and carries the dose note (v6.6).
+            enriched = dict(item) if isinstance(item, dict) else {"name": drug}
+            enriched.update({
+                "gate_dose_note": _reason_block(v, "ar"),
+                "gate_dose_note_en": _reason_block(v, "en"),
+            })
+            new_allowed.append(enriched)
+            report.setdefault("dose_notes", []).append({"drug": drug,
+                                                        "reason_en": _reason_block(v, "en"),
+                                                        "reason_ar": _reason_block(v, "ar")})
         elif v.level == CAUTION:
             enriched = dict(item) if isinstance(item, dict) else {"name": drug}
             enriched.update({
