@@ -1,0 +1,507 @@
+"""Orange Lab — AST internal-consistency rules.
+
+Answers a third question, distinct from both of its neighbours:
+
+    ast_reportability : "should this agent be on this organism's panel?"
+    ast_consistency   : "do these results contradict EACH OTHER?"   <- here
+    AST_QC_RULES      : phenotype-level checks (ESBL/AmpC/carbapenemase logic)
+
+Two kinds of contradiction, and the distinction decides the severity:
+
+  * EQUIVALENCE — two agents so alike against this organism that they must give
+    the same answer. Cefotaxime and ceftriaxone share MIC breakpoints and are
+    hydrolysed near-identically by every common ESBL; one S and one R is not a
+    resistance pattern, it is a laboratory error. Someone will act on whichever
+    one reads S.
+
+  * HIERARCHY — a logical impossibility. Adding a beta-lactamase inhibitor
+    cannot make a drug work LESS well, so ampicillin-S with amox-clav-R is not
+    a phenotype anyone has ever described.
+
+What is deliberately NOT here matters as much as what is. Ceftazidime is a
+third-generation cephalosporin, but CTX-M enzymes — the dominant ESBL family in
+Egypt — hydrolyse cefotaxime far more efficiently than ceftazidime. So
+cefotaxime-R with ceftazidime-S is a textbook CTX-M phenotype, NOT a
+discrepancy, and flagging it would be flagging the single most common real ESBL
+in the lab's population. Likewise ertapenem-R with meropenem-S is ordinary
+OXA-48 or porin loss; only the REVERSE (meropenem-R, ertapenem-S) is impossible,
+because ertapenem is the more labile of the two.
+
+Separate module for the same reasons as ast_reportability: pure data plus a pure
+function, testable without the clinical_data import wall, and every rule carries
+the document it comes from so a microbiologist can overrule it.
+
+Sources (verify against current editions):
+  * EUCAST Clinical Breakpoint Tables v16.1 (valid 2026-01-01) — Enterobacterales
+  * CLSI M100 Ed36 (2026) — Tables 2A/2B and the tetracycline-class predictive note
+  * EUCAST Expert Rules and Intrinsic Resistance v3.3 (2021-10-18)
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Any, Dict, List, Optional
+
+_NORM = re.compile(r"[^a-z0-9]")
+
+ENTEROBACTERALES = [
+    "escherichia", "e. coli", "e.coli", "klebsiella", "enterobacter",
+    "citrobacter", "serratia", "proteus", "morganella", "providencia",
+    "salmonella", "shigella", "hafnia", "pantoea", "raoultella", "yersinia",
+]
+
+# Imipenem is intrinsically less active against these, so an imipenem outlier is
+# expected rather than suspicious.
+_IMI_TOLERANT = ["proteus", "morganella", "providencia"]
+
+
+def _nk(s: str) -> str:
+    return _NORM.sub("", (s or "").lower())
+
+
+def _org_in(organism: str, names: List[str]) -> bool:
+    o = (organism or "").lower()
+    return any(n in o for n in names)
+
+
+def _find(sir_map: Dict[str, str], needle: str,
+          exclude: Optional[List[str]] = None) -> Optional[str]:
+    """First panel entry matching `needle`, honouring `exclude`.
+
+    `exclude` is what stops "piperacillin" from matching
+    "Piperacillin + Tazobactam" — the whole point of the hierarchy rules is that
+    those two are DIFFERENT drugs, and a naive substring match collapses them
+    into one and then finds no contradiction anywhere.
+    """
+    n = _nk(needle)
+    for drug in sir_map:
+        d = _nk(drug)
+        if n not in d:
+            continue
+        if exclude and any(_nk(x) in d for x in exclude):
+            continue
+        return drug
+    return None
+
+
+def _find_tokens(sir_map: Dict[str, str], tokens: List[str]) -> Optional[str]:
+    """First panel entry whose normalized name contains ALL tokens.
+
+    Needed to name a specific inhibitor combination unambiguously: "sulbactam"
+    alone matches both ampicillin-sulbactam and cefoperazone-sulbactam, so the
+    ampicillin combo can only be pinned down by requiring both tokens.
+    """
+    toks = [_nk(t) for t in tokens]
+    for drug in sir_map:
+        d = _nk(drug)
+        if all(t in d for t in toks):
+            return drug
+    return None
+
+
+_INHIBITORS = ["clav", "sulbactam", "tazobactam", "avibactam", "vaborbactam",
+               "relebactam"]
+
+
+# ── 1. EQUIVALENCE ───────────────────────────────────────────────────────────
+EQUIVALENCE_RULES: List[Dict[str, Any]] = [
+    {
+        # Oxacillin and cefoxitin are two readings of ONE mechanism, mecA/mecC.
+        # A panel that disagrees with itself about methicillin resistance is the
+        # single most consequential discrepancy a staphylococcal report can
+        # carry: it decides whether every beta-lactam on the sheet is usable.
+        # Nothing checked it -- the two markers were read independently and a
+        # split result went out with no comment at all.
+        "id": "equiv_oxa_fox",
+        "organisms": ["staphylococc", "staph"],
+        "a": "oxacillin", "a_exclude": [],
+        "b": "cefoxitin", "b_exclude": [],
+        "reason_ar": ("Oxacillin و Cefoxitin قراءتان لآلية واحدة (mecA/mecC). "
+                      "اختلافهما على نفس العزلة يعني أن أحد القرصين خاطئ — "
+                      "ولا يمكن معرفة أيهما من التقرير. Cefoxitin هو المؤشّر "
+                      "الأدق لـ mecA ويُقدَّم عند التعارض."),
+        "reason_en": ("Oxacillin and cefoxitin are two readings of one mechanism "
+                      "(mecA/mecC). Disagreement on the same isolate means one "
+                      "disk is wrong, and the report gives no way to tell which. "
+                      "Cefoxitin is the more reliable mecA surrogate and takes "
+                      "precedence."),
+        "fix_ar": ("أعِد القرصين. عند استمرار التعارض اعتمد Cefoxitin، أو أكِّد "
+                   "بـ PBP2a latex agglutination أو mecA PCR. بلِّغ كل "
+                   "البيتا-لاكتام كمقاوم حتى الحسم."),
+        "fix_en": ("Repeat both disks. If the split persists, follow cefoxitin, "
+                   "or confirm with PBP2a latex agglutination or mecA PCR. "
+                   "Report all beta-lactams as resistant until resolved."),
+        "reference": "CLSI M100 Ed36 — cefoxitin as the mecA surrogate",
+    },
+    {
+        "id": "equiv_ctx_cro",
+        "organisms": ENTEROBACTERALES,
+        "a": "cefotaxime", "a_exclude": _INHIBITORS,
+        "b": "ceftriaxone", "b_exclude": _INHIBITORS,
+        "reason_ar": ("Cefotaxime و Ceftriaxone سيفالوسبورينان من الجيل الثالث "
+                      "بنفس الـ MIC breakpoints تماماً ضد الـ Enterobacterales، "
+                      "وكل الـ ESBL الشائعة تحلّلهما بنفس الكفاءة تقريباً. "
+                      "استحالة أن يكون أحدهما S والآخر R على نفس العزلة."),
+        "reason_en": ("Cefotaxime and ceftriaxone are third-generation "
+                      "cephalosporins with identical MIC breakpoints against "
+                      "Enterobacterales, and every common ESBL hydrolyses them "
+                      "near-identically. One S and one R on the same isolate is "
+                      "not possible."),
+        "fix_ar": ("أعِد اختبار القرصين على نفس اللقاح. راجع: كثافة اللقاح "
+                   "(0.5 McFarland) · صلاحية الأقراص وتخزينها · قياس الـ zone "
+                   "(الحافة لا الظل) · نقاء المستعمرة. لا تُبلِّغ اللوحة قبل الحل."),
+        "fix_en": ("Repeat both disks from the same inoculum. Check: inoculum "
+                   "density (0.5 McFarland), disk potency and storage, zone edge "
+                   "reading, colony purity. Do not report until resolved."),
+        "reference": "EUCAST Breakpoint Tables v16.1 — Enterobacterales · CLSI M100 Ed36 Table 2A",
+    },
+    {
+        "id": "equiv_amc_sam",
+        "organisms": ENTEROBACTERALES,
+        # Two-token match so "sulbactam" does not also grab cefoperazone-sulbactam.
+        "a_tokens": ["amoxicillin", "clav"],
+        "b_tokens": ["ampicillin", "sulbactam"],
+        "reason_ar": ("Amoxicillin/Clavulanate و Ampicillin/Sulbactam هما نفس "
+                      "الأمينوبنسلين مع مثبّط بيتا-لاكتاماز من نفس الفئة (A)، "
+                      "ويتصرّفان بشكل شبه متطابق ضد الـ Enterobacterales. أن يكون "
+                      "أحدهما S والآخر R على نفس العزلة خطأ معملي لا نمط مقاومة."),
+        "reason_en": (
+            "VERIFY (not a hard error): sulbactam and clavulanate differ in potency and carry different breakpoints and dosing, so a split result is unusual rather than impossible. "
+            "Amoxicillin-clavulanate and ampicillin-sulbactam are the same "
+                      "aminopenicillin plus an equivalent class-A beta-lactamase "
+                      "inhibitor; against Enterobacterales they behave "
+                      "near-identically. One S and one R on the same isolate is a "
+                      "laboratory error, not a resistance pattern."),
+        "fix_ar": ("أعِد اختبار التركيبتين من نفس اللقاح؛ تحقّق من صلاحية الأقراص "
+                   "وقراءة الـ zone قبل الإبلاغ."),
+        "fix_en": ("Repeat both combinations from the same inoculum; verify disk "
+                   "potency and zone reading before reporting."),
+        "reference": "EUCAST Expert Rules v3.1 (2016) · Breakpoint Tables v16.1 — Enterobacterales",
+    },
+]
+
+
+# ── 2. HIERARCHY ─────────────────────────────────────────────────────────────
+# `worse` is the agent that CANNOT be less active than `better`.
+HIERARCHY_RULES: List[Dict[str, Any]] = [
+    {
+        "id": "hier_amp_vs_amc",
+        "organisms": ENTEROBACTERALES,
+        "better": "ampicillin", "better_exclude": _INHIBITORS,
+        "worse": "amoxicillin", "worse_needle_extra": "clav",
+        "reason_ar": ("Ampicillin حسّاس بينما Amoxicillin/Clavulanate مقاوم — "
+                      "غير منطقي: إضافة مثبّط بيتا-لاكتاماز لا يمكن أن تقلّل "
+                      "فاعلية الدواء."),
+        "reason_en": ("Ampicillin susceptible while amoxicillin-clavulanate is "
+                      "resistant is not possible: adding a beta-lactamase "
+                      "inhibitor cannot reduce activity."),
+        "fix_ar": "أعِد اختبار القرصين. غالباً خطأ قراءة أو قرص تالف.",
+        "fix_en": "Repeat both disks. Usually a reading error or a degraded disk.",
+        "reference": "EUCAST Expert Rules v3.1 (2016) — beta-lactam hierarchy",
+    },
+    {
+        "id": "hier_pip_vs_tzp",
+        "organisms": [],
+        "better": "piperacillin", "better_exclude": _INHIBITORS,
+        "worse": "piperacillin", "worse_needle_extra": "tazobactam",
+        "reason_ar": ("Piperacillin حسّاس بينما Piperacillin/Tazobactam مقاوم — "
+                      "غير منطقي لنفس السبب: المثبّط لا يقلّل الفاعلية."),
+        "reason_en": ("Piperacillin susceptible while piperacillin-tazobactam is "
+                      "resistant is not possible — the inhibitor cannot reduce "
+                      "activity."),
+        "fix_ar": "أعِد اختبار القرصين.",
+        "fix_en": "Repeat both disks.",
+        "reference": "EUCAST Expert Rules v3.1 (2016) — beta-lactam hierarchy",
+    },
+    {
+        "id": "hier_mem_vs_etp",
+        "organisms": ENTEROBACTERALES,
+        "better": "ertapenem", "better_exclude": [],
+        "worse": "meropenem", "worse_needle_extra": "",
+        "reason_ar": ("Meropenem مقاوم بينما Ertapenem حسّاس — الاتجاه معكوس. "
+                      "الإرتابينيم هو الأضعف أمام آليات مقاومة الكاربابينيم، "
+                      "فالمعتاد هو العكس (Ertapenem-R مع Meropenem-S = "
+                      "OXA-48 أو فقد بورين، وهذا طبيعي)."),
+        "reason_en": ("Meropenem resistant with ertapenem susceptible is the wrong "
+                      "way round. Ertapenem is the most labile carbapenem, so the "
+                      "usual pattern is the reverse (ertapenem-R with meropenem-S "
+                      "= OXA-48 or porin loss, which is normal)."),
+        "fix_ar": "أعِد اختبار الكاربابينيمات وأكّد بـ MIC.",
+        "fix_en": "Repeat the carbapenems and confirm with an MIC method.",
+        "reference": "EUCAST Guidance on detection of resistance mechanisms · CLSI M100 Ed36",
+    },
+    {
+        "id": "hier_tet_vs_doxy",
+        "organisms": [],
+        "better": "tetracycline", "better_exclude": ["oxytetracycline"],
+        "worse": "doxycycline", "worse_needle_extra": "",
+        "reason_ar": ("Tetracycline حسّاس بينما Doxycycline مقاوم — يخالف قاعدة "
+                      "CLSI التنبّؤية: العزلة الحسّاسة للتتراسيكلين تُعتبر حسّاسة "
+                      "للدوكسيسيكلين والمينوسيكلين. (العكس مسموح: Tetracycline-R "
+                      "لا يتنبّأ بمقاومة الدوكسيسيكلين — يجب اختباره منفصلاً.)"),
+        "reason_en": ("Tetracycline susceptible with doxycycline resistant "
+                      "contradicts the CLSI predictive rule: an isolate "
+                      "susceptible to tetracycline is considered susceptible to "
+                      "doxycycline and minocycline. (The reverse IS allowed — "
+                      "tetracycline-R does not predict doxycycline-R, which is why "
+                      "doxycycline must be tested separately.)"),
+        "fix_ar": "أعِد اختبار القرصين.",
+        "fix_en": "Repeat both disks.",
+        "reference": "CLSI M100 Ed36 — tetracycline-class predictive note",
+    },
+]
+
+
+_RANK = {"S": 0, "I": 1, "R": 2}
+
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# EXCEPTIONAL PHENOTYPE RULES
+# ----------------------------------------------------------------------
+# The hierarchy and equivalence rules above catch results that contradict ONE
+# ANOTHER. They cannot catch a result that is internally consistent but
+# contradicts the world -- a vancomycin-resistant Staphylococcus aureus, a
+# penicillin-resistant Streptococcus pyogenes. Nothing in the panel is
+# self-contradictory, so every existing rule stayed silent and the report went
+# out unchallenged.
+#
+# These are the phenotypes that, in a routine diagnostic laboratory, are far
+# more likely to be a mixed culture, a misidentification, a contaminated disk or
+# a transcription slip than a genuine finding. A true one is a notifiable public
+# health event and still needs reference-laboratory confirmation before it is
+# acted on -- so flagging costs nothing and missing it costs a great deal.
+#
+# `max_status` = the worst result that is UNREMARKABLE. Anything worse fires.
+# ═══════════════════════════════════════════════════════════════════════
+EXCEPTIONAL_PHENOTYPES: List[Dict[str, Any]] = [
+    {
+        "id": "rare_vrsa",
+        "organisms": ["staphylococcus aureus", "staph aureus", "mrsa", "mssa"],
+        "drug": "vancomycin", "exclude": [], "max_status": "I",
+        "reason_ar": ("مقاومة الفانكومايسين في المكوّرات العنقودية الذهبية "
+                      "(VRSA) وُثِّقت في حالات معدودة عالمياً منذ 2002. "
+                      "الاحتمال الأرجح بفارق كبير: مزرعة مختلطة، أو خطأ تعريف، "
+                      "أو قرص/شريط تالف."),
+        "reason_en": ("Vancomycin resistance in S. aureus (VRSA) has been "
+                      "documented in a very small number of cases worldwide "
+                      "since 2002. A mixed culture, a misidentification or a "
+                      "degraded disk is far more likely."),
+        "fix_ar": ("أكِّد بـ MIC (broth microdilution أو gradient strip) على "
+                   "مستعمرة نقية، وأعِد تعريف الكائن. لا تُصدِر النتيجة قبل "
+                   "التأكيد، وأبلِغ المعمل المرجعي عند الثبوت."),
+        "fix_en": ("Confirm by MIC (broth microdilution or gradient strip) on a "
+                   "pure colony and re-identify. Do not release before "
+                   "confirmation; notify the reference laboratory if confirmed."),
+        "reference": "CLSI M100 Ed36 — S. aureus vancomycin MIC confirmation",
+    },
+    {
+        "id": "rare_van_pneumococcus",
+        "organisms": ["streptococcus pneumoniae", "pneumococc"],
+        "drug": "vancomycin", "exclude": [], "max_status": "S",
+        "reason_ar": ("لم تُوصَف مكوّرات رئوية مقاومة للفانكومايسين في الأدبيات. "
+                      "النتيجة تشير على الأرجح إلى خطأ في التعريف — غالباً "
+                      "Enterococcus أو Leuconostoc أو Lactobacillus."),
+        "reason_en": ("Vancomycin-resistant S. pneumoniae has not been described. "
+                      "This most likely indicates a misidentification -- "
+                      "Enterococcus, Leuconostoc or Lactobacillus."),
+        "fix_ar": ("أعِد تعريف الكائن (optochin، bile solubility). راجع نقاء "
+                   "المستعمرة قبل إعادة الاختبار."),
+        "fix_en": ("Re-identify (optochin, bile solubility) and check colony "
+                   "purity before repeating."),
+        "reference": "CLSI M100 Ed36 — S. pneumoniae identification",
+    },
+    {
+        "id": "rare_pen_gas",
+        "organisms": ["streptococcus pyogenes", "group a strep", "gas"],
+        "drug": "penicillin", "exclude": ["combination"], "max_status": "S",
+        "reason_ar": ("Streptococcus pyogenes لا يزال حسّاساً للبنسلين عالمياً — "
+                      "لم تُوثَّق مقاومة سريرية. النتيجة تعني خطأ تعريف أو "
+                      "خطأ قراءة."),
+        "reason_en": ("S. pyogenes remains universally penicillin-susceptible; "
+                      "clinical resistance has not been documented. This "
+                      "indicates a misidentification or a reading error."),
+        "fix_ar": ("أعِد التعريف (Lancefield grouping، bacitracin، PYR) وأعِد "
+                   "قراءة القرص."),
+        "fix_en": ("Re-identify (Lancefield grouping, bacitracin, PYR) and "
+                   "re-read the disk.",),
+        "reference": "CLSI M100 Ed36 — beta-haemolytic streptococci",
+    },
+    {
+        "id": "rare_linezolid_gram_pos",
+        "organisms": ["staphylococc", "enterococc", "streptococc", "mrsa", "vre"],
+        "drug": "linezolid", "exclude": [], "max_status": "I",
+        "reason_ar": ("مقاومة اللينيزوليد في الإيجابيات الجرام نادرة جداً وتستلزم "
+                      "تأكيداً. تظهر عادةً بعد علاج مطوّل فقط."),
+        "reason_en": ("Linezolid resistance in Gram-positives is very rare and "
+                      "requires confirmation; it usually emerges only after "
+                      "prolonged therapy."),
+        "fix_ar": "أكِّد بـ MIC وراجع تاريخ علاج المريض باللينيزوليد.",
+        "fix_en": "Confirm by MIC and review prior linezolid exposure.",
+        "reference": "EUCAST Breakpoint Tables v16.1 (2026)",
+    },
+    {
+        "id": "rare_colistin_disc",
+        "organisms": ["escherichia", "e. coli", "klebsiella", "enterobacter",
+                      "pseudomonas", "acinetobacter"],
+        # FIX 2026-11-10: max_status was "S", so the rule never fired on an
+        # S -- the result a disk most often gets WRONG (false susceptibility),
+        # although the text below says "invalid whatever it shows". It now
+        # fires on every reported colistin result.
+        "drug": "colistin", "exclude": [], "max_status": "S", "always": True,
+        "reason_ar": ("نتيجة الكوليستين تستلزم broth microdilution. EUCAST و CLSI "
+                      "يرفضان قياسه بالأقراص أو بالـ gradient strip — الجزيء لا ينتشر "
+                      "في الآجار، فالنتيجة بالقرص غير صالحة أياً كانت (والخطأ الأشيع "
+                      "حساسية كاذبة). CLSI لا يعرّف فئة S للكوليستين (I ≤ 2 / R ≥ 4)."),
+        "reason_en": ("A colistin result requires broth microdilution. EUCAST and "
+                      "CLSI both reject disk diffusion and gradient strips for "
+                      "colistin -- the molecule does not diffuse in agar, so a disk "
+                      "result is invalid whatever it shows (false susceptibility is "
+                      "the common error). CLSI defines no S category (I <=2 / R >=4)."),
+        "fix_ar": ("أكِّد بـ BMD. إذا كانت اللوحة تقيس الكوليستين بالقرص، "
+                   "احذف النتيجة من التقرير نهائياً."),
+        "fix_en": ("Confirm by BMD. If the panel measured colistin by disk, "
+                   "remove the result from the report entirely."),
+        "reference": "EUCAST-CLSI Polymyxin Breakpoints Working Group (2016)",
+    },
+]
+
+
+
+def _worse_than(a: Optional[str], b: Optional[str]) -> bool:
+    """True when result `a` is categorically worse than result `b`."""
+    if a not in _RANK or b not in _RANK:
+        return False
+    return _RANK[a] > _RANK[b]
+
+
+def check_consistency(organism: str, sir_map: Dict[str, str]) -> List[Dict[str, Any]]:
+    """Find results on this panel that contradict each other.
+
+    Every issue is an `error`, not a warning: unlike a missing breakpoint (which
+    produces a meaningless result), a discrepancy means one of two printed
+    results is actively WRONG — and there is no way to tell from the report
+    which one. A clinician reading the S has no signal that anything is amiss.
+    """
+    if not sir_map or not organism:
+        return []
+    issues: List[Dict[str, Any]] = []
+
+    for rule in EQUIVALENCE_RULES:
+        if rule["organisms"] and not _org_in(organism, rule["organisms"]):
+            continue
+        if "a_tokens" in rule:
+            da = _find_tokens(sir_map, rule["a_tokens"])
+            db = _find_tokens(sir_map, rule["b_tokens"])
+        else:
+            da = _find(sir_map, rule["a"], rule.get("a_exclude"))
+            db = _find(sir_map, rule["b"], rule.get("b_exclude"))
+        if not da or not db or da == db:
+            continue
+        va, vb = sir_map[da], sir_map[db]
+        # S vs R only. S vs I is a one-step drift that ordinary technical
+        # variation explains — flagging it would bury the real signal.
+        if {va, vb} == {"S", "R"}:
+            issues.append({
+                "id": f'{rule["id"]}:{da}|{db}',
+                "category": "discrepancy",
+                "severity": "error",
+                "drugs": [da, db],
+                "results": {da: va, db: vb},
+                "reason_ar": rule["reason_ar"], "reason_en": rule["reason_en"],
+                "fix_ar": rule["fix_ar"], "fix_en": rule["fix_en"],
+                "reference": rule["reference"],
+            })
+
+    for rule in HIERARCHY_RULES:
+        if rule["organisms"] and not _org_in(organism, rule["organisms"]):
+            continue
+        d_better = _find(sir_map, rule["better"], rule.get("better_exclude"))
+        extra = rule.get("worse_needle_extra") or ""
+        if extra:
+            d_worse = next((d for d in sir_map
+                            if _nk(rule["worse"]) in _nk(d) and _nk(extra) in _nk(d)),
+                           None)
+        else:
+            d_worse = _find(sir_map, rule["worse"], _INHIBITORS)
+        if not d_better or not d_worse or d_better == d_worse:
+            continue
+        if rule["id"] == "hier_mem_vs_etp" and _org_in(organism, _IMI_TOLERANT):
+            continue
+        if _worse_than(sir_map[d_worse], sir_map[d_better]) and \
+                sir_map[d_better] == "S" and sir_map[d_worse] == "R":
+            issues.append({
+                "id": f'{rule["id"]}:{d_better}|{d_worse}',
+                "category": "discrepancy",
+                "severity": "error",
+                "drugs": [d_better, d_worse],
+                "results": {d_better: sir_map[d_better], d_worse: sir_map[d_worse]},
+                "reason_ar": rule["reason_ar"], "reason_en": rule["reason_en"],
+                "fix_ar": rule["fix_ar"], "fix_en": rule["fix_en"],
+                "reference": rule["reference"],
+            })
+
+    # ── exceptional phenotypes ────────────────────────────────────────────
+    for rule in EXCEPTIONAL_PHENOTYPES:
+        if rule["organisms"] and not _org_in(organism, rule["organisms"]):
+            continue
+        drug = _find(sir_map, rule["drug"], rule.get("exclude"))
+        if not drug:
+            continue
+        status = str(sir_map.get(drug, "")).strip().upper()
+        if rule.get("always"):
+            if status not in _RANK:
+                continue
+        elif _RANK.get(status, -1) <= _RANK.get(rule["max_status"], 2):
+            continue
+        _fix_ar = rule["fix_ar"]
+        _fix_en = rule["fix_en"]
+        issues.append({
+            "id": f'{rule["id"]}:{drug}',
+            "kind": "exceptional_phenotype",
+            "drugs": [drug],
+            "results": {drug: sir_map[drug]},
+            "reason_ar": rule["reason_ar"], "reason_en": rule["reason_en"],
+            "fix_ar": _fix_ar[0] if isinstance(_fix_ar, tuple) else _fix_ar,
+            "fix_en": _fix_en[0] if isinstance(_fix_en, tuple) else _fix_en,
+            "reference": rule["reference"],
+        })
+
+    return issues
+
+
+def format_issue(issue: Dict[str, Any], lang: str = "ar") -> Dict[str, str]:
+    """Render one discrepancy into the {message, fix} shape run_ast_qc uses."""
+    drugs = " ↔ ".join(f'{d} [{issue["results"][d]}]' for d in issue["drugs"])
+    head = ("🔴 **تناقض في اللوحة — أعِد الاختبار** — " if lang == "ar"
+            else "🔴 **Panel discrepancy — repeat testing** — ")
+    reason = issue["reason_ar"] if lang == "ar" else issue["reason_en"]
+    fix = issue["fix_ar"] if lang == "ar" else issue["fix_en"]
+    return {
+        "message": f"{head}**{drugs}** — {reason}",
+        "fix": f"{fix}  \n📖 {issue['reference']}",
+    }
+
+
+# ── 3. Corrections to AST_QC_RULES that live in clinical_data.py ─────────────
+# TEMPORARY. These override rules whose text is wrong at source. Fix
+# clinical_data.py and delete the entry — an override layer that outlives its
+# cause becomes a second, invisible source of truth.
+# QC_RULE_OVERRIDES was DELETED 2026-08-03 (40 lines).
+#
+# It existed to patch QC006's text at runtime: the original wording told
+# laboratories to "avoid ALL cephalosporins even if S in the AST" and attributed
+# that to EUCAST, which says the opposite — the current Enterobacterales
+# cephalosporin breakpoints detect the clinically important mechanisms, isolates
+# are REPORTED AS TESTED, and the presence of an ESBL does not by itself change
+# the categorisation. That is a real correction and it is still in force.
+#
+# But it was applied AT SOURCE: run_ast_qc() now emits the corrected message and
+# the corrected `fix` text directly, so the override table overrode nothing and
+# no code ever read it. A dead override for a live correction is worse than no
+# override — a reader finds it, believes the patch happens here, and looks in
+# the wrong place when the text needs changing again.
+#
+# The clinical reasoning survives in run_ast_qc()'s QC006 entry, which is where
+# the text actually lives.
+
