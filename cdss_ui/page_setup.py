@@ -83,12 +83,13 @@ def render_health_and_title(page):
             + "  \n".join(f"❌ `{n}` is missing." for n, crit in _degraded if crit)
             + "  \n\nIntrinsically inactive antibiotics will NOT be filtered out of the "
               "recommendations and will NOT be excluded from MDR counting. "
-              "Upload the missing file next to `streamlit_app.py` and restart."
+              "Upload the missing file to its folder, then **Manage app → Reboot app**."
         )
     elif _degraded:
         st.warning("⚠️ Optional modules unavailable: "
                    + ", ".join(f"`{n}`" for n, _ in _degraded)
-                   + ". Core recommendations are unaffected.")
+                   + ". Core recommendations are unaffected. "
+                   "After uploading the missing file: **Manage app → Reboot app**.")
 
     startup_issues = get_startup_validation_issues()
     if startup_issues:
