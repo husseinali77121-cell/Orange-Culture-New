@@ -25,12 +25,22 @@ the two problems that can only mean a broken upload:
               requirements, the EXE spec) is not there;
   * MISPLACED a release file sits in the wrong folder, or a stray .py file sits
               inside cdss/ or cdss_ui/.
-DIFFERS (an edited or older copy) and other EXTRA files stay report-only: an
-intentional edit on GitHub must not block the build.
+  * OLD COPY  (added 2026-11-13, v6.4) an application file is byte-for-byte the
+              version of an EARLIER release. The manifest keeps the hashes of
+              every earlier version of each file ("#old" lines), so an old copy
+              is told apart from an edit. This is how v6.3 failed: cdss/health.py
+              on GitHub was still the v6 one, Guard 0 printed DIFFERS and let the
+              build go on, and the symptom was one failing test two steps later.
+A file that matches NO release (an edit made on GitHub) and other EXTRA files
+stay report-only: an intentional edit must not block the build.
 
 Usage:  python verify_upload.py            exit 1 only on a broken upload (above)
         python verify_upload.py --strict   exit 1 if anything differs at all
-        python verify_upload.py --write    regenerate the manifest (release step)
+        python verify_upload.py --write [--release "v6.4 note"]
+                                           regenerate the manifest; with --release
+                                           (a new release) the hashes it replaces
+                                           move to "#old", labelled with the
+                                           release they came from
 """
 import hashlib, os, sys
 
@@ -65,34 +75,80 @@ def _files():
             yield os.path.relpath(p, HERE).replace(os.sep, "/"), p
 
 
+def _read_manifest():
+    """(release title, {path: hash}, {path: {old hash: release label}})"""
+    release, expected, old = "", {}, {}
+    if not os.path.exists(MANIFEST):
+        return release, expected, old
+    with open(MANIFEST, encoding="utf-8") as m:
+        for line in m:
+            line = line.rstrip("\n")
+            if line.startswith("#old "):
+                h, rel, label = (line[5:].split("  ") + ["", ""])[:3]
+                old.setdefault(rel, {})[h] = label
+            elif line.startswith("#"):
+                release = release or line.lstrip("# ")
+            elif line.strip():
+                h, rel = line.split("  ", 1)
+                expected[rel] = h
+    return release, expected, old
+
+
+def _label(release):
+    """'release v6.3 2026-11-13 (...)' -> 'v6.3'"""
+    words = release.split()
+    return words[1] if len(words) > 1 and words[0] == "release" else (words[0] if words else "earlier")
+
+
+def _write():
+    release, previous, old = _read_manifest()
+    prev_label = _label(release)
+    new_release = "--release" in sys.argv
+    if new_release:
+        release = "release " + sys.argv[sys.argv.index("--release") + 1]
+    current = {rel: _digest(p) for rel, p in _files()}
+    # Only a NEW release turns the hashes it replaces into history. Re-writing the
+    # manifest while a release is still being prepared records nothing: those
+    # in-between versions never reached anybody, so they cannot be an "old copy".
+    if new_release and _label(release) != prev_label:
+        for rel, h in previous.items():
+            if current.get(rel) != h:
+                old.setdefault(rel, {}).setdefault(h, prev_label)
+    with open(MANIFEST, "w", encoding="utf-8", newline="\n") as m:
+        if release:
+            m.write(f"# {release}\n")
+        for rel, h in current.items():
+            m.write(f"{h}  {rel}\n")
+        for rel in sorted(old):
+            for h, label in old[rel].items():
+                if h != current.get(rel):
+                    m.write(f"#old {h}  {rel}  {label}\n")
+    print(f"manifest written: {MANIFEST}")
+    return 0
+
+
 def main():
+    try:                       # a Windows console without UTF-8 must not crash on the Arabic line
+        sys.stdout.reconfigure(errors="replace")
+    except Exception:
+        pass
     if "--write" in sys.argv:
-        with open(MANIFEST, "w", encoding="utf-8", newline="\n") as m:
-            for rel, p in _files():
-                m.write(f"{_digest(p)}  {rel}\n")
-        print(f"manifest written: {MANIFEST}")
-        return 0
+        return _write()
     if not os.path.exists(MANIFEST):
         print("verify_upload: no RELEASE_MANIFEST.sha256 — nothing to compare.")
         return 0
-    expected = {}
-    with open(MANIFEST, encoding="utf-8") as m:
-        release = ""
-        for line in m:
-            line = line.rstrip("\n")
-            if line.startswith("#"):
-                release = release or line.lstrip("# ")
-                continue
-            if line.strip():
-                h, rel = line.split("  ", 1)
-                expected[rel] = h
-    stale, missing = [], []
+    release, expected, old = _read_manifest()
+    stale, missing, outdated = [], [], {}
     for rel, h in expected.items():
         p = os.path.join(HERE, rel)
         if not os.path.exists(p):
             missing.append(rel)
-        elif _digest(p) != h:
-            stale.append(rel)
+        else:
+            d = _digest(p)
+            if d != h:
+                stale.append(rel)
+                if d in old.get(rel, {}):
+                    outdated[rel] = old[rel][d] or "an earlier release"
     home_of = {}                                   # file name -> its release path(s)
     for rel in expected:
         home_of.setdefault(rel.rsplit("/", 1)[-1], []).append(rel)
@@ -108,7 +164,12 @@ def main():
         if _critical(rel):
             blocking.append(f"MISSING    {rel}   -> upload it")
     for rel in stale:
-        print(f"  DIFFERS  {rel}   (old copy, or edited after the release)")
+        if rel in outdated:
+            print(f"  DIFFERS  {rel}   (OLD COPY: this is the {outdated[rel]} version)")
+            if _critical(rel):
+                blocking.append(f"OLD COPY   {rel}   -> upload it again (what is there is the {outdated[rel]} version)")
+        else:
+            print(f"  DIFFERS  {rel}   (edited after the release)")
     for rel in extra:
         homes = [h for h in home_of.get(rel.rsplit("/", 1)[-1], []) if h != rel]
         where = f"   -> wrong folder? this file belongs at: {', '.join(homes)}" if homes \
@@ -128,7 +189,7 @@ def main():
         print("BROKEN UPLOAD -- fix these files first; nothing after this step can pass:")
         for line in blocking:
             print("  " + line)
-        print("الرفع ناقص أو في ملفات في مكان غلط -- صلّح الملفات اللي فوق الأول.")
+        print("الرفع ناقص، أو فيه ملف بنسخة قديمة، أو ملفات في مكان غلط -- صلّح الملفات اللي فوق الأول.")
         print("=" * 72)
         return 1
     return 1 if "--strict" in sys.argv else 0

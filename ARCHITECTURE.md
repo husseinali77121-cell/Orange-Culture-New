@@ -163,4 +163,4 @@ Streamlit ويُرجع قيم widgets مكتوبة أو عشوائية ببذر�
 2. لا `try: import ...; except: fallback` **جديدة** لـ modules المشروع. الغياب = فشل تشغيل، لا تشغيل ناقص. (الموجود من أيام الملف الواحد محمي بالمسح اللي في `streamlit_app.py`.)
 3. لا قوائم ملفات مكتوبة باليد (الـ spec والـ CI يكتشفان الملفات بأنفسهما).
 4. كل إصلاح معه اختبار يفشل قبله وينجح بعده.
-5. قبل أي release: `python -m pytest tests` ثم `python verify_upload.py --write`.
+5. قبل أي release: `python -m pytest tests` ثم `python verify_upload.py --write --release "vX.Y التاريخ (ملخص)"` (بيحفظ hashes النسخة اللي فاتت كتاريخ، عشان Guard 0 يعرف النسخة القديمة لو اترفعت بالغلط).
