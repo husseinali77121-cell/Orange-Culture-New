@@ -1,0 +1,173 @@
+# © 2025 Dr / Hussein Ali -- Orange Lab, 6 October City, Egypt
+# Microbiology CDSS -- All Rights Reserved
+"""Infection-syndrome inference from specimen and host."""
+from typing import Any
+from typing import Dict
+from typing import Optional
+
+from cdss.common.specimen import (
+    classify_specimen,
+)
+
+
+# =========================================================
+# MODULE 4 -- Infection Syndrome Module
+# يربط Specimen + Organism + Phenotype بـ clinical syndrome
+# =========================================================
+INFECTION_SYNDROMES = {
+    ("Urine", None): {
+        "syndrome":  "Urinary Tract Infection (UTI)",
+        "classify":  lambda age, is_preg, is_cath: (
+            "Complicated UTI" if (is_cath or age > 65) else
+            "Pregnancy-associated UTI" if is_preg else
+            "Uncomplicated UTI"
+        ),
+        "first_choice": ["Nitrofurantoin","Fosfomycin","Trimethoprim/Sulfamethoxazole"],
+        # 2026-11-10: cUTI 7 days (IDSA cUTI 2025); the culture threshold read
+        # "10^3 symptomatic / 10^5 asymptomatic" for every patient -- the
+        # 10^3 figure applies to symptomatic women and men specifically.
+        "duration": {"Uncomplicated UTI": "1-7 أيام حسب الدواء (Nitrofurantoin 5 · TMP-SMX 3 · Fosfomycin جرعة)",
+                     "Complicated UTI": "7 أيام عند الاستجابة السريعة (FQ 5-7) — 10-14 للاستجابة البطيئة",
+                     "Pregnancy-associated UTI": "5-7 أيام"},
+        "escalation": "لو فشل الخط الأول أو CrCl < 45 (Nitrofurantoin) -> حسب الحساسية: Cefixime / Ciprofloxacin",
+        "culture_threshold": ("≥ 10³ CFU/mL مع أعراض (نساء ورجال)؛ ≥ 10⁵ للبيلة اللاعرضية "
+                              "(تُعالج فقط في الحمل وقبل إجراء بولي جراحي)"),
+    },
+    ("Blood", None): {
+        "syndrome":  "Bloodstream Infection (BSI) / Bacteremia",
+        "classify":  lambda age, is_preg, is_cath: (
+            "Catheter-Related BSI (CRBSI)" if is_cath else "Community/Hospital BSI"
+        ),
+        "first_choice": ["Ceftriaxone","Piperacillin-Tazobactam","Meropenem (MDR/severe)"],
+        "duration": {"Community/Hospital BSI": ("GNB: 7 أيام مع السيطرة على المصدر (BALANCE 2025) · "
+                                                 "S. aureus: ≥14 يوم · حسب الكائن والمصدر"),
+                     "Catheter-Related BSI (CRBSI)": ("إزالة الكاتيتر + GNB 7-14 · CoNS 5-7 · "
+                                                      "S. aureus ≥14 يوم")},
+        "escalation": "MDR/XDR -> Meropenem ± Amikacin. Endocarditis اشتباه -> اتشاور",
+        "culture_threshold": "2 sets blood cultures قبل المضاد",
+    },
+    ("Sputum", None): {
+        "syndrome":  "Respiratory Tract Infection",
+        # FIX 2026-11-11 (round 4): age > 65 alone was labelled "Severe CAP".
+        # Age is ONE CURB-65 point; severity needs the score (or ATS/IDSA
+        # major/minor criteria), and suggest_severity() already rates an
+        # otherwise-well 70-year-old as moderate. The label now says what is
+        # actually known.
+        "classify":  lambda age, is_preg, is_cath: (
+            "HAP/VAP" if is_cath else ("CAP (age > 65 — assess CURB-65 / PSI)" if age > 65 else "CAP")
+        ),
+        "first_choice": ["Amoxicillin + Clavulanic acid","Levofloxacin","Azithromycin"],
+        "duration": {"CAP": "5 أيام كحد أدنى حتى الاستقرار",
+                     "CAP (age > 65 — assess CURB-65 / PSI)": (
+                         "5 أيام كحد أدنى حتى الاستقرار — 7 أيام للحالات الشديدة أو MRSA/Pseudomonas"),
+                     "Severe CAP": "5-7 أيام (أطول لـ MRSA/Pseudomonas)",
+                     "HAP/VAP": "7 أيام (ATS/IDSA 2016)"},
+        "escalation": "Pseudomonas/Acinetobacter -> anti-pseudomonal mandatory",
+        # FIX 2026-11-10: BAL threshold is 10^4 CFU/mL (10^3 for PSB, 10^5-10^6
+        # for endotracheal aspirate) -- the line read BAL 10^5.
+        "culture_threshold": "BAL ≥ 10⁴ CFU/mL · PSB ≥ 10³ · شفط رغامي ≥ 10⁵–10⁶ (ATS/IDSA 2016)",
+    },
+    ("Wound Swab", None): {
+        "syndrome":  "Skin & Soft Tissue Infection (SSTI)",
+        "classify":  lambda age, is_preg, is_cath: "SSTI",
+        "first_choice": ["Cephalexin","Amoxicillin + Clavulanic acid"],
+        "duration": {"SSTI": "5-10 أيام حسب الشدة"},
+        "escalation": "MRSA اشتباه -> TMP/SMX أو Doxycycline. Diabetic foot -> broader coverage",
+        "culture_threshold": "أخذ عينة من العمق -- لا من السطح",
+    },
+    ("Pus", None): {
+        "syndrome":  "Abscess / Deep Infection",
+        "classify":  lambda age, is_preg, is_cath: "Abscess",
+        "first_choice": ["Amoxicillin + Clavulanic acid","Metronidazole"],
+        "duration": {"Abscess": "Drainage + 5-7 أيام"},
+        "escalation": "Intra-abdominal -> Metronidazole إلزامي. Carbapenem لو ESBL",
+        "culture_threshold": "Drainage culture -- أدق من swab",
+    },
+    ("Stool", None): {
+        "syndrome":  "Gastrointestinal Infection",
+        "classify":  lambda age, is_preg, is_cath: (
+            "Severe GI / Immunocompromised" if (age < 2 or age > 65 or is_preg) else "Mild-Moderate GI Infection"
+        ),
+        "first_choice": ["Azithromycin", "Ciprofloxacin (if susceptible)"],
+        "duration": {
+            "Mild-Moderate GI Infection": "Supportive care -- antibiotics usually NOT needed",
+            "Severe GI / Immunocompromised": "3-5 days (Azithromycin/Cipro)",
+        },
+        "escalation": "C. diff -> Vancomycin PO / Fidaxomicin. Salmonella typhi -> 7-14d Ceftriaxone.",
+        "culture_threshold": "Stool culture for severe/immunocompromised cases only",
+    },
+    ("Stool Culture", None): {
+        "syndrome":  "Gastrointestinal Infection",
+        "classify":  lambda age, is_preg, is_cath: (
+            "Severe GI / Immunocompromised" if (age < 2 or age > 65 or is_preg) else "Mild-Moderate GI Infection"
+        ),
+        "first_choice": ["Azithromycin", "Ciprofloxacin (if susceptible)"],
+        "duration": {"GI Infection": "Supportive care preferred -- antibiotics for severe cases only"},
+        "escalation": "C. diff -> Vancomycin/Fidaxomicin | Salmonella typhi -> 7-14d",
+        "culture_threshold": "Culture for severe/immunocompromised only",
+    },
+    ("CSF", None): {
+        "syndrome":  "Central Nervous System Infection (Meningitis)",
+        "classify":  lambda age, is_preg, is_cath: "Bacterial Meningitis",
+        "first_choice": ["Ceftriaxone","Meropenem"],
+        "duration": {"Bacterial Meningitis": ("N. meningitidis 7 · H. influenzae 7 · S. pneumoniae 10-14 · "
+                                              "GBS 14-21 · Listeria ≥21 · GNB 21 يوم")},
+        "escalation": "ابدأ تجريبياً فوراً ولا تنتظر culture. Dexamethasone قبل المضاد أو معه",
+        "culture_threshold": "CSF culture + Gram stain + Ag testing",
+    },
+}
+
+def get_infection_syndrome(
+    specimen:  str,
+    organism:  str,
+    age:       int,
+    is_preg:   bool,
+    is_cath:   bool = False,
+    sex:       str = "",
+) -> Optional[Dict[str, Any]]:
+    """
+    يعيد السياق السريري للعدوى -- يدعم مطابقة مرنة لأسماء العينات.
+
+    `sex` added 2026-11-11 (round 4): a urinary infection in a man is a
+    complicated UTI (IDSA cUTI 2025) -- suggest_severity() and the duration
+    engine already said so, while this panel, which never knew the sex, called
+    it "Uncomplicated UTI" with the 1-7 day cystitis course on the same screen.
+    """
+    # Try exact match first
+    syndrome_data = INFECTION_SYNDROMES.get((specimen, None))
+    # Fuzzy fallback: match substring
+    if not syndrome_data:
+        spec_l = specimen.lower()
+        for (key_spec, _), data in INFECTION_SYNDROMES.items():
+            kl = key_spec.lower()
+            if kl in spec_l or spec_l in kl:
+                syndrome_data = data
+                break
+    # Canonical-category fallback (single source of truth -- classify_specimen)
+    if not syndrome_data:
+        _cat_to_key = {
+            "urine": "Urine", "blood": "Blood", "sputum": "Sputum",
+            "csf":   "CSF",   "stool": "Stool", "wound":  "Wound Swab",
+            "pus":   "Pus",   "abdomen": "Pus",
+        }
+        _target = _cat_to_key.get(classify_specimen(specimen))
+        if _target:
+            syndrome_data = INFECTION_SYNDROMES.get((_target, None))
+
+    if not syndrome_data:
+        return None
+
+    sub_type = syndrome_data["classify"](age, is_preg, is_cath)
+    if (sub_type == "Uncomplicated UTI"
+            and str(sex or "").strip().lower() in ("male", "m", "ذكر")):
+        sub_type = "Complicated UTI"
+    duration  = syndrome_data["duration"].get(sub_type, "حسب الاستجابة السريرية")
+
+    return {
+        "syndrome":       syndrome_data["syndrome"],
+        "sub_type":       sub_type,
+        "first_choice":   syndrome_data["first_choice"],
+        "duration":       duration,
+        "escalation":     syndrome_data["escalation"],
+        "threshold":      syndrome_data["culture_threshold"],
+    }
