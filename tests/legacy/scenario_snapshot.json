@@ -234,7 +234,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Polymyxins",
    "Tetracyclines"
@@ -337,7 +336,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Tetracyclines"
   ],
@@ -589,7 +587,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Polymyxins",
    "Tetracyclines"
@@ -692,7 +689,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Tetracyclines"
   ],
@@ -2534,7 +2530,6 @@
  "Blood|Coagulase-negative Staphylococci|intrinsic_violation": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Clindamycin",
@@ -2549,7 +2544,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -2580,6 +2576,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -2600,7 +2597,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -2712,7 +2708,6 @@
  "Blood|Coagulase-negative Staphylococci|urine_agent_offsite": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Clindamycin",
@@ -2727,6 +2722,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -2749,7 +2745,6 @@
  "Blood|Coagulase-negative Staphylococci|wild_type": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Clindamycin",
@@ -2763,7 +2758,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -7619,11 +7616,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -7650,13 +7647,13 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
    "Ciprofloxacin",
    "Gentamicin",
-   "Levofloxacin"
+   "Levofloxacin",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -7749,11 +7746,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
-   "Nitrofurantoin"
+   "Nitrofurantoin",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -7783,10 +7780,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
+   "Trimethoprim/Sulfamethoxazole"
+  ],
+  "banned": [
    "Vancomycin"
   ],
-  "banned": [],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -12625,7 +12623,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -12640,7 +12637,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -12672,6 +12670,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -12695,7 +12694,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -12819,7 +12817,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -12834,6 +12831,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -12858,7 +12856,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -12872,7 +12869,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -12942,7 +12941,6 @@
   "allowed": [
    "Amoxicillin + Clavulanic acid",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Clindamycin",
@@ -12956,7 +12954,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -12987,6 +12986,7 @@
   ],
   "banned": [
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -13007,7 +13007,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -13120,7 +13119,6 @@
   "allowed": [
    "Amoxicillin + Clavulanic acid",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Clindamycin",
@@ -13134,6 +13132,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -13157,7 +13156,6 @@
   "allowed": [
    "Amoxicillin + Clavulanic acid",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Clindamycin",
@@ -13170,7 +13168,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -13236,7 +13236,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -13251,7 +13250,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -13283,6 +13283,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -13306,7 +13307,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -13428,7 +13428,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -13443,6 +13442,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -13467,7 +13467,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -13481,7 +13480,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -14141,7 +14142,9 @@
   "patho": "🔴 Likely TRUE INFECTION -- Treat",
   "phenotypes": [],
   "preg_warn": [],
-  "qc_ids": [],
+  "qc_ids": [
+   "hier_pen_vs_cro_pneumococcus:Penicillin|Ceftriaxone"
+  ],
   "warned": []
  },
  "Blood|Streptococcus pneumoniae|pdr": {
@@ -15346,7 +15349,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Polymyxins",
    "Tetracyclines"
@@ -15449,7 +15451,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Tetracyclines"
   ],
@@ -16893,7 +16894,6 @@
  "CSF|Coagulase-negative Staphylococci|intrinsic_violation": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Clindamycin",
@@ -16908,7 +16908,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -16939,6 +16940,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -16959,7 +16961,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -17071,7 +17072,6 @@
  "CSF|Coagulase-negative Staphylococci|urine_agent_offsite": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Clindamycin",
@@ -17086,6 +17086,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -17108,7 +17109,6 @@
  "CSF|Coagulase-negative Staphylococci|wild_type": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Clindamycin",
@@ -17122,7 +17122,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -21941,11 +21943,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -21972,13 +21974,13 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
    "Ciprofloxacin",
    "Gentamicin",
-   "Levofloxacin"
+   "Levofloxacin",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -22071,11 +22073,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
-   "Nitrofurantoin"
+   "Nitrofurantoin",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -22105,10 +22107,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
+   "Trimethoprim/Sulfamethoxazole"
+  ],
+  "banned": [
    "Vancomycin"
   ],
-  "banned": [],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -25209,7 +25212,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -25224,7 +25226,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -25256,6 +25259,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -25279,7 +25283,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -25403,7 +25406,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -25418,6 +25420,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -25442,7 +25445,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -25456,7 +25458,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -25527,7 +25531,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -25542,7 +25545,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -25574,6 +25578,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -25597,7 +25602,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -25719,7 +25723,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -25734,6 +25737,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -25758,7 +25762,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -25772,7 +25775,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -26154,7 +26159,9 @@
   "patho": "🔴 ALWAYS SIGNIFICANT -- Treat Immediately",
   "phenotypes": [],
   "preg_warn": [],
-  "qc_ids": [],
+  "qc_ids": [
+   "hier_pen_vs_cro_pneumococcus:Penicillin|Ceftriaxone"
+  ],
   "warned": []
  },
  "CSF|Streptococcus pneumoniae|pdr": {
@@ -26813,7 +26820,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Polymyxins",
    "Tetracyclines"
@@ -26916,7 +26922,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Tetracyclines"
   ],
@@ -27168,7 +27173,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Polymyxins",
    "Tetracyclines"
@@ -27271,7 +27275,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Tetracyclines"
   ],
@@ -29113,7 +29116,6 @@
  "Pus|Coagulase-negative Staphylococci|intrinsic_violation": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -29130,7 +29132,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -29159,6 +29162,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -29179,7 +29183,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -29290,7 +29293,6 @@
  "Pus|Coagulase-negative Staphylococci|urine_agent_offsite": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -29307,6 +29309,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -29327,7 +29330,6 @@
  "Pus|Coagulase-negative Staphylococci|wild_type": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -29343,7 +29345,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -34197,11 +34201,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -34228,13 +34232,13 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
    "Ciprofloxacin",
    "Gentamicin",
-   "Levofloxacin"
+   "Levofloxacin",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -34327,11 +34331,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
-   "Nitrofurantoin"
+   "Nitrofurantoin",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -34361,10 +34365,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
+   "Trimethoprim/Sulfamethoxazole"
+  ],
+  "banned": [
    "Vancomycin"
   ],
-  "banned": [],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -38772,7 +38777,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -38789,7 +38793,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -38819,6 +38824,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -38842,7 +38848,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -38965,7 +38970,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -38982,6 +38986,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -39004,7 +39009,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -39020,7 +39024,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -39088,7 +39094,6 @@
   "allowed": [
    "Amoxicillin + Clavulanic acid",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -39104,7 +39109,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -39133,6 +39139,7 @@
   ],
   "banned": [
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -39153,7 +39160,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -39265,7 +39271,6 @@
   "allowed": [
    "Amoxicillin + Clavulanic acid",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -39281,6 +39286,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -39302,7 +39308,6 @@
   "allowed": [
    "Amoxicillin + Clavulanic acid",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -39317,7 +39322,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -39381,7 +39388,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -39398,7 +39404,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -39428,6 +39435,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -39451,7 +39459,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -39572,7 +39579,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -39589,6 +39595,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -39611,7 +39618,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -39627,7 +39633,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -40963,7 +40971,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Polymyxins",
    "Tetracyclines"
@@ -41066,7 +41073,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Tetracyclines"
   ],
@@ -41318,7 +41324,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Polymyxins",
    "Tetracyclines"
@@ -41421,7 +41426,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Tetracyclines"
   ],
@@ -52235,7 +52239,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -52252,7 +52255,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -52282,6 +52286,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -52305,7 +52310,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -52428,7 +52432,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -52445,6 +52448,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -52467,7 +52471,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -52483,7 +52486,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -52552,7 +52557,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -52569,7 +52573,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -52599,6 +52604,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -52622,7 +52628,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -52743,7 +52748,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -52760,6 +52764,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -52782,7 +52787,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -52798,7 +52802,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -53210,7 +53216,9 @@
   "patho": "🟢 LIKELY CONTAMINANT / COLONIZER -- Do Not Treat",
   "phenotypes": [],
   "preg_warn": [],
-  "qc_ids": [],
+  "qc_ids": [
+   "hier_pen_vs_cro_pneumococcus:Penicillin|Ceftriaxone"
+  ],
   "warned": []
  },
  "Sputum|Streptococcus pneumoniae|pdr": {
@@ -56040,7 +56048,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Polymyxins",
    "Tetracyclines"
@@ -56147,7 +56154,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Tetracyclines"
   ],
@@ -56411,7 +56417,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Polymyxins",
    "Tetracyclines"
@@ -56518,7 +56523,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Tetracyclines"
   ],
@@ -57976,7 +57980,6 @@
  "Urine|Coagulase-negative Staphylococci|intrinsic_violation": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -57995,7 +57998,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -58026,6 +58030,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -58047,7 +58052,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Fosfomycin",
    "Oxacillin",
    "Penicillin"
@@ -58167,7 +58171,6 @@
  "Urine|Coagulase-negative Staphylococci|wild_type": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -58185,7 +58188,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -68422,7 +68427,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -68441,7 +68445,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -68473,6 +68478,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -68497,7 +68503,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Fosfomycin",
    "Oxacillin",
    "Penicillin"
@@ -68629,7 +68634,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -68647,7 +68651,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -68720,7 +68726,6 @@
   "allowed": [
    "Amoxicillin + Clavulanic acid",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -68738,7 +68743,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -68769,6 +68775,7 @@
   ],
   "banned": [
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -68790,7 +68797,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Fosfomycin",
    "Oxacillin",
    "Penicillin"
@@ -68911,7 +68917,6 @@
   "allowed": [
    "Amoxicillin + Clavulanic acid",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -68928,7 +68933,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -68995,7 +69002,6 @@
  "Urine|Staphylococcus saprophyticus|intrinsic_violation": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -69012,7 +69018,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -69040,6 +69047,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -69061,7 +69069,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -69171,7 +69178,6 @@
  "Urine|Staphylococcus saprophyticus|wild_type": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -69187,7 +69193,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -69250,7 +69258,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -69269,7 +69276,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -69301,6 +69309,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -69325,7 +69334,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Fosfomycin",
    "Oxacillin",
    "Penicillin"
@@ -69455,7 +69463,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -69473,7 +69480,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -70679,7 +70688,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Polymyxins",
    "Tetracyclines"
@@ -70782,7 +70790,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Tetracyclines"
   ],
@@ -71034,7 +71041,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Polymyxins",
    "Tetracyclines"
@@ -71137,7 +71143,6 @@
    "Extended-Sp Cephalosporins",
    "Fluoroquinolones",
    "Folate PI",
-   "Glycylcyclines",
    "Penicillins+BLI",
    "Tetracyclines"
   ],
@@ -72979,7 +72984,6 @@
  "Wound Swab|Coagulase-negative Staphylococci|intrinsic_violation": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -72996,7 +73000,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -73025,6 +73030,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -73045,7 +73051,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -73156,7 +73161,6 @@
  "Wound Swab|Coagulase-negative Staphylococci|urine_agent_offsite": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -73173,6 +73177,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -73193,7 +73198,6 @@
  "Wound Swab|Coagulase-negative Staphylococci|wild_type": {
   "allowed": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -73209,7 +73213,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -78063,11 +78069,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -78094,13 +78100,13 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
    "Ciprofloxacin",
    "Gentamicin",
-   "Levofloxacin"
+   "Levofloxacin",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -78193,11 +78199,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
-   "Vancomycin"
+   "Trimethoprim/Sulfamethoxazole"
   ],
   "banned": [
-   "Nitrofurantoin"
+   "Nitrofurantoin",
+   "Vancomycin"
   ],
   "dtr": null,
   "esbl": null,
@@ -78227,10 +78233,11 @@
    "Meropenem",
    "Oxacillin",
    "Penicillin",
-   "Trimethoprim/Sulfamethoxazole",
+   "Trimethoprim/Sulfamethoxazole"
+  ],
+  "banned": [
    "Vancomycin"
   ],
-  "banned": [],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -82638,7 +82645,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -82655,7 +82661,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -82685,6 +82692,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -82708,7 +82716,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -82831,7 +82838,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -82848,6 +82854,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -82870,7 +82877,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -82886,7 +82892,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -82954,7 +82962,6 @@
   "allowed": [
    "Amoxicillin + Clavulanic acid",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -82970,7 +82977,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -82999,6 +83007,7 @@
   ],
   "banned": [
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -83019,7 +83028,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -83131,7 +83139,6 @@
   "allowed": [
    "Amoxicillin + Clavulanic acid",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -83147,6 +83154,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -83168,7 +83176,6 @@
   "allowed": [
    "Amoxicillin + Clavulanic acid",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cephalexin",
    "Ciprofloxacin",
@@ -83183,7 +83190,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,
@@ -83247,7 +83256,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -83264,7 +83272,8 @@
    "Vancomycin"
   ],
   "banned": [
-   "Aztreonam"
+   "Aztreonam",
+   "Cefoxitin"
   ],
   "dtr": null,
   "esbl": null,
@@ -83294,6 +83303,7 @@
   "banned": [
    "Cefadroxil",
    "Cefazolin",
+   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -83317,7 +83327,6 @@
   "qc_ids": [],
   "warned": [
    "Amoxicillin + Clavulanic acid",
-   "Cefoxitin",
    "Oxacillin",
    "Penicillin"
   ]
@@ -83438,7 +83447,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -83455,6 +83463,7 @@
    "Vancomycin"
   ],
   "banned": [
+   "Cefoxitin",
    "Nitrofurantoin"
   ],
   "dtr": null,
@@ -83477,7 +83486,6 @@
    "Amoxicillin + Clavulanic acid",
    "Cefadroxil",
    "Cefazolin",
-   "Cefoxitin",
    "Ceftriaxone",
    "Cefuroxime sodium",
    "Cephalexin",
@@ -83493,7 +83501,9 @@
    "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
-  "banned": [],
+  "banned": [
+   "Cefoxitin"
+  ],
   "dtr": null,
   "esbl": null,
   "esbl_conf": 0,

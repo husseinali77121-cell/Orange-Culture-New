@@ -62,7 +62,7 @@ def engine_rule_ids() -> set:
     # citations like every other rule and must be discovered here, or the
     # registry reports them as dead rows.
     for group in ("EQUIVALENCE_RULES", "HIERARCHY_RULES", "PREDICTIVE_RULES",
-                  "EXCEPTIONAL_PHENOTYPES",
+                  "EXCEPTIONAL_PHENOTYPES", "UNUSUAL_COMBINATIONS",
                   "CORRECTION_RULES"):
         for r in getattr(CN, group, []):
             if isinstance(r, dict) and r.get("id"):
