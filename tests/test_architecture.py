@@ -85,7 +85,9 @@ LARGE_BY_DESIGN = {
     "guideline_registry.py", "specimen_organism_map.py",           # data tables
     "ast_qa_engine.py", "ast_reportability.py", "ast_panel_completeness.py",   # QC rule tables
     "ocr_parsing.py",
-    "report_service.py", "pathogenicity.py",                        # logic -- not split yet
+    # logic: split into section / per-specimen functions in v6.7, but the files
+    # still hold the remaining renderers and the per-specimen tables
+    "report_service.py", "pathogenicity.py",
 }
 
 
@@ -95,6 +97,22 @@ def test_no_new_monolith():
             if p.name not in LARGE_BY_DESIGN
             and (n := p.read_text(encoding="utf-8").count("\n")) > 650]
     assert not over, f"modules over the 650-line budget: {over}"
+
+
+def test_the_split_renderers_and_pathogenicity_stay_split():
+    """v6.7: the 1,000-line PDF function and the 890-line pathogenicity engine
+    were split into one function per section / specimen. Keep them that way."""
+    limits = {("cdss/reports/report_service.py", "generate_pdf_html_report"): 300,
+              ("cdss/reports/report_service.py", "generate_decision_tree_image"): 420,
+              ("cdss/reports/report_service.py", "generate_report"): 200,
+              ("cdss/organisms/pathogenicity.py", "assess_pathogenicity"): 350}
+    over = []
+    for (path, name), limit in limits.items():
+        tree = ast.parse((ROOT / path).read_text(encoding="utf-8"))
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == name)
+        if fn.end_lineno - fn.lineno > limit:
+            over.append((name, fn.end_lineno - fn.lineno, limit))
+    assert not over, over
 
 
 def test_no_function_in_the_therapy_engine_is_long():
