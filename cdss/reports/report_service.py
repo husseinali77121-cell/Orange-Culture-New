@@ -33,6 +33,14 @@ WHAT LIVES HERE
     generate_decision_tree_image()  the decision-tree PNG (Pillow)
     generate_report()               the plain-text report
 
+SPLIT v6.7 (2026-11-14)
+    The PDF function was 1,000 lines in which every section shared every
+    local. Its sections are now functions in pdf_sections.py (each takes, by
+    keyword, exactly what it reads), its style / fixed strings / helpers are in
+    pdf_parts.py, the English translation tables in i18n_en.py, and the image's
+    palette and drawing helpers in image_parts.py. The bodies moved verbatim;
+    tests/test_report_split.py holds the output to the pre-split bytes.
+
 None of them decides anything. They receive `allowed`, `warned`, `banned` and
 the rest already computed by run_analysis(), and they must never re-derive a
 clinical verdict — if a renderer disagrees with the engine, the renderer is
@@ -40,25 +48,19 @@ wrong by construction.
 """
 from __future__ import annotations
 
-import datetime as _datetime_mod
 import io
 import logging
-import os as _os
 import re
-import re as _re
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 from cdss.common.optional_deps import (
-    ARABIC_SUPPORT,
     Image,
     ImageDraw,
-    ImageFont,
     PIL_AVAILABLE,
     WEASYPRINT_AVAILABLE,
-    _arabic_reshaper_mod,
     _wp,
 )
 from cdss.common.renal import (
@@ -69,9 +71,74 @@ from cdss.common.renal import (
 from cdss.formulary.commercial_names import (
     get_commercial_name,
 )
+from cdss.reports.image_parts import (  # noqa: F401 -- the image's palette and drawing helpers
+    ALERT_BD,
+    ALERT_BG,
+    ALERT_TXT,
+    AMBER_BD,
+    AMBER_BG,
+    AMBER_TXT,
+    AWARE_NAME_COLORS,
+    BG,
+    BLUE_BD,
+    BLUE_BG,
+    BLUE_TXT,
+    DARK,
+    FL_BD,
+    FL_BG,
+    FOOT_BD,
+    FOOT_BG,
+    GRAY,
+    GREEN_BD,
+    GREEN_BG,
+    GREEN_TXT,
+    LIGHT_GRAY,
+    MICRO_BD,
+    MICRO_BG,
+    NAVY,
+    PURPLE_BD,
+    PURPLE_BG,
+    RED_BD,
+    RED_BG,
+    RED_TXT,
+    SPEC_BD,
+    SPEC_BG,
+    WHITE,
+    _fix_arabic,
+    fh,
+    gf,
+    rbox,
+    section_box,
+    text_wrap,
+    tw,
+    S as _IMG_S,
+)
+from cdss.reports.pdf_parts import (
+    AWARE_CARD,
+    AWARE_CLR,
+    AWARE_PILL,
+    PDF_CSS,
+    SPECIMEN_SHORT,
+    clip,
+    header_html,
+    join_more,
+    pdf_strings,
+    pill,
+    renal_note_text,
+    xlate_patho,
+    xlate_preg_note,
+)
+from cdss.reports.pdf_sections import (
+    section_avoid,
+    section_columns,
+    section_combo_hepatic_footer,
+    section_interactions,
+    section_pregnancy,
+    section_ranked,
+    section_warned,
+)
 from cdss.reports.html_utils import (
     _esc,
-    _score_color,
     pdf_glyph_guard,
 )
 from cdss.resistance.mdr import (
@@ -82,29 +149,19 @@ from cdss.resistance.mdr import (
 from cdss.resistance.mechanism import (
     predict_esbl,
 )
-from cdss.stewardship.duration import (
-    annotate_regimen_note,
-)
 from cdss.stewardship.ranking import (
     rank_sensitive_antibiotics,
-    route_label,
-)
-from cdss.stewardship.syndrome import (
-    INFECTION_SYNDROMES,
 )
 from cdss.therapy.notes import (
     warned_note_for,
 )
 from cdss.therapy.panel_filters import (
-    _drop_intrinsic,
     _hide_urine_only,
 )
 from cdss.therapy.tables import (
     RENAL_BAN_REASONS,
     preg_status_of,
 )
-from cdss.formulary.abx_guidelines import ABX_GUIDELINES
-from cdss.formulary.abx_guidelines import normalize_abx_key
 from cdss.organisms.organism_profile import ORGANISM_PROFILE
 
 # AST Panel Completeness -- a standalone module (like ast_reportability.py),
@@ -152,260 +209,13 @@ def generate_pdf_html_report(
     # ── Language helpers ─────────────────────────────────────────────────
     _EN = lang == "en"
 
-    # All bilingual strings used in this PDF
-    _T = {
-        # Section headers
-        "recommended":   "Recommended Therapy -- Ranked"       if _EN else "Recommended Therapy -- Ranked",
-        "avoid":         "Avoid / Contraindicated"            if _EN else "⊘ Avoid / Contraindicated",
-        "dose_adj":      "⚠ Dose Adjustment / Use with Caution",
-        "interactions":  "⊕ Drug Interactions",
-        "pregnancy":     "⚠ Pregnancy -- Use with Caution",
-        "preg_sub":      "(Physician decision required for all items below)",
-        "treatment":     "Treatment Duration",
-        "pathogenicity": "Pathogenicity Assessment",
-        # Pregnancy inline notes
-        "preg_extra":    "Additional options require caution in pregnancy -- see Pregnancy section below."
-                         if _EN else "⚠ خيارات إضافية بحذر في الحمل -- راجع قسم Pregnancy بالأسفل.",
-        "preg_only":     "All sensitive agents require caution in pregnancy -- see Pregnancy -- Use with Caution below."
-                         if _EN else "⚠ جميع الخيارات الحساسة تتطلب حذراً في الحمل -- راجع قسم Pregnancy -- Use with Caution بالأسفل لاتخاذ القرار.",
-        # Renal
-        "renal_label":   "Patient CrCl" if _EN else "Patient CrCl",
-        "renal_thresh":  "Threshold: CrCl ≤",
-        "renal_adj":     "⚠ Renal dose adjustment required  |  Threshold: CrCl ≤",
-        "intermediate":  "⚠ Intermediate (I) in culture result -- use only if no better option",
-        # Patho
-        "supporting":    "Supporting:",
-        "against":       "Against:",
-        "recs":          "Recommendations:",
-        # Duration
-        "protocol":      "Protocol",
-        "standard":      "Standard",
-        "range":         "Range",
-        "iv_po":         "IV/PO Split",
-        "follow_up":     "▣ Follow-up culture recommended after treatment",
-        # Footer
-        "disclaimer":    "Disclaimer: Clinical decision support only. Treatment decisions are the sole responsibility of the treating physician.",
-        "references":    "References",
-    }
+    _T = pdf_strings(_EN)
 
     def _xlate_preg_note(note: str) -> str:
-        """Translate Arabic preg_note to English for EN mode."""
-        if not _EN or not note:
-            return note
-        import re as _re
-        _arabic_re = _re.compile(r'[؀-ۿ]+')
-        if not _arabic_re.search(note):
-            return note   # already English
-
-        # Known translations map
-        _AR_EN = {
-            "ممنوع في الحمل":                   "Contraindicated in pregnancy",
-            "تحذير حمل":                         "Pregnancy caution",
-            "مقبول في الحمل":                    "Acceptable in pregnancy",
-            "آمن في الـ":                        "Safe in",
-            "تجنّب في الـ":                      "Avoid in",
-            "تجنّب":                             "Avoid",
-            "يترسّب في عظام وأسنان الجنين":      "chelates into fetal bone and teeth",
-            "تصبغ دائم للأسنان":                "permanent tooth discoloration",
-            "تثبيط نمو العظام":                 "inhibited bone growth",
-            "محظورة في كل مراحل الحمل":          "contraindicated throughout all trimesters",
-            "خاصة بعد الأسبوع":                 "especially after week",
-            "البديل":                           "Alternative",
-            "بيانات بشرية محدودة":              "limited human data",
-            "يعبر المشيمة":                     "crosses placenta",
-            "سُمية للأذن الجنينية":             "fetal ototoxicity",
-            "فقدان سمع دائم":                   "permanent hearing loss",
-            "مضاد حمض الفوليك":                 "folate antagonist",
-            "عيوب أنبوب عصبي":                  "neural tube defects",
-            "يُفضل تجنبه":                      "prefer to avoid",
-            "إن وُجد بديل آمن":                 "if a safer alternative exists",
-            "مقبول في كل":                      "acceptable throughout all",
-            "عند الضرورة":                      "when medically necessary",
-            "القرار النهائي للطبيب المعالج":     "Final decision: treating physician",
-            "حصراً":                            "exclusively",
-            "خطر":                              "risk of",
-            "خطر hemolytic anemia في الجنين":   "risk of fetal hemolytic anemia (G6PD)",
-            "نيونيتل hemolysis عند الوليد":     "neonatal hemolysis",
-            "البديل في 3rd trim":               "Alternative in 3rd trim",
-            "جرعة واحدة":                       "(single dose)",
-            "الأدلة الحديثة":                   "Recent evidence",
-            "دحضت مخاوف":                       "refuted concerns about",
-            "التشوهات القديمة":                 "historical malformation risk",
-            "يُفضل تجنبه في الـ 1st trimester": "prefer to avoid in 1st trimester",
-            "ارتبط بتشوهات خلقية":              "associated with congenital malformations",
-            "الدراسات الحيوانية والبشرية":       "in animal and human studies",
-            "أثبت سُمية جنينية في الحيوانات":   "demonstrated fetal toxicity in animal studies",
-            "يُستخدم فقط عند انعدام البدائل":    "use only when no alternatives available",
-            "يُستخدم عند الضرورة القصوى":        "use only when critically necessary",
-            "مراقبة وظائف الكلى":               "monitor renal function",
-            "السمع للأم والجنين":                "and fetal/maternal hearing",
-            "Category C":                        "Category C",
-            "Category B":                        "Category B",
-            "عند الحاجة لكاربابينيم":           "when a carbapenem is needed",
-            "يُفضل Meropenem":                  "Meropenem preferred",
-            "عند تعذّر Meropenem":              "if Meropenem is unavailable",
-            "nephrotoxicity":                    "nephrotoxicity",
-            "يُستخدم فقط لإنقاذ الحياة":        "life-saving use only",
-            "في XDR gram-negatives":            "for XDR gram-negative infections",
-            "غياب أي بديل":                     "when no alternative exists",
-            "تجنّب ما أمكن":                    "avoid whenever possible",
-            "تجنّب في الـ 3rd trimester":        "avoid in 3rd trimester",
-            "≥36 أسبوع":                        "≥36 weeks gestation",
-            "ممنوع في الـ 1st trimester":        "contraindicated in 1st trimester",
-            "ممنوع في كل الحمل":                "contraindicated throughout pregnancy",
-            "لا يُعتبر خطاً أول":               "not a first-line agent",
-            "أبداً في الحمل":                    "at any point in pregnancy",
-            "خطر التشوهات أقل مما كان يُعتقد":  "teratogenicity risk lower than previously thought",
-            "لا يُستخدم كخط أول":               "do not use as first-line",
-            "فقط عند غياب البديل الأكثر أمانًا": "only when no safer alternative exists",
-            "مقبول بجرعة واحدة":                "acceptable as single dose",
-            "لـ uncomplicated UTI في الحمل":    "for uncomplicated UTI in pregnancy",
-            "خيار مفضل على Nitrofurantoin":     "preferred over Nitrofurantoin",
-            "1st trim":                          "1st trimester",
-            "2nd trim":                          "2nd trimester",
-            "3rd trim":                          "3rd trimester",
-            "trimester":                         "trimester",
-        }
-
-        result = note
-        for ar, en in _AR_EN.items():
-            result = result.replace(ar, en)
-        return result
+        return xlate_preg_note(note, _EN)
 
     def _xlate_patho(text: str) -> str:
-        """Translate Arabic pathogenicity text to English."""
-        if not _EN or not text:
-            return text
-        import re as _re
-        if not _re.compile(r'[؀-ۿ]').search(text):
-            return text
-        _PATHO_EN = {
-            # Organism name carrying an Arabic parenthetical (EN report → Latin only)
-            "Anaerobes (لاهوائيات)": "Anaerobes",
-            "(لاهوائيات)": "",
-            # Contaminant-tier interpretations / recommendations (were leaking Arabic)
-            "يُنصح بإعادة أخذ العينة بتقنية صحيحة قبل البدء بالعلاج.":
-                "Repeat specimen collection with proper technique before starting treatment.",
-            "أعِد أخذ العينة مع تحسين التقنية.":
-                "Repeat specimen collection with improved technique.",
-            "لا تبدأ العلاج بناءً على هذه النتيجة وحدها.":
-                "Do NOT start treatment based on this result alone.",
-            "إذا تكرر العزل، فكّر في مصدر بديل (Hematogenous / Device).":
-                "If the isolate recurs, consider an alternative source (Hematogenous / Device).",
-            "المؤشرات تدعم التلوث أو الاستعمار بشكل كبير. العلاج غير مبرر في الغالب. تابع المريض كلينيكياً.":
-                "Indicators strongly support contamination or colonization. Treatment is usually not justified. Follow up the patient clinically.",
-            "لا تعطِ مضادات حيوية بناءً على هذه النتيجة.":
-                "Do NOT give antibiotics based on this result.",
-            "التزم بمبادئ Antibiotic Stewardship.":
-                "Adhere to Antibiotic Stewardship principles.",
-            "المؤشرات تدعم بقوة وجود عدوى حقيقية. يُنصح بالعلاج الموجَّه بنتيجة الحساسية مع مراعاة السياق الكلينيكي.":
-                "Strong indicators of TRUE INFECTION. Culture-directed therapy is recommended, considering the clinical context.",
-            "المؤشرات تدعم بقوة وجود عدوى حقيقية":
-                "Strong indicators of true infection",
-            "يُنصح بالعلاج الموجَّه بنتيجة الحساسية مع مراعاة السياق الكلينيكي":
-                "Culture-directed therapy recommended based on clinical context",
-            "ابدأ العلاج بناءً على نتيجة الـ AST.":
-                "Initiate therapy based on AST results.",
-            "ابدأ العلاج بناءً على نتيجة الـ AST":
-                "Initiate therapy based on AST results",
-            "راعِ شدة الأعراض وعوامل الخطر.":
-                "Consider symptom severity and risk factors.",
-            "راعِ شدة الأعراض وعوامل الخطر":
-                "Consider severity and risk factors",
-            "راجع الجرعة حسب الوظيفة الكلوية.":
-                "Review dosing based on renal function.",
-            "راجع الجرعة حسب الوظيفة الكلوية":
-                "Review dosing based on renal function",
-            "De-escalate بعد 48–72 ساعة إذا تحسّن المريض.":
-                "De-escalate after 48–72 hours if patient improves.",
-            "النتيجة حدودية. يُنصح بالتقييم الكلينيكي الكامل قبل البدء بالعلاج.":
-                "Borderline result. Full clinical assessment recommended before initiating treatment.",
-            "قد تحتاج فحوصات إضافية أو إعادة المزرعة.":
-                "Additional workup or repeat culture may be needed.",
-            "لا يُنصح بالعلاج إلا في الحامل أو قبل تدخل جراحي بولي.":
-                "Treatment not recommended unless patient is pregnant or pre-urological procedure.",
-            "المؤشرات تميل نحو التلوث أو الاستعمار.":
-                "Indicators suggest contamination or colonization.",
-            "ABU في سياق يستوجب العلاج (حمل / تدخل جراحي بولي).":
-                "Asymptomatic Bacteriuria requiring treatment (pregnancy / pre-op).",
-            "اختر مضاداً حيوياً مناسباً للحمل حسب نتيجة الحساسية.":
-                "Select a pregnancy-appropriate antibiotic per sensitivity results.",
-            "مدة العلاج 5–7 أيام عادةً.":
-                "Treatment duration typically 5–7 days.",
-            "أعِد المزرعة بعد الانتهاء من الدورة للتأكد من الشفاء.":
-                "Repeat culture post-treatment to confirm clearance.",
-            "العينة غير مناسبة":
-                "Specimen inadequate",
-            "ارفض العينة وأعِد طلب البلغم بتقنية صحيحة.":
-                "Reject specimen and request repeat sputum with proper technique.",
-            "قيّم المريض كلينيكياً قبل إعطاء المضادات الحيوية.":
-                "Assess the patient clinically before giving antibiotics.",
-            "فكّر في إعادة المزرعة إذا كان الوضع غير واضح.":
-                "Consider repeating the culture if the situation is unclear.",
-            "راجع نتيجة الـ Urinalysis / CRP / CBC إذا لم تكن متاحة.":
-                "Review Urinalysis / CRP / CBC results if not available.",
-            "النتيجة حدودية. يُنصح بالتقييم الكلينيكي الكامل قبل البدء بالعلاج. قد تحتاج فحوصات إضافية أو إعادة المزرعة.":
-                "Borderline result. Full clinical assessment is recommended before starting treatment. Additional tests or repeat culture may be needed.",
-            "أعِد تقييم المريض إذا استمرت الأعراض أو تطورت.":
-                "Re-evaluate the patient if symptoms persist or progress.",
-            "ابدأ العلاج التجريبي فوراً ريثما تظهر نتيجة الحساسية.":
-                "Start empiric therapy immediately pending sensitivity results.",
-            "احتجز المريض ومراقبته بشكل مكثف.":
-                "Admit the patient for intensive monitoring.",
-            "استثناءات: حمل -- قبيل جراحة بولية (Urology pre-op).":
-                "Exceptions: pregnancy / pre-urological surgery.",
-            "استشر طبيب الأمراض المعدية.":
-                "Consult an infectious disease specialist.",
-            "العينة من موقع معقم (CSF) -- أي نمو يُعدّ مرضياً بغض النظر عن العوامل الأخرى.":
-                "Specimen from a sterile site (CSF) -- any growth is pathogenic regardless of other factors.",
-            "تابع المريض وأعِد التقييم إذا ظهرت أعراض.":
-                "Follow up and reassess if symptoms appear.",
-            "تشير المعطيات إلى Asymptomatic Bacteriuria. وفقاً لـ IDSA 2019: لا يُنصح بالعلاج إلا في الحامل أو قبل تدخل جراحي بولي.":
-                "Findings indicate Asymptomatic Bacteriuria. Per IDSA 2019: treatment not recommended except in pregnancy or before a urological procedure.",
-            "لا تعطِ مضادات حيوية (Antibiotic Stewardship -- IDSA 2019).":
-                "Do NOT give antibiotics (Antibiotic Stewardship -- IDSA 2019).",
-        }
-        result = text
-        for ar, en in _PATHO_EN.items():
-            result = result.replace(ar, en)
-
-        # Word-level fallback for any remaining Arabic fragments
-        # NOTE: a word-level Arabic->English dictionary (_WORD_EN) used to sit
-        # here but was never wired in -- the regex strip below always ran instead.
-        # It has been deleted rather than connected, because partial word
-        # substitution produced half-translated "franco" text that is harder to
-        # read than clean removal. What IS unsafe is deleting a clinical
-        # recommendation with no trace, so the strip now logs what it dropped.
-        # Safety net: strip any residual Arabic so the English report is
-        # guaranteed to contain ZERO Arabic (and never franco-garbage from
-        # partial word substitution). Complete phrases above are fully
-        # translated; this only catches anything not yet mapped.
-        if re.compile(r'[؀-ۿ]').search(result):
-            _dropped = re.findall(r'[؀-ۿ\uFB50-\uFEFF]+(?:\s+[؀-ۿ\uFB50-\uFEFF]+)*', result)
-            if _dropped:
-                logger.warning(
-                    "EN report: %d Arabic fragment(s) had no translation and were "
-                    "removed -- add them to _PATHO_EN: %s",
-                    len(_dropped), " | ".join(f[:60] for f in _dropped[:5]))
-            result = re.sub(r'[؀-ۿ\uFB50-\uFEFF]+', '', result)
-            result = re.sub(r'\(\s*\)', '', result)            # drop empty parens
-            result = re.sub(r'\s+([.,;:،])', r'\1', result)     # tidy space before punct
-            result = re.sub(r'\s{2,}', ' ', result).strip()
-        return result
-
-    # ── AWaRe helpers ────────────────────────────────────────────────────
-    AWARE_CLR  = {"Access": "#1e8449", "Watch": "#b7770d", "Reserve": "#922b21",
-                  "Not Recommended": "#555555"}
-    AWARE_PILL = {"Access": "background:#1e8449;color:#fff",
-                  "Watch":  "background:#b7770d;color:#fff",
-                  "Reserve":"background:#922b21;color:#fff",
-                  "Not Recommended": "background:#555555;color:#fff"}
-    AWARE_CARD = {"Access": "background:#eafaf1;border:0.8pt solid #1e8449",
-                  "Watch":  "background:#fef9e7;border:0.8pt solid #b7770d",
-                  "Reserve":"background:#fdf2f2;border:0.8pt solid #922b21",
-                  "Not Recommended": "background:#f2f2f2;border:0.8pt solid #555555"}
-    # NOTE: AWaRe class is NOT used as the therapy "line" anymore (see ranked loop
-    # below) — Access!=first-line for a given site. Line labels come from the syndrome.
+        return xlate_patho(text, _EN)
 
     # المصدر الموحّد للترتيب — نفس منطق الشاشة والصورة (الحساسية أولاً ثم
     # العينة ثم AWaRe ثم الطريق)، بدلاً من ترتيب AWaRe منفصل كان يعطي ترتيباً
@@ -430,229 +240,21 @@ def generate_pdf_html_report(
     _is_mrsa          = any("MRSA" in str(p).upper() for p in ph_labels) \
                         or "mrsa" in str(organism).lower()
 
-    def pill(txt, style):
-        return f'<span style="padding:0.35mm 2.6mm;border-radius:2mm;font-size:8.5pt;font-weight:bold;{style}">{_esc(txt)}</span>'
-
     def _rnote(d):
-        """Renal note in the report's language.
+        return renal_note_text(d, is_renal, _EN)
 
-        EN reports must never fall back to the Arabic renal_note: the
-        downstream Arabic strip would delete words like "تجنّب" (avoid) and
-        "بعد" (after) mid-sentence, turning "(avoid 875mg)" into "(875mg)"
-        and "+ dose after dialysis" into "+ dose dialysis".
+    _join_more = join_more
+    _clip = clip
+    CSS = PDF_CSS
 
-        The two entries this used to hold back (Cefotaxime, Norfloxacin) held
-        another drug's dose band and had renal_note_en blanked as a stopgap.
-        That protected the English report only -- the ARABIC report, which is
-        the one this lab issues, kept printing pip-tazo doses under Cefotaxime
-        and co-amoxiclav doses under Norfloxacin. Both bands are now corrected
-        at source, so the hold below is dormant. It stays as a net: any future
-        entry with a deliberately blank renal_note_en shows an explicit hold
-        rather than a silent gap or the wrong drug's dosing.
-        """
-        # ── Dose detail is withheld unless the patient is FLAGGED RENAL ─────
-        # Requested 2026-08-03. A PDF is an issued document: it leaves the lab,
-        # gets photographed, forwarded, and read weeks later by someone who
-        # never saw the patient. Specific milligrams and intervals printed on a
-        # report for a patient with NORMAL renal function are an invitation to
-        # apply them to a different patient, or to the same patient after their
-        # function has changed.
-        #
-        # What is withheld is the NUMBERS, not the fact. The reader is still
-        # told the agent carries a renal threshold and what that threshold is,
-        # so nobody concludes from a short line that no adjustment exists — the
-        # dangerous reading. They are told where to get the figures.
-        #
-        # When is_renal is set, the full band prints: that is the patient the
-        # numbers were computed for.
-        _lim = d.get("renal_limit")
-        if not is_renal:
-            if isinstance(_lim, (int, float)) and _lim:
-                if _EN:
-                    return (f"Renally adjusted below CrCl {int(_lim)}. Specific "
-                            f"doses are not printed for a patient not flagged "
-                            f"as renally impaired — recheck if renal function "
-                            f"changes and consult BNF 2025.")
-                return (f"يحتاج تعديل الجرعة تحت CrCl {int(_lim)}. الجرعات "
-                        f"التفصيلية لا تُطبع لمريض غير مُسجَّل بقصور كلوي — "
-                        f"أعِد التقييم إذا تغيّرت الوظيفة الكلوية، وراجع BNF 2025.")
-            return d.get("renal_note_en" if _EN else "renal_note", "") or ""
-
-        if not _EN:
-            return d.get("renal_note", "") or ""
-        en = (d.get("renal_note_en") or "").strip()
-        if en:
-            return en
-        if "renal_note_en" in d:
-            return ("Renal dosing withheld -- entry flagged for clinical "
-                    "verification. Consult BNF 2025.")
-        return d.get("renal_note", "") or ""
-
-    def _join_more(items, n):
-        """Join first n items, then say how many were withheld."""
-        items = [str(i) for i in (items or [])]
-        head = ", ".join(items[:n])
-        rest = len(items) - n
-        return head + (f"  (+{rest} more)" if rest > 0 else "")
-
-    def _clip(text, limit):
-        """Word-boundary-safe truncation with a visible ellipsis.
-
-        The previous code sliced clinical strings at a raw character index,
-        which cut dose bands mid-number ('CrCl 40-6') and gave the reader no
-        signal that anything had been dropped. This never splits a token and
-        always marks the cut.
-        """
-        s = str(text or '')
-        if len(s) <= limit:
-            return s
-        cut = s[:limit]
-        sp = cut.rfind(' ')
-        if sp > limit * 0.55:
-            cut = cut[:sp]
-        return cut.rstrip(' ,;.-') + '\u2026'
-    # ── Compact CSS ──────────────────────────────────────────────────────
-    CSS = """
-@page {
-    size: A4;
-    margin: 6mm 10mm 8mm 10mm;
-    @bottom-center {
-        content: "Page " counter(page) " of " counter(pages) " | Microbiology CDSS | @@LABFOOT@@";
-        font-size: 7.5pt; color: #7b8794;
-        font-family: 'Noto Sans','Liberation Sans','DejaVu Sans', sans-serif;
-    }
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-/* ══ TYPE SYSTEM ═══════════════════════════════════════════════════════
-   Serif sets prose, headings and the masthead (clinical/journal register).
-   Sans sets numeric and tabular data (digit clarity in dense dose strings).
-   Amiri is listed last in every stack and every Latin family ahead of it has
-   zero Arabic coverage, so Arabic resolves to Amiri and nothing else does.
-   Geometric symbols (✓ ✗ ⊘ ◆ ● ▣ ▲ ↻ ⊕) fall through to DejaVu Sans.        */
-body { font-family: 'Noto Serif','Liberation Serif','Amiri','DejaVu Sans',serif;
-       font-size: 9.3pt; line-height: 1.42; color: #1a1a2e; direction: ltr;
-       background: #fff; -weasy-hyphens: none; }
-
-/* Data faces — tabular figures so dose columns align and digits stay distinct */
-.ast, .compact-tbl, .info4, .dose-grid, .ranked-row, .tier-sep,
-.hdr-right, .hdr-lbl, .score-lbl {
-    font-family: 'Noto Sans','Liberation Sans','Amiri','DejaVu Sans',sans-serif;
-    font-variant-numeric: tabular-nums;
-    -weasy-font-variant-numeric: tabular-nums;
-}
-/* Binomial names stay serif italic — scientific convention */
-.hdr-org, i.sci { font-family:'Noto Serif','Liberation Serif',serif; font-style:italic; }
-/* Arabic runs */
-.rtl, .ar, .hdr-pt { font-family:'Amiri','Noto Naskh Arabic',serif; }
-.ltr { direction: ltr; unicode-bidi: embed; display: inline; }
-.rtl { direction: rtl; unicode-bidi: embed; }
-/* Header — compact */
-.hdr { background:#0d3b66; color:#fff; padding:2mm 8mm 1.5mm; display:flex;
-       justify-content:space-between; align-items:center; }
-.hdr-lab  { font-size:15.5pt; font-weight:bold; letter-spacing:0.35pt; }
-.hdr-pt   { font-size:9pt; }
-.hdr-org  { font-size:9.2pt; }
-.hdr-sub  { font-size:8.6pt; color:#c3d3e4; margin-top:0.4mm; }
-.hdr-pills { margin-top:0.7mm; }
-.hdr-right { font-size:8.6pt; color:#edf3f9; text-align:right; direction:ltr; }
-.hdr-lbl  { font-size:8pt; color:#9fb8d2; letter-spacing:0.5pt; }
-.accent   { height:1mm; background:#ff8c00; }
-.content  { padding: 0.5mm 0; }
-/* Micro info grid */
-.info4 { display: table; width: 100%; border-collapse: collapse; font-size:9pt; margin:1mm 0; }
-.info4 tr td { padding: 1mm 2.5mm; border: 0.3pt solid #d5d8dc; }
-.lbl4 { background:#f4f6f8; font-weight:bold; color:#0d3b66; width:14%; }
-.val4 { width:22%; }
-/* Section titles — tighter */
-.sec-ttl { font-size:9.2pt; font-weight:bold; color:#0d3b66; text-transform:uppercase;
-            letter-spacing:0.9pt; border-bottom:0.7pt solid #0d3b66;
-            padding-bottom:0.4mm; margin:1.6mm 0 0.8mm;
-            direction:ltr; text-align:left; }
-/* AST table */
-.ast { width:100%; border-collapse:collapse; font-size:8.8pt; direction:ltr; }
-.ast th { background:#0d3b66; color:#fff; padding:1mm 2.5mm; text-align:left; font-size:8pt; }
-.ast td { padding:1mm 2.5mm; border:0.3pt solid #d5d8dc; text-align:left; }
-.ast tr:nth-child(even) td { background:#f8f9fa; }
-.sir-s { color:#1e8449; font-weight:bold; }
-.sir-i { color:#b7770d; font-weight:bold; }
-.sir-r { color:#922b21; font-weight:bold; }
-/* Two-column grid */
-.pb { page-break-after: always; }
-.grid2 { display:table; width:100%; border-spacing:1mm; border-collapse:separate; direction:ltr; }
-.g2l { display:table-cell; width:49%; vertical-align:top; direction:ltr; text-align:left; }
-.g2r { display:table-cell; width:49%; vertical-align:top; direction:ltr; text-align:left; }
-/* Ranked rows — tighter */
-.ranked-row { padding:1mm 2.5mm; margin:0.4mm 0; border-radius:1.5mm; direction:ltr; text-align:left;
-              display:flex; justify-content:space-between; align-items:center; page-break-inside:avoid; }
-.tier-sep { font-size:8.2pt; font-weight:bold; text-transform:uppercase; letter-spacing:0.3pt;
-            direction:ltr; text-align:left;
-            padding:0.2mm 0; margin-top:0.8mm; border-top:0.8pt solid; }
-/* Alerts — tighter */
-.alert { padding:1.1mm 2.8mm; border-radius:1.5mm; margin:0.5mm 0; font-size:9.2pt; direction:ltr; text-align:left; }
-.al-warn   { background:#fef9e7; border:0.4pt solid #b7770d; color:#7d6608; }
-.al-danger { background:#fdedec; border:0.4pt solid #922b21; color:#78281f; }
-.al-info   { background:#eaf4fb; border:0.4pt solid #2980b9; color:#1a5276; }
-.score-bar { background:#e5e7eb; border-radius:1.5mm; height:3mm; width:100%; }
-.score-fill{ height:3mm; border-radius:1.5mm; }
-.compact-tbl { width:100%; border-collapse:collapse; font-size:9.2pt; direction:ltr; }
-.compact-tbl td { padding:0.8mm 2.5mm; border:0.3pt solid #d5d8dc; text-align:left; }
-.compact-tbl .lbl { background:#f4f6f8; font-weight:bold; color:#0d3b66; width:40%; }
-.warn-val  { color:#b7770d; font-weight:bold; }
-.danger-val{ color:#922b21; font-weight:bold; }
-.no-break  { page-break-inside: avoid; }
-hr.dv { border:none; border-top:0.4pt solid #d5d8dc; margin:0.6mm 0; }
-/* Safety net: long, unbreakable drug names must never overflow the A4 margin */
-.content, .alert, .g2l, .g2r, .ranked-row > div { overflow-wrap:anywhere; }
-.ranked-row > div { min-width:0; }
-"""
-
-    # ── Specimen short label for header (lab-report convention) ───────────
-    SPECIMEN_SHORT = {
-        "Urine":       "Urine C/S",
-        "Blood":       "Blood C/S",
-        "Sputum":      "Sputum C/S",
-        "Wound Swab":  "Wound C/S",
-        "Pus":         "Pus C/S",
-        "Stool":       "Stool C/S",
-        "CSF":         "CSF C/S",
-    }
     specimen_short = SPECIMEN_SHORT.get(specimen, f"{specimen} C/S" if specimen else "")
 
     def hdr_html(page_lbl: str) -> str:
-        mdr_pills = ""
-        # MDR/XDR/PDR — deterministic category count (Magiorakos 2012), always shown
-        if mdr_class:
-            _mdr_pill = (f"possible {mdr_class}" if (mdr_result or {}).get("provisional") else mdr_class)
-            mdr_pills += pill(_mdr_pill, "background:#922b21;color:#fff")+" "
-        # Resistance phenotypes (MRSA/VRE/CRE/CRAB/CRPA) — confirmed via direct AST
-        # markers, always shown. Weak/fallback inferences already excluded upstream.
-        for ph in _hdr_ph_labels[:3]: mdr_pills += pill(ph, "background:#6e2fa0;color:#fff")+" "
-        # ESBL/AmpC/Carbapenemase — genuinely PREDICTED mechanisms (predict_esbl()).
-        # Only surface in header when confidence is high; lower-confidence calls
-        # remain available in the body detail, not as a prominent badge.
-        if esbl_conf >= 70:
-            if esbl_prob == "crpa":
-                mdr_pills += pill("DTR-P.aeruginosa" if (esbl_result or {}).get("dtr") else "CR-P.aeruginosa",
-                                  "background:#922b21;color:#fff" if (esbl_result or {}).get("dtr")
-                                  else "background:#b7770d;color:#fff")
-            elif esbl_prob in ("carbapenemase", "possible_carbapenemase"): mdr_pills += pill("CARBAPENEMASE","background:#922b21;color:#fff")
-            elif esbl_prob in ("ampc", "ampc_plasmid"):        mdr_pills += pill("AmpC","background:#b7770d;color:#fff")
-            elif esbl_prob in ("high","moderate"): mdr_pills += pill("ESBL+","background:#b7770d;color:#fff")
-        _pills_html = ("<div class='hdr-pills'>" + mdr_pills + "</div>") if mdr_pills else ""
-        return f"""<div class="hdr">
-  <div>
-    <div class="hdr-lab">{_esc(lab_name)}</div>
-    <div class="hdr-sub">{_esc(lab_city)} &nbsp;|&nbsp; Microbiology CDSS</div>
-    {_pills_html}
-  </div>
-  <div class="hdr-right">
-    <b style="font-size:11pt">{_esc(specimen_short)}</b><br>
-    <span class="hdr-lbl">{page_lbl}</span><br>
-    {_esc(date_in or now_str[:10])}<br>
-    <b class="hdr-pt">&#x2067;@@PTNAME@@&#x2069;</b><br>
-    <span class="hdr-org">&#x2066;{_esc(organism)}&#x2069;</span>
-  </div>
-</div><div class="accent"></div><div class="content">"""
+        return header_html(page_lbl, mdr_class=mdr_class, mdr_result=mdr_result,
+                           _hdr_ph_labels=_hdr_ph_labels, esbl_conf=esbl_conf,
+                           esbl_prob=esbl_prob, esbl_result=esbl_result, lab_name=lab_name,
+                           lab_city=lab_city, specimen_short=specimen_short, date_in=date_in,
+                           now_str=now_str, organism=organism)
 
     # Resolve the footer lab-name token (see P1) -- quotes stripped so the
     # value cannot break out of the CSS content string.
@@ -677,536 +279,75 @@ hr.dv { border:none; border-top:0.4pt solid #d5d8dc; margin:0.6mm 0; }
     H.append(hdr_html("CLINICAL ADVISORY"))
     H.append('<div class="content">')
 
-    # ── RECOMMENDED THERAPY — RANKED (Page 1 — compact like orange_lab) ──────
-    if ranked:
-        H.append(f'<div class="sec-ttl">{_T["recommended"]}</div>')
-        # ── Line-of-therapy label is SITE-SPECIFIC, not AWaRe ────────────────
-        # AWaRe (Access/Watch/Reserve) is a stewardship/conservation class, NOT a
-        # clinical preference rank for this infection. Using it as the "line" made an
-        # Access aminoglycoside (Gentamicin) show as "First-line" for a Sputum case,
-        # sitting *below* the actually-preferred Watch agents — clinically misleading.
-        # The first-line set now comes from the syndrome table (curated per specimen,
-        # e.g. Sputum -> Amox/Clav, Levofloxacin, Azithromycin). AWaRe stays only as
-        # the row tint + pill on the right.
-        # First-line set is ORGANISM-aware first (curated per organism), then falls
-        # back to the specimen syndrome. This stops e.g. Azithromycin being labelled
-        # "FIRST-LINE" for an Enterobacterales (macrolides aren't first-line for GNB),
-        # even though the CAP syndrome lists it as an empiric first choice.
-        _prof_fl = _drop_intrinsic(
-            (ORGANISM_PROFILE.get(organism) or {}).get("first_line") or [], organism)
-        _syn_fl  = INFECTION_SYNDROMES.get((specimen, None), {})
-        _fl_src  = _prof_fl or (_syn_fl.get("first_choice") or [])
-        _fl_norm = {normalize_abx_key(n) for n in _fl_src}
-        prev_tier = ""
-        # If AST + safety filtering left NO curated first-line agent standing,
-        # labelling every surviving row "ALTERNATIVE" leaves the document with
-        # no primary recommendation. Detect that and promote the top row.
-        _fl_survives = any(
-            normalize_abx_key(_r.get("name","")) in _fl_norm for _r in ranked
-        ) if _fl_norm else False
-        # v6.6: when a guideline names the preferred agents for this mechanism and
-        # site (IDSA 2026 -- ESBL, AmpC, CRE, DTR-PA, CRAB, MRSA ...), THAT is the
-        # first line, not the organism's generic list (E. coli's generic first
-        # line is the urinary agents, which made TMP-SMX "FIRST-LINE" and the
-        # carbapenems "ALTERNATIVE" for an ESBL bacteraemia).
-        _guide_any = any(_r.get("_guideline_preferred") for _r in ranked)
-        for i, _rd in enumerate(ranked, 1):
-            _raw  = _rd.get("aware","")
-            _nm_norm = normalize_abx_key(_rd.get("name",""))
-            if _guide_any:
-                _tlbl = "FIRST-LINE" if _rd.get("_guideline_preferred") else "ALTERNATIVE"
-            elif _fl_norm and _fl_survives:
-                _tlbl = "FIRST-LINE" if _nm_norm in _fl_norm else "ALTERNATIVE"
-            else:                                   # no curated syndrome list -> rank by position
-                _tlbl = "PRIMARY" if i == 1 else "ALTERNATIVE"
-            _clr  = AWARE_CLR.get(_raw,"#444")      # drug name + pill colour = AWaRe (stewardship)
-            _hclr = "#1e8449" if _tlbl in ("FIRST-LINE", "PRIMARY") else "#0d3b66"  # header colour = line
-            _ccss = AWARE_CARD.get(_raw,"")
-            _sirv = sir_map.get(_rd.get("name",""),"S")
-            _rte  = "PO" if route_label(_rd, specimen) == "PO" else "IV/IM"
-            _rnl  = _esc(_rnote(_rd)) if is_renal else ""
-            _dose = _esc(_rd.get("gate_dose_note_en" if lang == "en" else "gate_dose_note") or "")
-            if _tlbl != prev_tier:
-                H.append(f'<div class="tier-sep" style="color:{_hclr};border-color:{_hclr}">{_tlbl}</div>')
-                prev_tier = _tlbl
-            H.append(
-                f'<div class="ranked-row" style="{_ccss};border-radius:1.5mm;padding:1mm 2.5mm;margin:0.3mm 0">'
-                '<div style="flex:1;min-width:0;overflow-wrap:anywhere">'
-                f'<b style="font-size:10.5pt;color:{_clr}">{i}. {_esc(_rd.get("name",""))}</b>'
-                f'&ensp;<span class="ltr" style="background:#fff;border:0.4pt solid {_clr};color:{_clr};'
-                f'font-size:8.5pt;padding:0.3mm 2.5mm;border-radius:1mm">{_sirv}</span>'
-                f'&ensp;<span style="font-size:8.5pt;color:#555">{_rte}</span>'
-                + (f'&ensp;<small style="color:#b7770d">⚠ {_rnl}</small>' if _rnl else "")
-                + (f'&ensp;<small style="color:#0d3b66">💉 {_dose}</small>' if _dose else "")
-                + '</div>'
-                f'<div>{pill(_raw, AWARE_PILL.get(_raw,""))}</div>'
-                '</div>'
-            )
-        if is_preg and preg_warn_items:
-            H.append('<div style="font-size:8.2pt;color:#6c3483;margin-top:0.5mm">'
-                     f'{_T["preg_extra"]}</div>')
-    else:
-        H.append(f'<div class="sec-ttl">{_T["recommended"]}</div>')
-        if is_preg and preg_warn_items:
-            H.append(f'<div class="alert al-info" style="font-size:8.4pt">{_T["preg_only"]}</div>')
-        else:
-            H.append('<div class="alert al-info" style="font-size:8.4pt">'
-                     'No clear first-line options — see Caution / Pregnancy sections below.</div>')
+    section_ranked(
+        H=H,
+        AWARE_CARD=AWARE_CARD,
+        AWARE_CLR=AWARE_CLR,
+        AWARE_PILL=AWARE_PILL,
+        _T=_T,
+        _rnote=_rnote,
+        is_preg=is_preg,
+        is_renal=is_renal,
+        lang=lang,
+        organism=organism,
+        pill=pill,
+        preg_warn_items=preg_warn_items,
+        ranked=ranked,
+        sir_map=sir_map,
+        specimen=specimen)
 
-    # ── AVOID -- each drug with its specific reason ────────────────────────
-    if banned:
-        def _ban_reason(bd):
-            cat = bd.get("category", "")
-            nm  = bd.get("name", "")
-            _sir = sir_map.get(nm, "")
-            _info_lookup = ABX_GUIDELINES.get(nm, {})
-            _cls = (_info_lookup.get("class", "") or "").lower()
-            # 1. Resistant in culture (explicit R)
-            if cat == "resistant" or _sir == "R":
-                return ('✗ (R)', '#922b21')
-            # 2. Pregnancy contraindication
-            if cat == "pregnancy":
-                return ('⊘ Pregnancy', '#7d3c98')
-            # 3. Pediatric / child
-            if cat in ("child", "pediatric"):
-                return ('⊘ Pediatric', '#7d3c98')
-            # 4. Renal
-            if cat == "renal":
-                return ('⚠ Renal', '#b7770d')
-            # 5. Organism-based (MRSA / ESBL / AmpC / Carbapenemase / intrinsic)
-            if cat == "organism":
-                _is_betalactam = any(k in _cls for k in
-                                     ("penicillin", "cephalosporin", "carbapenem"))
-                # MRSA: detected + beta-lactam
-                if _is_mrsa and _is_betalactam:
-                    return ('⚠ MRSA -- β-lactam', '#922b21')
-                # Carbapenemase
-                if _is_carbapenemase and _is_betalactam:
-                    return ('⚠ Carbapenemase', '#922b21')
-                # ESBL/AmpC suppression of penicillins+cephalosporins
-                if _is_esbl_like and _is_betalactam:
-                    return ('⚠ ESBL Concern', '#b7770d')
-                # Otherwise intrinsic resistance
-                return ('⚠ Intrinsic R', '#922b21')
-            return ('✗ Avoid', '#922b21')
+    section_avoid(
+        H=H,
+        _T=_T,
+        _is_carbapenemase=_is_carbapenemase,
+        _is_esbl_like=_is_esbl_like,
+        _is_mrsa=_is_mrsa,
+        banned=banned,
+        is_preg=is_preg,
+        sir_map=sir_map)
 
-        H.append(
-            '<div class="sec-ttl" style="margin-top:1mm;color:#922b21;border-bottom-color:#922b21">'
-            f'{_T["avoid"]}</div>'
-        )
-        _avoid_rows = []
-        for _bd in banned:
-            _nm   = _esc(_bd.get("name",""))
-            _tag, _clr = _ban_reason(_bd)
-            _avoid_rows.append(
-                f'<span style="display:inline-block;margin:0.3mm 1mm 0.3mm 0;'
-                f'padding:0.2mm 2mm;background:#fff;border:0.4pt solid {_clr};'
-                f'border-radius:1.5mm;font-size:8pt;max-width:90mm;overflow-wrap:anywhere;vertical-align:top">'
-                f'<b style="color:#1a1a2e">{_nm}</b> '
-                f'<span style="color:{_clr};font-size:8.2pt">{_tag}</span></span>'
-            )
-        H.append(
-            f'<div class="alert al-danger" style="font-size:8.5pt;line-height:1.6">'
-            f'{"".join(_avoid_rows)}</div>'
-        )
-        # Pregnancy-banned — separate line for clarity
-        _preg_banned = [_bd for _bd in banned if _bd.get("category") == "pregnancy"]
-        if _preg_banned and is_preg:
-            _pb_names = ", ".join(_esc(_bd["name"]) for _bd in _preg_banned)
-            H.append(
-                '<div class="alert al-danger" style="font-size:8.5pt;margin-top:1mm">'
-                f'⊘ <b>Pregnancy Contraindicated:</b> {_pb_names}</div>'
-            )
+    section_warned(
+        H=H,
+        _EN=_EN,
+        _T=_T,
+        _rnote=_rnote,
+        cl_cr=cl_cr,
+        is_renal=is_renal,
+        warned=warned)
 
-    # ── DOSE ADJUSTMENT / USE WITH CAUTION -- compact chip grid ──────────
-    if warned:
-        H.append('<div class="sec-ttl" style="margin-top:0.6mm;color:#b7770d;border-bottom-color:#b7770d">'
-                 f'{_T["dose_adj"]}</div>')
-        # Shared notes (renal / intermediate) stated ONCE here instead of
-        # repeating under every single drug below.
-        _sub_notes = []
-        if is_renal:
-            _sub_notes.append(f'Patient CrCl = {crcl_label(cl_cr, is_renal)}')
-        if any(_wd.get("warning_reason") == "intermediate_culture" for _wd in warned):
-            _sub_notes.append('⚠ Intermediate (I) in culture -- use only if no better option')
-        if _sub_notes:
-            H.append('<div style="font-size:8.2pt;color:#7d6608;margin-bottom:1mm">'
-                     + ' &nbsp;·&nbsp; '.join(_sub_notes) + '</div>')
+    section_interactions(H=H, _EN=_EN, _T=_T, interactions=interactions)
 
-        H.append('<div class="dose-grid" style="display:flex;flex-wrap:wrap;gap:1mm;align-items:stretch">')
-        for _wd in warned:
-            _wname = _esc(_wd.get("name",""))
-            _waw   = _esc(_wd.get("aware",""))
-            _wreason = _wd.get("warning_reason","")
-            _waw_style = {
-                "Access":  "background:#1e8449;color:#fff",
-                "Watch":   "background:#b7770d;color:#fff",
-                "Reserve": "background:#922b21;color:#fff",
-            }.get(_wd.get("aware",""), "background:#888;color:#fff")
+    section_columns(
+        H=H,
+        _EN=_EN,
+        _T=_T,
+        _clip=_clip,
+        _join_more=_join_more,
+        _xlate_patho=_xlate_patho,
+        allowed=allowed,
+        duration_data=duration_data,
+        esbl_result=esbl_result,
+        lang=lang,
+        mdr_result=mdr_result,
+        patho_assessment=patho_assessment,
+        phenotypes=phenotypes,
+        sir_map=sir_map,
+        specimen=specimen)
 
-            # Reason-specific detail -- "intermediate_culture" is skipped here
-            # since it's already covered once by the shared note above.
-            _detail = ""
-            if _wreason == "renal_adjustment":
-                _rl = _wd.get("renal_limit","-")
-                _rn = _esc(_rnote(_wd))
-                _detail = f'Renal dose adjustment required | Threshold: CrCl \u2264 {_rl} ml/min' + (f' -- {_rn}' if _rn else '')
-            elif _wreason in ("esbl_bli_uti_only", "possible_carbapenemase"):
-                _esbl_txt = (_wd.get("esbl_note_en") if _EN and _wd.get("esbl_note_en")
-                             else _wd.get("esbl_note","ESBL organism -- BLI combo for uncomplicated UTI only"))
-                _detail = _esc(_esbl_txt)
-            elif _wreason == "intermediate_culture":
-                # Never leave the card body empty -- a blank card next to cards
-                # carrying a renal caveat reads as "nothing to adjust here".
-                _detail = ('Intermediate (I) on AST \u2014 use only if no better '
-                           'option; maximise dose/exposure.')
-                _rn_i = _esc(_rnote(_wd))
-                if _rn_i:
-                    _detail += f' Renal: {_rn_i}'
-            else:
-                # FIX 2026-08-03. This branch used to fall through to _rnote(),
-                # i.e. the RENAL note, for every warning reason it did not name
-                # explicitly — hepatic, safety-gate, neonatal, possible-MRSA.
-                # It is the identical defect that was found and fixed in the
-                # on-screen renderer the same day, and it survived here because
-                # the two renderers each had their own if/else instead of one
-                # resolver. A Child-Pugh C caution printed renal dosing; a CSF
-                # gate refusal printed "no renal adjustment required" — a
-                # reassuring sentence under a refusal.
-                #
-                # warned_note_for() is now the SINGLE resolver for both, injected
-                # through bind(). If a reason has no branch there it returns ""
-                # rather than substituting an unrelated note, and the card below
-                # says so explicitly instead of printing something false.
-                _detail = _esc(warned_note_for(_wd, "en" if _EN else "ar"))
-                if not _detail:
-                    _detail = _esc(_wd.get("note", "")) or (
-                        "Caution recorded with no explanation attached — "
-                        "review manually." if _EN else
-                        "تحذير بلا تفسير مسجَّل — راجِع النتيجة يدوياً.")
+    section_pregnancy(
+        H=H,
+        _EN=_EN,
+        _T=_T,
+        _xlate_preg_note=_xlate_preg_note,
+        is_preg=is_preg,
+        preg_warn_items=preg_warn_items)
 
-            H.append(
-                # flex:1 1 42mm -> chips grow to fill each row evenly (fixes poor
-                # distribution when few drugs); min-width forces a clean wrap; max-width
-                # keeps a lone chip from spanning the whole page; overflow:hidden +
-                # word wrapping on the name stop long drug names spilling past the
-                # right margin.
-                '<div style="flex:1 1 42mm;min-width:40mm;max-width:92mm;padding:0.5mm 2mm;'
-                'border-radius:1.5mm;background:#fef9e7;border:0.5pt solid #b7770d;'
-                'overflow:hidden;page-break-inside:avoid">'
-                '<div style="display:flex;justify-content:space-between;align-items:center;gap:1.5mm;min-width:0">'
-                f'<b style="font-size:9pt;color:#6b5806;min-width:0;overflow-wrap:anywhere;word-break:break-word">{_wname}</b>'
-                '<span style="padding:0.2mm 1.8mm;border-radius:1.5mm;font-size:7pt;flex:0 0 auto;'
-                f'font-weight:bold;white-space:nowrap;{_waw_style}">{_waw}</span>'
-                '</div>'
-                + (f'<div style="font-size:8pt;color:#4a4a4a;margin-top:0.4mm;line-height:1.35;overflow-wrap:anywhere">{_detail}</div>'
-                   if _detail else '')
-                + '</div>'
-            )
-        H.append('</div>')
-
-    # ── Interactions (compact) ─────────────────────────────────────────
-    # SILENT-TRUNCATION FIX: this used to print `interactions[:4]`, so on a
-    # hepatic patient with several flagged agents the 5th warning onwards simply
-    # never appeared in the document the physician actually reads -- and nothing
-    # told anyone it had been dropped. All items are now printed; if the list is
-    # long the overflow is condensed onto one line rather than discarded.
-    if interactions:
-        _ia_all = list(interactions)
-        _ia_head, _ia_tail = _ia_all[:6], _ia_all[6:]
-        _rows = [f'<span style="font-size:9pt">{_esc(ia)}</span>' for ia in _ia_head]
-        if _ia_tail:
-            _rows.append('<span style="font-size:8pt">+ '
-                         + _esc(" · ".join(_ia_tail)) + '</span>')
-        H.append(f'<div class="sec-ttl" style="margin-top:0.6mm">{_T["interactions"]}</div>'
-                 '<div class="alert al-warn">' + '<br>'.join(_rows) + '</div>')
-
-    # 2-column equal — Treatment Duration LEFT, Pathogenicity RIGHT
-    H.append('<div class="grid2" style="margin-top:0.6mm">')
-
-    # ── Treatment Duration (now left column) ──────────────────────────────
-    H.append('<div class="g2l">')
-    if duration_data:
-        d = duration_data
-        H.append('<div class="sec-ttl">Treatment Duration</div>')
-        std = d.get("standard_days", d.get("standard","?"))
-        H.append('<table class="compact-tbl">'
-                 f'<tr><td class="lbl">Protocol</td><td>{_esc(d.get("label",""))}</td></tr>'
-                 f'<tr><td class="lbl">Standard</td><td><b style="font-size:12pt">{std} days</b></td></tr>'
-                 f'<tr><td class="lbl">Range</td><td>{d.get("min_days","?")}–{d.get("max_days","?")} days</td></tr>'
-                 f'<tr><td class="lbl">IV/PO Split</td><td class="ltr">IV:{d.get("iv_days",0)}d · PO:{d.get("po_days",0)}d</td></tr>'
-                 '</table>')
-        if d.get("notes"):
-            _note = annotate_regimen_note(d["notes"], sir_map, lang=lang)
-            H.append(f'<div class="alert al-info" style="font-size:8pt;margin-top:0.5mm">▣ {_esc(_clip(_note, 400))}</div>')
-        if d.get("follow_up_culture"):
-            H.append('<div class="alert al-warn" style="font-size:8.5pt">↻ Follow-up culture recommended after treatment</div>')
-        H.append(f'<div style="font-size:8.4pt;color:#7b8794;margin-top:1.2mm">§ {_esc(d.get("ref",""))}</div>')
-    else:
-        H.append('<div class="sec-ttl">Treatment Duration</div>')
-        H.append('<div class="alert al-info" style="font-size:9pt">Select severity level to see treatment duration</div>')
-    H.append('</div>')
-
-    # ── Pathogenicity (now right column, expanded) ────────────────────────
-    H.append('<div class="g2r">')
-    if patho_assessment:
-        sc     = patho_assessment.get("score",0)
-        verd   = _esc(patho_assessment.get("verdict",""))
-        # Engine v3 supplies English forms; the phrase dictionary is only the
-        # fallback for results produced by an older engine.
-        if _EN and patho_assessment.get("interpretation_en"):
-            interp = _esc(patho_assessment.get("interpretation_en", ""))
-            recs   = [_esc(r) for r in patho_assessment.get("recommendations_en", [])]
-        else:
-            interp = _esc(_xlate_patho(patho_assessment.get("interpretation","")))
-            recs   = [_esc(_xlate_patho(r)) for r in patho_assessment.get("recommendations",[])]
-        flags  = patho_assessment.get("special_flags",[])
-        fpos   = patho_assessment.get("factors_pos",[])
-        fneg   = patho_assessment.get("factors_neg",[])
-        clr2   = _score_color(sc)
-
-        H.append('<div class="sec-ttl">Pathogenicity Assessment</div>')
-        # Score bar
-        H.append(f'<div class="score-bar"><div class="score-fill" '
-                 f'style="width:{sc}%;background:{clr2}"></div></div>')
-        H.append(f'<div style="font-size:10pt;margin:0.5mm 0;font-weight:bold;color:{clr2}">{sc}% — {verd}</div>')
-        # Interpretation
-        if interp:
-            H.append(f'<div style="font-size:9pt;color:#444;margin-bottom:0.5mm">{_clip(interp, 240)}</div>')
-        # Flags
-        flag_msgs = {
-            "ABU_NO_TREAT":  ("al-warn",   "ABU -- Do NOT Treat (IDSA 2019)"),
-            "ABU_TREAT":     ("al-danger", "ABU -- TREAT (High-risk)"),
-            "MW_REJECT":     ("al-danger", "Specimen REJECTED -- Repeat"),
-            "MW_ADEQUATE":   ("al-info",   "Murray-Washington: Adequate"),
-            "SIRS_HIGH":     ("al-danger", "SIRS ≥3 -- Sepsis Probable"),
-            "PEDIATRIC_UTI": ("al-info",   "Pediatric threshold applied"),
-            # Added 2026-08-01: an unread colony count used to contribute a
-            # silent zero. It now contributes nothing AND says so, because a
-            # verdict built on a field nobody filled in should not look the
-            # same as one built on a real reading.
-            "CFU_NOT_REPORTED": ("al-warn",
-                                 "Colony count not reported / unreadable -- "
-                                 "excluded from the score"),
-        }
-        for fl, (cls, msg) in flag_msgs.items():
-            if fl in flags:
-                H.append(f'<div class="alert {cls}" style="font-size:8.5pt;margin:0.3mm 0">{msg}</div>')
-        # Supporting factors (compact)
-        if fpos:
-            H.append(f'<div style="font-size:8.5pt;color:#1e8449;margin-top:1mm"><b>{_T["supporting"]}</b></div>')
-            for f in fpos[:3]:
-                H.append(f'<div style="font-size:8.5pt;color:#1e8449">{_esc(_clip(_xlate_patho(f), 120))}</div>')
-        # Against factors
-        if fneg:
-            H.append(f'<div style="font-size:8.5pt;color:#b7770d;margin-top:0.5mm"><b>{_T["against"]}</b></div>')
-            for f in fneg[:3]:
-                H.append(f'<div style="font-size:8.5pt;color:#b7770d">{_esc(_clip(f, 120))}</div>')
-        # Recommendations
-        if recs:
-            H.append(f'<div style="font-size:8.5pt;font-weight:bold;margin-top:0.5mm">{_T["recs"]}</div>')
-            for r in recs[:3]:
-                H.append(f'<div style="font-size:8.5pt">• {_clip(r, 150)}</div>')
-    else:
-        # Non-urine: show ESBL / MDR / resistance summary instead of pathogenicity
-        _is_urine_pdf = "urine" in (specimen or "").lower()
-        if _is_urine_pdf:
-            H.append('<div class="sec-ttl">Pathogenicity Assessment</div>')
-            H.append('<div class="alert al-info" style="font-size:9pt">Run Pathogenicity Assessment in the app to see score</div>')
-        else:
-            H.append('<div class="sec-ttl">Organism Resistance Profile</div>')
-            # ESBL / Mechanism
-            if esbl_result and esbl_result.get("probability") not in ("low", None):
-                _ep3 = esbl_result.get("probability")
-                _em3 = _esc(esbl_result.get("mechanism", ""))
-                _ec3 = esbl_result.get("confidence", 0)
-                _ed3 = _esc(esbl_result.get("detail",""))
-                if _ep3 == "carbapenemase":
-                    H.append(f'<div class="alert al-danger" style="font-size:8.5pt"><b>▲ {_em3}</b> ({_ec3}%)</div>')
-                    H.append(f'<div style="font-size:8pt;color:#922b21">{_clip(_ed3, 200)}</div>')
-                elif _ep3 in ("high","ampc"):
-                    _l3 = "AmpC β-Lactamase" if _ep3 == "ampc" else "ESBL Producer"
-                    H.append(f'<div class="alert al-danger" style="font-size:8.5pt"><b>⚠ {_l3}</b> ({_ec3}%) — {_em3}</div>')
-                    H.append(f'<div style="font-size:8pt;color:#555">{_clip(_ed3, 200)}</div>')
-                elif _ep3 == "moderate":
-                    H.append(f'<div class="alert al-warn" style="font-size:8.5pt"><b>◆ ESBL Suspected</b> ({_ec3}%)</div>')
-                    H.append(f'<div style="font-size:8pt;color:#555">{_clip(_ed3, 200)}</div>')
-            # MDR level
-            if mdr_result and mdr_result.get("level"):
-                _ml3 = mdr_result["level"]
-                _mi3 = MDR_INFO.get(_ml3, {})
-                _clr3 = "#922b21" if _ml3 in ("XDR","PDR") else "#b7770d"
-                H.append(f'<div style="font-size:9pt;font-weight:bold;color:{_clr3};margin-top:1mm">'
-                         f'{_mi3.get("icon","")} {_esc(mdr_display_label(mdr_result))}</div>')
-                H.append(f'<div style="font-size:8pt;color:#555">'
-                         f'Resistant {mdr_result["resistant_count"]}/{mdr_result["total_tested"]} categories: '
-                         f'{_esc(_join_more(mdr_result.get("resistant_categories",[]), 6))}</div>')
-            # Phenotypes
-            if phenotypes:
-                for _ph3 in phenotypes[:3]:
-                    _phn3 = _esc(_ph3.get("phenotype",""))
-                    H.append(f'<div style="font-size:8.5pt;color:#6e2fa0;margin-top:0.5mm">◆ {_phn3}</div>')
-            # No resistance info → show full Susceptibility Summary
-            if (not esbl_result or esbl_result.get("probability") in ("low", None)) \
-               and not (mdr_result and mdr_result.get("level")) \
-               and not phenotypes:
-                H.append('<div class="sec-ttl">Susceptibility Summary</div>')
-                # ── AST stats ──────────────────────────────────────────────────
-                _s_n = sum(1 for v in sir_map.values() if v == "S")
-                _i_n = sum(1 for v in sir_map.values() if v == "I")
-                _r_n = sum(1 for v in sir_map.values() if v == "R")
-                _tot = len(sir_map)
-                _gram_txt = ("Gram-positive organism"
-                             if (mdr_result or {}).get("gram") == "positive"
-                             else "Gram-negative organism"
-                             if (mdr_result or {}).get("gram") == "negative"
-                             else "")
-                _access_n = sum(1 for d in allowed if d.get("aware") == "Access")
-                _watch_n  = sum(1 for d in allowed if d.get("aware") == "Watch")
-                _res_n    = sum(1 for d in allowed if d.get("aware") == "Reserve")
-                _aware_str = (
-                    (f"{_access_n} Access" if _access_n else "")
-                    + (" · " if _access_n and (_watch_n or _res_n) else "")
-                    + (f"{_watch_n} Watch" if _watch_n else "")
-                    + (" · " if _watch_n and _res_n else "")
-                    + (f"{_res_n} Reserve" if _res_n else "")
-                )
-                # Score bar colour: green if >60% sensitive
-                _pct_s = int(_s_n / _tot * 100) if _tot else 0
-                _bar_clr = "#1e8449" if _pct_s >= 60 else "#b7770d" if _pct_s >= 40 else "#922b21"
-                H.append(
-                    f'<div class="score-bar" style="margin:1mm 0">'
-                    f'<div class="score-fill" style="width:{_pct_s}%;background:{_bar_clr}"></div></div>'
-                )
-                H.append(
-                    '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-top:0.5mm">'
-                    f'<tr><td style="padding:0.5mm 1mm;color:#1e8449">✓ Sensitive</td>'
-                    f'<td style="padding:0.5mm 1mm;font-weight:bold;color:#1e8449">{_s_n} agents</td>'
-                    f'<td style="padding:0.5mm 1mm;font-size:8pt;color:#888">{_pct_s}%</td></tr>'
-                    + (f'<tr><td style="padding:0.5mm 1mm;color:#b7770d">● Intermediate</td>'
-                       f'<td style="padding:0.5mm 1mm;font-weight:bold;color:#b7770d">{_i_n} agent{"s" if _i_n!=1 else ""}</td>'
-                       f'<td></td></tr>' if _i_n else "")
-                    + f'<tr><td style="padding:0.5mm 1mm;color:#922b21">✗ Resistant</td>'
-                      f'<td style="padding:0.5mm 1mm;font-weight:bold;color:#922b21">{_r_n} agent{"s" if _r_n!=1 else ""}</td>'
-                      f'<td></td></tr>'
-                    '</table>'
-                )
-                H.append('<hr class="dv" style="margin:0.8mm 0">')
-                if _gram_txt:
-                    H.append(f'<div style="font-size:9pt;color:#1a1a2e;margin:0.3mm 0">'
-                             f'● {_gram_txt}</div>')
-                H.append(f'<div style="font-size:9pt;color:#0d3b66;margin:0.3mm 0">'
-                         f'Pattern: <b>Non-MDR / Susceptible</b></div>')
-                if _aware_str:
-                    H.append(f'<div style="font-size:9pt;color:#555;margin:0.3mm 0">'
-                             f'AWaRe: {_aware_str}</div>')
-                H.append('<hr class="dv" style="margin:0.8mm 0">')
-                H.append(
-                    '<div class="alert al-info" style="font-size:8.5pt">'
-                    '▣ No ESBL / AmpC / Carbapenemase markers detected.<br>'
-                    '<span style="font-size:8pt">Standard culture-directed therapy applicable. '
-                    'Follow recommended regimen above.</span></div>'
-                )
-    H.append('</div></div>')
-
-    # ── PREGNANCY -- USE WITH CAUTION  (dedicated section) ─────────────────
-    if is_preg and preg_warn_items:
-        H.append('<hr class="dv">')
-        H.append(
-            '<div class="sec-ttl" style="color:#7d3c98;border-bottom-color:#7d3c98">'
-            f'{_T["pregnancy"]} &nbsp;'
-            '<span style="font-size:8pt;font-weight:normal;color:#888">'
-            f'{_T["preg_sub"]}</span></div>'
-        )
-        for _pw in preg_warn_items:
-            _pname = _esc(_pw.get("name", ""))
-            _paw   = _esc(_pw.get("aware", ""))
-            _pnote = (_pw.get("preg_note") or "").strip()
-            # Use English note if lang=en
-            if _EN and _pw.get("preg_note_en"):
-                _pnote = _pw.get("preg_note_en").strip()
-            H.append(
-                f'<div style="margin:0.3mm 0;padding:0.8mm 2.5mm;border-radius:2mm;'
-                f'border:1pt solid #c39bd3;background:#f5eef8;page-break-inside:avoid">'
-                f'<div style="display:flex;justify-content:space-between;align-items:center">'
-                f'<b style="font-size:9pt;color:#6c3483">{_pname}</b>'
-                f'<span style="padding:0.3mm 2.5mm;border-radius:2mm;font-size:8pt;'
-                f'font-weight:bold;background:#7d3c98;color:#fff">{_paw}</span>'
-                f'</div>'
-            )
-            if _pnote:
-                _preg_dropped = 0
-                for _line in _pnote.splitlines():
-                    _line = _line.strip()
-                    if not _line:
-                        continue
-                    # 2026-11-11: the phrase dictionary translates these notes
-                    # only in part, and a half-translated line ("risk of
-                    # التشوهات ...") is worse than none. In the English report a
-                    # line that still holds Arabic is dropped and replaced by
-                    # one complete English sentence below.
-                    if _EN and re.search(r'[\u0600-\u06FF]', _xlate_preg_note(_line)):
-                        _preg_dropped += 1
-                        continue
-                    if _line.startswith("⊘"):
-                        _lcolor = "#922b21"; _lbg = "#fdf2f2"
-                    elif _line.startswith("✓"):
-                        _lcolor = "#1e8449"; _lbg = "#eafaf1"
-                    elif _line.startswith("⚠"):
-                        _lcolor = "#b7770d"; _lbg = "#fef9e7"
-                    elif _line.startswith(">>>"):
-                        _lcolor = "#444";   _lbg = "#f0f0f0"
-                    else:
-                        _lcolor = "#444";   _lbg = "transparent"
-                    H.append(
-                        f'<div style="font-size:9pt;color:{_lcolor};'
-                        f'background:{_lbg};padding:0.3mm 2mm;margin-top:0.5mm;'
-                        f'border-radius:1mm">{_esc(_xlate_preg_note(_line))}</div>'
-                    )
-                if _EN and _preg_dropped:
-                    H.append(
-                        '<div style="font-size:9pt;color:#444;padding:0.3mm 2mm;margin-top:0.5mm">'
-                        'Pregnancy: not a first-line agent. Use only when no safer alternative exists '
-                        'and the benefit outweighs the risk; the decision rests with the treating '
-                        'physician.</div>'
-                    )
-            H.append('</div>')
-
-    # Combination + Hepatic (compact)
-    if combo_suggestions:
-        H.append('<hr class="dv" style="margin:0.5mm 0"><div class="sec-ttl">Combination Therapy — MDR</div>')
-        for cs in combo_suggestions[:2]:
-            data = cs["data"]
-            H.append(f'<div class="alert al-danger" style="font-size:8.5pt">'
-                     f'<b>{_esc(data["urgency"])} — {_esc(data["title"])}</b></div>')
-            for opt in data["options"][:3]:
-                avoid = "AVOID" in opt.get("evidence","") or "AVOID" in opt["combo"].upper()
-                H.append(f'<div style="font-size:8.5pt;margin:0.3mm 0;color:{"#922b21" if avoid else "#1a1a2e"}">'
-                         f'{"⊘ " if avoid else "• "}<b>{_esc(opt["combo"])}</b>'
-                         f' <span style="color:#888">({_esc(opt["evidence"])})</span></div>')
-
-    if is_hepatic and hepatic_recs:
-        action_recs = [r for r in hepatic_recs if r.get("requires_action")][:3]
-        if action_recs:
-            H.append(f'<hr class="dv" style="margin:0.5mm 0"><div class="sec-ttl">Hepatic Dosing — CP-{_esc(child_pugh)}</div>')
-            for r in action_recs:
-                cls4 = "danger-val" if "Avoid" in r["level"] else "warn-val"
-                H.append(f'<div style="font-size:9pt;margin:0.3mm 0">'
-                         f'<b class="{cls4}">{_esc(r["name"])}</b>: {_esc(r["recommendation"])}</div>')
-
-    # Footer
-    H.append("""<hr class="dv" style="margin-top:1mm">
-<div class="grid2">
-  <div class="g2l" style="font-size:8pt;color:#666">
-    <b>References:</b> CLSI 2026 | EUCAST Breakpoint Tables v16.1 | IDSA AMR Guidance 2026 | WHO AWaRe 2025 | Sanford 2025 | BNF 2025 | Egypt Nat. Guidelines
-  </div>
-  <div class="g2r" style="font-size:8pt;color:#666">
-    <b>Disclaimer:</b> Clinical decision support only. Treatment decisions are the sole responsibility of the treating physician.
-  </div>
-</div>
-
-</div></body></html>"""
-)
+    section_combo_hepatic_footer(
+        H=H,
+        child_pugh=child_pugh,
+        combo_suggestions=combo_suggestions,
+        hepatic_recs=hepatic_recs,
+        is_hepatic=is_hepatic)
 
     _full_html = "".join(H)
     if _EN:
@@ -1307,85 +448,7 @@ def generate_decision_tree_image(
     P  = 14   * S                # padding
     G  = 8    * S                # gap
 
-    # ── Color Palette (identical to reference) ────────────────────────────────
-    BG         = (248, 250, 252)
-    WHITE      = (255, 255, 255)
-    DARK       = (28,  32,  40)
-    GRAY       = (95, 100, 112)
-    LIGHT_GRAY = (190, 195, 205)
-
-    NAVY       = (4,   26,  63)
-    PURPLE_BD  = (120, 75, 178);  PURPLE_BG  = (247, 243, 254)
-    GREEN_BD   = (45, 138,  68);  GREEN_BG   = (236, 252, 240);  GREEN_TXT  = (20,  95,  40)
-    AMBER_BD   = (195,140,  30);  AMBER_BG   = (255, 250, 228);  AMBER_TXT  = (120,  80,   0)
-    RED_BD     = (183, 52,  52);  RED_BG     = (255, 237, 234);  RED_TXT    = (148,  30,  30)
-    BLUE_BD    = (35,  90, 172);  BLUE_BG    = (234, 244, 255);  BLUE_TXT   = (15,   55, 145)
-    ALERT_BD   = (205,115,  50);  ALERT_BG   = (255, 248, 232);  ALERT_TXT  = (130,  60,   5)
-    SPEC_BD    = (35,  90, 172);  SPEC_BG    = (234, 244, 255)
-    MICRO_BD   = (30, 130,  65);  MICRO_BG   = (234, 252, 238)
-    FL_BD      = (190,138,  28);  FL_BG      = (255, 250, 225)
-    FOOT_BD    = (185,192,200);   FOOT_BG    = (247, 249, 251)
-
-    # ── Fonts (all scaled) ────────────────────────────────────────────────────
-    def gf(size: int, bold: bool = False):
-        """
-        Robust font loader with comprehensive fallbacks.
-        Priority: Liberation Sans -> DejaVu -> NotoSans -> Amiri -> auto-discover
-        Liberation/DejaVu give the clean sans-serif look of the old images.
-        NotoSans/Amiri are fallbacks for Streamlit Cloud if Liberation not found.
-        """
-        import os as _os
-        _b = "Bold" if bold else "Regular"
-        paths = [
-            # ── DejaVu Sans FIRST -- supports Arabic Unicode (fonts-dejavu-core) ─
-            f"/usr/share/fonts/truetype/dejavu/DejaVuSans{'-Bold' if bold else ''}.ttf",
-            f"/usr/share/fonts/dejavu/DejaVuSans{'-Bold' if bold else ''}.ttf",
-            f"/usr/share/fonts/truetype/dejavu-sans/DejaVuSans{'-Bold' if bold else ''}.ttf",
-            # ── Liberation Sans (fonts-liberation in packages.txt) ──────────────
-            f"/usr/share/fonts/truetype/liberation/LiberationSans-{_b}.ttf",
-            f"/usr/share/fonts/truetype/liberation2/LiberationSans-{_b}.ttf",
-            f"/usr/share/fonts/liberation/LiberationSans-{_b}.ttf",
-            # ── Noto Sans (fonts-noto-core in packages.txt) -- clean sans-serif ──
-            f"/usr/share/fonts/truetype/noto/NotoSans-{_b}.ttf",
-            f"/usr/share/fonts/truetype/noto/NotoSans{'Bold' if bold else 'Regular'}.ttf",
-            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-            "/usr/share/fonts/noto/NotoSans-Regular.ttf",
-            # ── Amiri (fonts-hosny-amiri in packages.txt) -- Arabic+Latin ────────
-            f"/usr/share/fonts/opentype/fonts-hosny-amiri/Amiri-{_b}.ttf",
-            f"/usr/share/fonts/opentype/fonts-hosny-amiri/amiri-{'bold' if bold else 'regular'}.ttf",
-            f"/usr/share/fonts/truetype/amiri/Amiri-{_b}.ttf",
-            # ── Other common fonts ───────────────────────────────────────────────
-            f"/usr/share/fonts/truetype/freefont/FreeSans{'Bold' if bold else ''}.ttf",
-            f"/usr/share/fonts/truetype/ubuntu/Ubuntu-{'B' if bold else 'R'}.ttf",
-        ]
-        for p in paths:
-            if _os.path.isfile(p):
-                try:
-                    return ImageFont.truetype(p, size * S)
-                except Exception:
-                    continue
-        # Auto-discover: search for ANY usable sans-serif font
-        for _fdir in ["/usr/share/fonts/truetype", "/usr/share/fonts/opentype",
-                      "/usr/share/fonts"]:
-            if not _os.path.isdir(_fdir):
-                continue
-            try:
-                for _root, _, _files in _os.walk(_fdir):
-                    for _f in sorted(_files):   # sorted = deterministic order
-                        if not _f.lower().endswith((".ttf", ".otf")):
-                            continue
-                        _fl = _f.lower()
-                        if any(k in _fl for k in
-                               ("liberation", "dejavu", "notosans", "noto-sans",
-                                "ubuntu", "freesans", "amiri", "arial", "sans")):
-                            try:
-                                return ImageFont.truetype(
-                                    _os.path.join(_root, _f), size * S)
-                            except Exception:
-                                continue
-            except Exception:
-                continue
-        return ImageFont.load_default()
+    assert S == _IMG_S, "image_parts draws at a different scale"
 
     F_HEADER  = gf(20, True)
     F_TITLE   = gf(15, True)
@@ -1395,123 +458,6 @@ def generate_decision_tree_image(
     F_ORG     = gf(26, True)
     F_SUMNUM  = gf(20, True)
     F_BADGE   = gf(9,  True)
-
-    def fh(f) -> int:
-        return f.size if hasattr(f, "size") else 14 * S
-
-    def tw(draw, text, font) -> float:
-        try:
-            return draw.textlength(text, font=font)
-        except Exception:
-            return len(text) * fh(font) * 0.6
-
-    # ── Arabic text helper ────────────────────────────────────────────────────
-    def _fix_arabic(text: str) -> str:
-        """
-        Reshape Arabic text for Pillow.
-        reshape() connects letters correctly.
-        get_display() reverses word order -- NOT used here to avoid reversal.
-        """
-        if not text:
-            return ""
-        if not ARABIC_SUPPORT:
-            return str(text)
-        try:
-            return _arabic_reshaper_mod.reshape(str(text))
-        except Exception:
-            return str(text)
-
-    def rbox(draw, box, bg, bd, radius=14, width=3):
-        draw.rounded_rectangle(
-            [box[0], box[1], box[2], box[3]],
-            radius=radius * S, fill=bg, outline=bd, width=width * S
-        )
-
-    def text_wrap(draw, x, y, text, font, fill, max_w, gap=4, max_y=None, min_size=7):
-        """
-        Word-wraps text within max_w. If max_y is given and the wrapped
-        text would cross that boundary at the current font size, the font
-        is progressively shrunk (down to min_size) so the text always
-        stays inside its box; if it still doesn't fit at min_size, the
-        last visible line is truncated with "…" instead of overflowing
-        past the border.
-        """
-        text = _fix_arabic(text)   # reshape Arabic before wrapping
-
-        def _wrap(f):
-            words = text.split()
-            lines, cur = [], ""
-            for w in words:
-                trial = (cur + " " + w).strip()
-                if tw(draw, trial, f) <= max_w:
-                    cur = trial
-                else:
-                    if cur: lines.append(cur)
-                    cur = w
-            if cur: lines.append(cur)
-            return lines
-
-        f = font
-        lines = _wrap(f)
-        lh = fh(f) + gap * S
-
-        if max_y is not None and (y + lh * len(lines)) > max_y:
-            nominal = max(min_size, int(fh(font) / S) - 1)
-            for step in range(nominal, min_size - 1, -1):
-                f2 = gf(step)
-                lines2 = _wrap(f2)
-                lh2 = fh(f2) + gap * S
-                if (y + lh2 * len(lines2)) <= max_y:
-                    f, lines, lh = f2, lines2, lh2
-                    break
-            else:
-                f = gf(min_size)
-                lines = _wrap(f)
-                lh = fh(f) + gap * S
-                max_lines = max(1, int((max_y - y) // lh))
-                if len(lines) > max_lines:
-                    lines = lines[:max_lines]
-                    lines[-1] = lines[-1].rstrip() + "…"
-
-        for line in lines:
-            draw.text((x, y), line, fill=fill, font=f)
-            y += lh
-        return y
-
-    # AWaRe colors -- Access أخضر، Watch برتقالي
-    AWARE_NAME_COLORS = {
-        "[A]": (20, 138, 68),    # أخضر -- Access
-        "[W]": (180, 100,  0),   # برتقالي -- Watch
-        "[NR]": (90, 90, 90),    # رمادي -- WHO "Not Recommended"
-    }
-
-    def section_box(draw, box, title, title_color, subtitle, items, bg, bd,
-                    ft, fs, fi):
-        x1, y1, x2, y2 = box
-        rbox(draw, box, bg, bd, radius=16, width=3)
-        draw.text((x1 + 14*S, y1 + 12*S), _fix_arabic(title), fill=title_color, font=ft)
-        cy = y1 + 12*S + fh(ft) + 6*S
-        if subtitle:
-            draw.text((x1 + 14*S, cy), _fix_arabic(subtitle), fill=(110,115,125), font=fs)
-            cy += fh(fs) + 4*S
-        draw.line([(x1 + 10*S, cy), (x2 - 10*S, cy)], fill=bd, width=1*S)
-        cy += 8*S
-        for item in items:
-            if cy + fh(fi) + 7*S > y2 - 8*S:
-                draw.text((x1 + 14*S, cy), "…", fill=LIGHT_GRAY, font=fi)
-                break
-            # استخراج badge [A] أو [W]
-            badge = ""
-            display_name = item
-            for b in ["[A]", "[W]", "[NR]"]:
-                if item.endswith(b):
-                    badge = b
-                    display_name = item[:-len(b)].rstrip() + (" (WHO: not recommended)" if b == "[NR]" else "")
-                    break
-            # لون الاسم حسب AWaRe
-            name_color = AWARE_NAME_COLORS.get(badge, DARK)
-            cy = text_wrap(draw, x1 + 14*S, cy, f"• {display_name}",
-                           fi, name_color, x2 - x1 - 26*S, gap=5, max_y=y2-8*S)
 
     # ── Build Image ───────────────────────────────────────────────────────────
     img  = Image.new("RGB", (W, H), BG)
@@ -1827,6 +773,217 @@ def generate_decision_tree_image(
     return buf.getvalue()
 
 
+def _text_pathogenicity(*, L, patho_assessment, sep2):
+    """Text report: the pathogenicity block."""
+    # ── Pathogenicity Assessment ──────────────────────────────────────
+    if patho_assessment:
+        sc    = patho_assessment.get("score", 0)
+        verd  = patho_assessment.get("verdict", "")
+        interp = patho_assessment.get("interpretation", "")
+        recs  = patho_assessment.get("recommendations", [])
+        flags = patho_assessment.get("special_flags", [])
+        L += ["", "PATHOGENICITY ASSESSMENT", sep2,
+              f"Score    : {sc}% -- {verd}"]
+        if "ABU_DETECTED" in flags:
+            L.append("FLAG     : Asymptomatic Bacteriuria (ABU) Detected")
+        if "MW_REJECT" in flags:
+            L.append("FLAG     : Murray-Washington -- Specimen REJECTED")
+        elif "MW_ADEQUATE" in flags:
+            L.append("FLAG     : Murray-Washington -- Adequate Sputum Quality")
+        if "SIRS_HIGH" in flags:
+            L.append("FLAG     : SIRS >=3 criteria -- Sepsis Probable")
+        if interp:
+            L.append(f"Interp   : {interp}")
+        if recs:
+            L.append("Recs     :")
+            for r in recs:
+                L.append(f"  • {r}")
+    return L
+
+
+def _text_banned(*, L, banned, organism, sep, sep2, specimen):
+    """Text report: contraindicated agents with their reasons."""
+    if banned:
+        L += ["\nCONTRAINDICATED / INEFFECTIVE", sep]
+        grouped: Dict[str, list] = {
+            "resistant": [], "renal": [], "pregnancy": [],
+            "child": [], "organism": [], "specimen": [], "other": [],
+        }
+        for item in banned:
+            grouped.setdefault(item["category"], []).append(item)
+        labels = [
+            ("resistant", "[A] RESISTANT IN CULTURE"),
+            ("renal",     "[B] CONTRAINDICATED -- RENAL IMPAIRMENT"),
+            ("pregnancy", "[C] CONTRAINDICATED -- PREGNANCY"),
+            ("child",     "[D] NOT SUITABLE FOR AGE"),
+            ("organism",  f"[E] INEFFECTIVE FOR {organism}"),
+            ("specimen",  f"[F] INAPPROPRIATE FOR {specimen.upper()} SPECIMEN"),
+            ("other",     "[G] OTHER CONTRAINDICATIONS"),
+        ]
+        _rendered_cats = set()
+        for cat, heading in labels:
+            if grouped.get(cat):
+                _rendered_cats.add(cat)
+                L += [f"\n{heading}", sep2]
+                for b in grouped[cat]:
+                    L.append(f"- {b['name']} -- {b.get('reason_short', '')}")
+                    if cat == "renal":
+                        dk       = b["name"].lower().replace(" ", "")
+                        rendered = False
+                        for k, v in RENAL_BAN_REASONS.items():
+                            if k in dk:
+                                L.extend([f"  {ln}" for ln in v.splitlines()])
+                                rendered = True
+                                break
+                        if not rendered:
+                            L.extend([f"  {ln}" for ln in (b.get("reason_detail") or "").splitlines()])
+                    else:
+                        L.extend([f"  {ln}" for ln in (b.get("reason_detail") or "").splitlines()])
+                    L.append("")
+        # Safety net -- never silently drop a banned drug whose category is not
+        # listed above (e.g. a future/unknown category).
+        for cat, items in grouped.items():
+            if cat in _rendered_cats or not items:
+                continue
+            L += [f"\n[+] OTHER -- {cat.upper()}", sep2]
+            for b in items:
+                L.append(f"- {b['name']} -- {b.get('reason_short', '')}")
+                L.extend([f"  {ln}" for ln in (b.get("reason_detail") or "").splitlines()])
+                L.append("")
+
+
+def _text_warned(*, L, cl_cr, is_renal, sep, sep2, show_commercial_names, sir_map, warned):
+    """Text report: agents to use with caution, with the note that belongs to each."""
+    if warned:
+        L += ["\nDOSE ADJUSTMENT / USE WITH CAUTION", sep]
+        if is_renal:
+            L.append(f"Patient CrCl = {crcl_label(cl_cr, is_renal)}\n")
+        for item in warned:
+            sir_tag = f" [Culture: {sir_map[item['name']]}]" if sir_map and item['name'] in sir_map else ""
+            L += [f"{item['name']}{sir_tag}", sep2, f"WHO AWaRe : {item.get('aware','-')}"]
+            # Printed BEFORE the reason branch, not inside it: an Intermediate
+            # agent that also needs a renal or hepatic adjustment carries the
+            # other reason in warning_reason, and the I used to disappear from
+            # this report entirely.
+            if (item.get("culture_intermediate")
+                    and item.get("warning_reason") != "intermediate_culture"):
+                L.append("!! CONFLICT : culture is INTERMEDIATE (EUCAST: susceptible at "
+                         "INCREASED exposure) while the host requires a REDUCED dose. "
+                         "Prefer a fully susceptible agent; if unavoidable, dose with TDM.")
+            if item.get("warning_reason") == "intermediate_culture":
+                L.append("Reason    : Intermediate (I) on culture result")
+            elif item.get("esbl_note") or item.get("esbl_note_en"):
+                # Mechanism warnings (ESBL BLI-in-UTI, suspected carbapenemase)
+                # carry their reason in esbl_note; without this branch they fell
+                # through to renal_note and printed an empty reason.
+                L.append("Reason    : " + (item.get("esbl_note_en")
+                                           or item.get("esbl_note", "-")))
+            elif item.get("warning_reason") in ("renal_adjustment", "", None):
+                L += [f"Renal note: {item.get('renal_note','-')}",
+                      f"Limit CrCl: <= {item.get('renal_limit','-')} ml/min"]
+            else:
+                # FIX 2026-11-12 (round 5). Every other reason -- hepatic,
+                # safety gate, neonate, possible MRSA, allergy, organism
+                # caution -- fell through to the RENAL note above: a Child-Pugh
+                # caution or a CSF gate caution printed renal dosing and no
+                # reason at all. The PDF and the screen were moved to the one
+                # resolver on 2026-08-03; the text report was left behind.
+                _why = (warned_note_for(item, "en") if warned_note_for else "") or \
+                    str(item.get("note") or "Caution recorded with no explanation — review manually.")
+                _wl = [x for x in str(_why).splitlines() if x.strip()]
+                L.append("Reason    : " + (_wl[0].strip() if _wl else "-"))
+                L.extend("            " + x.strip() for x in _wl[1:])
+            if show_commercial_names:
+                _brands = get_commercial_name(item["name"])
+                if _brands:
+                    L.append(f"Brands    : {_brands}")
+            L.append("")
+    return L
+
+
+def _text_allowed(
+    *, L,
+    allowed,
+    is_preg,
+    is_renal,
+    sep2,
+    show_commercial_names,
+    sir_map,
+    specimen,
+):
+    """Text report: recommended agents in the screen's order."""
+    if allowed:
+        for item in allowed:
+            sir_tag  = f" [Culture: {sir_map[item['name']]}]" if sir_map and item['name'] in sir_map else ""
+            preg_tag = " [Pregnancy: caution]" if (is_preg and preg_status_of(item) == "Warn") else ""
+            L += [f"\n{item['name']}{sir_tag}{preg_tag}", sep2,
+                  f"WHO AWaRe : {item.get('aware','-')}",
+                  f"Class     : {item.get('class','-')}",
+                  f"Route     : {'Oral/PO-friendly' if item.get('high_po') else 'IV/IM only'}"]
+            spec_note = (item.get("specimen_notes") or {}).get(specimen, "")
+            if spec_note:
+                L += [f"Note      : {item.get('note','')}", f"{specimen}   : {spec_note}"]
+            else:
+                L.append(f"Note      : {item.get('note','')}")
+            if item.get("gate_dose_note_en"):
+                L.append(f"Dose      : {item['gate_dose_note_en']}")
+            if is_renal:
+                L.append(f"Renal     : {item.get('renal_note','-')}")
+            if is_preg and preg_status_of(item) == "Warn":
+                pn = (item.get("preg_note") or "").splitlines()
+                if pn:
+                    L.append(f"Pregnancy : {pn[0]}")
+            if show_commercial_names:
+                _brands = get_commercial_name(item["name"])
+                if _brands:
+                    L.append(f"Brands    : {_brands}")
+    else:
+        L.append("No recommended options after applying all restrictions.")
+
+
+def _text_panel_completeness(*, L, organism, sep2, sir_map, specimen):
+    """Text report: AST panel completeness for this organism and specimen."""
+    # AST PANEL COMPLETENESS -- added 2026-08-22, request: this belongs in
+    # the internal report, not just the interactive Streamlit page. Same
+    # question as the UI card: was enough tested at all, not just "was what
+    # WAS tested interpreted correctly". Silently absent (not an empty
+    # section header) when the module isn't available or the organism has
+    # no expected-panel group -- see ast_panel_completeness.py for why
+    # staying silent beats guessing for an organism this module doesn't
+    # cover confidently.
+    if sir_map and _PANEL_COMPLETENESS_AVAILABLE and _check_panel_completeness_ext:
+        _pc_report = _check_panel_completeness_ext(organism, specimen, sir_map)
+        if _pc_report.status != "not_evaluated":
+            L += ["\nAST PANEL COMPLETENESS", sep2,
+                  f"Organism : {_pc_report.organism_group}",
+                  f"Expected : {_pc_report.expected_total}    "
+                  f"Tested: {_pc_report.tested_count}    "
+                  f"Missing: {len(_pc_report.missing_primary) + len(_pc_report.missing_supplemental)}"]
+            if not (_pc_report.missing_primary or _pc_report.missing_supplemental):
+                L.append("Panel adequate -- all expected agents for this organism were tested.")
+            else:
+                if _pc_report.status == "critical":
+                    L.append("!! CRITICAL: every primary agent tested came back Resistant, "
+                             "and expected primary agent(s) were never tested. A therapeutic "
+                             "option may exist among the untested agents -- this panel cannot "
+                             "rule that out. Do not report 'no susceptible options' from an "
+                             "incomplete panel.")
+                if _pc_report.missing_primary:
+                    L.append("Missing (primary)     : " + ", ".join(_pc_report.missing_primary))
+                if _pc_report.missing_supplemental:
+                    L.append("Missing (supplemental): " + ", ".join(_pc_report.missing_supplemental))
+            if _pc_report.rule_id:
+                try:
+                    from cdss.guidelines.guideline_registry import citation_line as _pc_report_cite
+                    _pc_report_ref = _pc_report_cite(_pc_report.rule_id)
+                    if _pc_report_ref:
+                        L.append(f"Reference: {_pc_report_ref} -- see guideline_registry.py "
+                                 f"for verification status")
+                except Exception:
+                    pass
+    return L
+
+
 def generate_report(
     patient_name:    str,
     age:             int,
@@ -1910,44 +1067,9 @@ def generate_report(
             label = {"S": "Sensitive", "R": "Resistant", "I": "Intermediate"}.get(result, result)
             L.append(f"{drug:<40} {label}")
 
-    # AST PANEL COMPLETENESS -- added 2026-08-22, request: this belongs in
-    # the internal report, not just the interactive Streamlit page. Same
-    # question as the UI card: was enough tested at all, not just "was what
-    # WAS tested interpreted correctly". Silently absent (not an empty
-    # section header) when the module isn't available or the organism has
-    # no expected-panel group -- see ast_panel_completeness.py for why
-    # staying silent beats guessing for an organism this module doesn't
-    # cover confidently.
-    if sir_map and _PANEL_COMPLETENESS_AVAILABLE and _check_panel_completeness_ext:
-        _pc_report = _check_panel_completeness_ext(organism, specimen, sir_map)
-        if _pc_report.status != "not_evaluated":
-            L += ["\nAST PANEL COMPLETENESS", sep2,
-                  f"Organism : {_pc_report.organism_group}",
-                  f"Expected : {_pc_report.expected_total}    "
-                  f"Tested: {_pc_report.tested_count}    "
-                  f"Missing: {len(_pc_report.missing_primary) + len(_pc_report.missing_supplemental)}"]
-            if not (_pc_report.missing_primary or _pc_report.missing_supplemental):
-                L.append("Panel adequate -- all expected agents for this organism were tested.")
-            else:
-                if _pc_report.status == "critical":
-                    L.append("!! CRITICAL: every primary agent tested came back Resistant, "
-                             "and expected primary agent(s) were never tested. A therapeutic "
-                             "option may exist among the untested agents -- this panel cannot "
-                             "rule that out. Do not report 'no susceptible options' from an "
-                             "incomplete panel.")
-                if _pc_report.missing_primary:
-                    L.append("Missing (primary)     : " + ", ".join(_pc_report.missing_primary))
-                if _pc_report.missing_supplemental:
-                    L.append("Missing (supplemental): " + ", ".join(_pc_report.missing_supplemental))
-            if _pc_report.rule_id:
-                try:
-                    from cdss.guidelines.guideline_registry import citation_line as _pc_report_cite
-                    _pc_report_ref = _pc_report_cite(_pc_report.rule_id)
-                    if _pc_report_ref:
-                        L.append(f"Reference: {_pc_report_ref} -- see guideline_registry.py "
-                                 f"for verification status")
-                except Exception:
-                    pass
+    L = _text_panel_completeness(
+        L=L, organism=organism, sep2=sep2, sir_map=sir_map, specimen=specimen
+    )
 
     if interactions:
         L += ["\nINTERACTIONS / WARNINGS", sep2]
@@ -1989,78 +1111,15 @@ def generate_report(
                   esbl_r["detail"], f"Action: {esbl_r['action']}", ""]
 
     L += ["\nRECOMMENDED ANTIBIOTICS", sep]
-    if allowed:
-        for item in allowed:
-            sir_tag  = f" [Culture: {sir_map[item['name']]}]" if sir_map and item['name'] in sir_map else ""
-            preg_tag = " [Pregnancy: caution]" if (is_preg and preg_status_of(item) == "Warn") else ""
-            L += [f"\n{item['name']}{sir_tag}{preg_tag}", sep2,
-                  f"WHO AWaRe : {item.get('aware','-')}",
-                  f"Class     : {item.get('class','-')}",
-                  f"Route     : {'Oral/PO-friendly' if item.get('high_po') else 'IV/IM only'}"]
-            spec_note = (item.get("specimen_notes") or {}).get(specimen, "")
-            if spec_note:
-                L += [f"Note      : {item.get('note','')}", f"{specimen}   : {spec_note}"]
-            else:
-                L.append(f"Note      : {item.get('note','')}")
-            if item.get("gate_dose_note_en"):
-                L.append(f"Dose      : {item['gate_dose_note_en']}")
-            if is_renal:
-                L.append(f"Renal     : {item.get('renal_note','-')}")
-            if is_preg and preg_status_of(item) == "Warn":
-                pn = (item.get("preg_note") or "").splitlines()
-                if pn:
-                    L.append(f"Pregnancy : {pn[0]}")
-            if show_commercial_names:
-                _brands = get_commercial_name(item["name"])
-                if _brands:
-                    L.append(f"Brands    : {_brands}")
-    else:
-        L.append("No recommended options after applying all restrictions.")
+    _text_allowed(
+        L=L, allowed=allowed, is_preg=is_preg, is_renal=is_renal, sep2=sep2,
+        show_commercial_names=show_commercial_names, sir_map=sir_map, specimen=specimen
+    )
 
-    if warned:
-        L += ["\nDOSE ADJUSTMENT / USE WITH CAUTION", sep]
-        if is_renal:
-            L.append(f"Patient CrCl = {crcl_label(cl_cr, is_renal)}\n")
-        for item in warned:
-            sir_tag = f" [Culture: {sir_map[item['name']]}]" if sir_map and item['name'] in sir_map else ""
-            L += [f"{item['name']}{sir_tag}", sep2, f"WHO AWaRe : {item.get('aware','-')}"]
-            # Printed BEFORE the reason branch, not inside it: an Intermediate
-            # agent that also needs a renal or hepatic adjustment carries the
-            # other reason in warning_reason, and the I used to disappear from
-            # this report entirely.
-            if (item.get("culture_intermediate")
-                    and item.get("warning_reason") != "intermediate_culture"):
-                L.append("!! CONFLICT : culture is INTERMEDIATE (EUCAST: susceptible at "
-                         "INCREASED exposure) while the host requires a REDUCED dose. "
-                         "Prefer a fully susceptible agent; if unavoidable, dose with TDM.")
-            if item.get("warning_reason") == "intermediate_culture":
-                L.append("Reason    : Intermediate (I) on culture result")
-            elif item.get("esbl_note") or item.get("esbl_note_en"):
-                # Mechanism warnings (ESBL BLI-in-UTI, suspected carbapenemase)
-                # carry their reason in esbl_note; without this branch they fell
-                # through to renal_note and printed an empty reason.
-                L.append("Reason    : " + (item.get("esbl_note_en")
-                                           or item.get("esbl_note", "-")))
-            elif item.get("warning_reason") in ("renal_adjustment", "", None):
-                L += [f"Renal note: {item.get('renal_note','-')}",
-                      f"Limit CrCl: <= {item.get('renal_limit','-')} ml/min"]
-            else:
-                # FIX 2026-11-12 (round 5). Every other reason -- hepatic,
-                # safety gate, neonate, possible MRSA, allergy, organism
-                # caution -- fell through to the RENAL note above: a Child-Pugh
-                # caution or a CSF gate caution printed renal dosing and no
-                # reason at all. The PDF and the screen were moved to the one
-                # resolver on 2026-08-03; the text report was left behind.
-                _why = (warned_note_for(item, "en") if warned_note_for else "") or \
-                    str(item.get("note") or "Caution recorded with no explanation — review manually.")
-                _wl = [x for x in str(_why).splitlines() if x.strip()]
-                L.append("Reason    : " + (_wl[0].strip() if _wl else "-"))
-                L.extend("            " + x.strip() for x in _wl[1:])
-            if show_commercial_names:
-                _brands = get_commercial_name(item["name"])
-                if _brands:
-                    L.append(f"Brands    : {_brands}")
-            L.append("")
+    L = _text_warned(
+        L=L, cl_cr=cl_cr, is_renal=is_renal, sep=sep, sep2=sep2,
+        show_commercial_names=show_commercial_names, sir_map=sir_map, warned=warned
+    )
 
     if is_preg and preg_warn_items:
         L += ["\nPREGNANCY -- USE WITH CAUTION", sep]
@@ -2069,77 +1128,13 @@ def generate_report(
             L.extend((item.get("preg_note") or "").splitlines())
             L.append("")
 
-    if banned:
-        L += ["\nCONTRAINDICATED / INEFFECTIVE", sep]
-        grouped: Dict[str, list] = {
-            "resistant": [], "renal": [], "pregnancy": [],
-            "child": [], "organism": [], "specimen": [], "other": [],
-        }
-        for item in banned:
-            grouped.setdefault(item["category"], []).append(item)
-        labels = [
-            ("resistant", "[A] RESISTANT IN CULTURE"),
-            ("renal",     "[B] CONTRAINDICATED -- RENAL IMPAIRMENT"),
-            ("pregnancy", "[C] CONTRAINDICATED -- PREGNANCY"),
-            ("child",     "[D] NOT SUITABLE FOR AGE"),
-            ("organism",  f"[E] INEFFECTIVE FOR {organism}"),
-            ("specimen",  f"[F] INAPPROPRIATE FOR {specimen.upper()} SPECIMEN"),
-            ("other",     "[G] OTHER CONTRAINDICATIONS"),
-        ]
-        _rendered_cats = set()
-        for cat, heading in labels:
-            if grouped.get(cat):
-                _rendered_cats.add(cat)
-                L += [f"\n{heading}", sep2]
-                for b in grouped[cat]:
-                    L.append(f"- {b['name']} -- {b.get('reason_short', '')}")
-                    if cat == "renal":
-                        dk       = b["name"].lower().replace(" ", "")
-                        rendered = False
-                        for k, v in RENAL_BAN_REASONS.items():
-                            if k in dk:
-                                L.extend([f"  {ln}" for ln in v.splitlines()])
-                                rendered = True
-                                break
-                        if not rendered:
-                            L.extend([f"  {ln}" for ln in (b.get("reason_detail") or "").splitlines()])
-                    else:
-                        L.extend([f"  {ln}" for ln in (b.get("reason_detail") or "").splitlines()])
-                    L.append("")
-        # Safety net -- never silently drop a banned drug whose category is not
-        # listed above (e.g. a future/unknown category).
-        for cat, items in grouped.items():
-            if cat in _rendered_cats or not items:
-                continue
-            L += [f"\n[+] OTHER -- {cat.upper()}", sep2]
-            for b in items:
-                L.append(f"- {b['name']} -- {b.get('reason_short', '')}")
-                L.extend([f"  {ln}" for ln in (b.get("reason_detail") or "").splitlines()])
-                L.append("")
+    _text_banned(
+        L=L, banned=banned, organism=organism, sep=sep, sep2=sep2, specimen=specimen
+    )
 
-    # ── Pathogenicity Assessment ──────────────────────────────────────
-    if patho_assessment:
-        sc    = patho_assessment.get("score", 0)
-        verd  = patho_assessment.get("verdict", "")
-        interp = patho_assessment.get("interpretation", "")
-        recs  = patho_assessment.get("recommendations", [])
-        flags = patho_assessment.get("special_flags", [])
-        L += ["", "PATHOGENICITY ASSESSMENT", sep2,
-              f"Score    : {sc}% -- {verd}"]
-        if "ABU_DETECTED" in flags:
-            L.append("FLAG     : Asymptomatic Bacteriuria (ABU) Detected")
-        if "MW_REJECT" in flags:
-            L.append("FLAG     : Murray-Washington -- Specimen REJECTED")
-        elif "MW_ADEQUATE" in flags:
-            L.append("FLAG     : Murray-Washington -- Adequate Sputum Quality")
-        if "SIRS_HIGH" in flags:
-            L.append("FLAG     : SIRS >=3 criteria -- Sepsis Probable")
-        if interp:
-            L.append(f"Interp   : {interp}")
-        if recs:
-            L.append("Recs     :")
-            for r in recs:
-                L.append(f"  • {r}")
+    L = _text_pathogenicity(
+        L=L, patho_assessment=patho_assessment, sep2=sep2
+    )
 
     L += ["\nDISCLAIMER", sep,
           "هذا التقرير أداة مساعدة للقرار الطبي وليس بديلاً عن التقييم السريري.",
