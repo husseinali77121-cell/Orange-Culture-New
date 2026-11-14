@@ -322,6 +322,9 @@ _CATEGORY_EN = {
         ["Do NOT give antibiotics (IDSA 2019): treatment does not prevent infection and drives resistance and C. difficile.",
          "Reassess only if symptoms develop.",
          "The two exceptions: pregnancy, and before a urological procedure with mucosal trauma."]),
+    "GBS_PREGNANCY_IAP": ("Group B streptococcus in a pregnant woman's urine at any count marks heavy GBS colonisation. Below 10^5 CFU/mL without symptoms it is not treated before delivery - but it is not a contaminant.",
+        ["Record in the pregnancy file: intrapartum antibiotic prophylaxis (IAP) is required - no 36-37 week GBS swab is needed (ACOG 797).",
+         "Treat before delivery only at >= 10^5 CFU/mL or with symptoms."]),
     "ASB_TREAT": ("Asymptomatic bacteriuria in a context that requires treatment (pregnancy / urological procedure with mucosal trauma).",
         ["Pregnancy: a safe agent by susceptibility for 4-7 days, then a follow-up culture.",
          "Before a urological procedure: one or two doses starting 30-60 minutes before the procedure (IDSA 2019)."]),
@@ -526,687 +529,632 @@ def _score_colony_count(state: str, cfu_val: int, age: int, sex: str,
     return -15, None, f"⚠️ Colony count {cfu_val:,} CFU/mL is below the threshold — {rule}"
 
 
-# =========================================================
-def assess_pathogenicity(
-    specimen: str,
-    organism: str,
-    colony_count_text: str,
-    culture_purity: str,
-    symptoms: list,
-    pus_cells_text: str,
-    urinalysis_result: str,
-    gram_stain: str,
-    age: int,
-    sex: str,
-    host_factors: list,
-    # Sputum-specific
-    sputum_pus_cells: str = "",
-    sputum_epithelial: str = "",
-    # Blood-specific (SIRS)
-    sirs_criteria: list = None,
-    blood_source: str = "",
-    # Wound-specific
-    wound_type: str = "",
-    # v3
-    collection_method: str = "",
-) -> dict:
-    """Pathogenicity engine v3 — is this isolate an infection, colonisation or
-    contamination?
+# ════════════════════════════════════════════════════════════════════════════
+# Per-specimen scoring (v6.7, 2026-11-14: split out of assess_pathogenicity,
+# which was one 890-line function). Each takes exactly what it reads, adds its
+# points through the caller's add(), appends to the caller's lists, and
+# returns the two scalars a branch can change (threshold_text, abu_detected).
+# Bodies moved verbatim; tests/test_report_split.py holds 40,000 random cases
+# to the pre-split output.
+# ════════════════════════════════════════════════════════════════════════════
 
-    Returns: {score, verdict, color, interpretation, recommendations,
-              factors_pos, factors_neg, abu_detected, special_flags,
-              engine_version, category, threshold, notes, missing_inputs,
-              confidence, references, evidence}
-    """
-    specimen = specimen or ""
-    organism = organism or ""
-    symptoms = list(symptoms or [])
-    host_factors = list(host_factors or [])
-    sirs_criteria = list(sirs_criteria or [])
-    culture_purity = culture_purity or ""
-    urinalysis_result = urinalysis_result or ""
-    gram_stain = gram_stain or ""
-    blood_source = blood_source or ""
-    wound_type = wound_type or ""
-    collection_method = collection_method or ""
-    # "مش محدد" (not specified) is the UI's empty choice, not a value.
-    if "مش محدد" in blood_source:
-        blood_source = ""
-    if not isinstance(age, (int, float)):
-        age = 40
-    spec_lower = specimen.lower()
-    org_l = re.sub(r"\s+", " ", organism.strip().lower())
+def _site_urine(
+    *, abu_detected,
+    add,
+    age,
+    collection_method,
+    colony_count_text,
+    factors_neg,
+    host_factors,
+    is_candida,
+    is_cons,
+    is_enterobacterales,
+    is_enterococcus,
+    is_gnb_unidentified,
+    is_nonfermenter,
+    is_saureus,
+    is_strep_unspeciated,
+    is_viridans,
+    missing,
+    neurogenic,
+    neutropenic,
+    notes,
+    org_l,
+    organism,
+    pregnant,
+    pus_cells_text,
+    references,
+    sci,
+    sex,
+    special_flags,
+    symptoms,
+    threshold_text,
+    urinalysis_result,
+    uro_procedure,
+):
+    """URINE: score this specimen's own evidence (moved from assess_pathogenicity)."""
+    references += ["IDSA Asymptomatic Bacteriuria 2019", "IDSA CA-UTI 2009",
+                   "IDSA cUTI 2025", "AAP UTI 2011 (reaffirmed 2016)"]
+    coll_l = collection_method.lower()
+    catheterised = (any(k in coll_l for k in ("indwelling", "foley", "intermittent",
+                                              "suprapubic catheter", "nephrostomy", "conduit"))
+                    or _hf(host_factors, "urinary catheter"))
+    infant = age < 2
+    if infant:
+        special_flags.append("PEDIATRIC_UTI")
 
-    score = 0
-    factors_pos: List[str] = []
-    factors_neg: List[str] = []
-    special_flags: List[str] = []
-    notes: List[str] = []
-    missing: List[str] = []
-    references: List[str] = []
-    evidence: List[Dict[str, Any]] = []
-    threshold_text = ""
-    abu_detected = False
+    # ── Symptoms: specific / SCI-specific / non-specific / not stated ────
+    _specific = {"Dysuria / Frequency / Urgency", "Suprapubic pain / tenderness",
+                 "Acute haematuria"}
+    _upper = {"Fever (> 38°C)", "Flank pain / Loin pain", "Rigors / Hypotension (sepsis)"}
+    _sci_sym = {"Increased spasticity (SCI)", "Autonomic dysreflexia (SCI)",
+                "Malaise / Lethargy / Sense of unease (SCI)",
+                "New incontinence / Leaking around catheter"}
+    sym = set(symptoms)
+    has_upper = bool(sym & _upper)
+    has_specific = bool(sym & _specific)
+    has_sci_sym = bool(sym & _sci_sym) and (neurogenic or catheterised)
+    infant_nonspecific = infant and bool(sym & {"Nausea / Vomiting", "Abdominal pain"})
+    symptomatic = has_upper or has_specific or has_sci_sym or infant_nonspecific
+    explicit_asym = ("Asymptomatic" in sym) and not symptomatic
+    only_nonspecific = bool(sym) and not symptomatic and not explicit_asym
+    symptoms_stated = bool(sym)
 
-    def add(domain: str, pts: int, text: Optional[str]) -> None:
-        nonlocal score
-        score += pts
-        if text:
-            (factors_pos if pts >= 0 else factors_neg).append(text)
-        evidence.append({"domain": domain, "points": pts, "text": text or ""})
+    if has_upper:
+        add("symptoms", 30, "✅ Fever / flank pain / sepsis — upper-tract or systemic infection")
+        special_flags.append("UPPER_UTI_FEATURES")
+    elif has_specific:
+        add("symptoms", 25, "✅ Urinary symptoms present (dysuria / frequency / urgency / suprapubic pain)")
+    elif has_sci_sym:
+        add("symptoms", 22, "✅ Symptoms compatible with UTI in neurogenic bladder / catheter "
+                            "(spasticity, autonomic dysreflexia, malaise, new leakage) — IDSA 2009")
+    elif infant_nonspecific:
+        add("symptoms", 15, "➕ Non-specific symptoms in an infant — UTI presents this way under 2 yr")
+    elif explicit_asym:
+        add("symptoms", -20, "⚠️ Asymptomatic — bacteriuria without symptoms is not a UTI")
+    elif only_nonspecific:
+        add("symptoms", -10, "⚠️ Only non-specific findings (cloudy/smelly urine, confusion, "
+                             "abdominal pain) — none is an indication to treat bacteriuria")
+    else:
+        missing.append("Symptoms")
+        special_flags.append("SYMPTOMS_NOT_STATED")
+    if "Cloudy / Foul-smelling urine only" in sym:
+        notes.append("ℹ️ البول العكر أو كريه الرائحة وحده ليس دليلاً على عدوى ولا داعياً للمزرعة "
+                     "أو العلاج (IDSA CA-UTI 2009).")
+    if "Confusion / Delirium only (no urinary symptoms)" in sym and not symptomatic:
+        notes.append("ℹ️ تشوش/هذيان بلا أعراض بولية ولا حمى في مريض مسن: ابحث عن سبب آخر "
+                     "وراقب بدل علاج الـ bacteriuria (IDSA ASB 2019).")
 
-    # ── Host context shared by every specimen ────────────────────────────────
-    sci_quad = _hf(host_factors, "quadripleg", "tetrapleg", "cervical cord")
-    sci = sci_quad or _hf(host_factors, "parapleg", "spinal cord")
-    neurogenic = sci or _hf(host_factors, "neurogenic")
-    immuno = _hf(host_factors, "immunosupp", "steroid", "neutropen", "transplant")
-    neutropenic = _hf(host_factors, "neutropen")
-    pregnant = _hf(host_factors, "pregnan")
-    uro_procedure = _hf(host_factors, "pre-surgical", "urologic procedure")
-    has_line = _hf(host_factors, "central line", "picc")
-    has_prosthesis = _hf(host_factors, "prosthetic", "pacemaker", "graft")
-    has_cns_device = _hf(host_factors, "shunt", "evd", "neurosurg")
-    ventilated = _hf(host_factors, "tracheostomy", "ventilat")
-    if sci:
-        special_flags.append("SCI")
+    # ── Organism ─────────────────────────────────────────────────────────
+    if (is_enterobacterales or "pseudomonas" in org_l or is_enterococcus
+            or "saprophyticus" in org_l or is_gnb_unidentified):
+        add("organism", 15, f"✅ {organism} -- recognised uropathogen")
+    elif is_saureus:
+        add("organism", -5, f"⚠️ {organism} in urine is unusual without a catheter or urological "
+                            "procedure — consider haematogenous seeding")
+        special_flags.append("SAUREUS_BACTERIURIA")
+        notes.append("🔴 S. aureus في البول بلا قسطرة أو تدخل بولي: قد يكون انعكاساً لـ bacteremia "
+                     "— اسحب مزارع دم قبل اعتباره تلوثاً.")
+    elif "agalactiae" in org_l or "group b" in org_l:
+        add("organism", 5, f"➕ {organism} -- occasional uropathogen")
+        if pregnant:
+            special_flags.append("GBS_BACTERIURIA_PREGNANCY")
+            notes.append("🤰 GBS في بول الحامل بأي عدد = استعمار كثيف: وقاية أثناء الولادة (ACOG 797)؛ "
+                         "العلاج قبل الولادة فقط عند ≥ 10⁵ أو أعراض.")
+    elif is_strep_unspeciated:
+        add("organism", -5, f"⚠️ {organism} -- streptococci are uncommon uropathogens (Group B "
+                            "excepted); speciate before interpreting")
+    elif is_candida:
+        add("organism", -10, f"⚠️ {organism} -- candiduria is usually colonisation; treat only "
+                             "if symptomatic, neutropenic or before a urological procedure (IDSA 2016)")
+    elif is_cons or is_viridans or _has(org_l, ("lactobacill", "gardnerella")):
+        add("organism", -5 if catheterised else -20,
+            f"⚠️ {organism} -- skin / urethral / vaginal flora; usually contamination"
+            + (" (can be significant with a catheter or stent)" if catheterised else ""))
+    elif is_nonfermenter:
+        add("organism", 8 if (catheterised or neurogenic) else 0,
+            f"➕ {organism} -- healthcare-associated uropathogen (catheter, neurogenic bladder, "
+            "recent antibiotics); colonisation is common")
+    else:
+        add("organism", 5, f"➕ {organism} -- occasional uropathogen")
 
-    is_enterobacterales = _has(org_l, _TK_ENTEROBACTERALES)
-    is_nonfermenter = _has(org_l, _TK_NONFERMENTERS)
-    is_saureus = _has(org_l, _TK_SAUREUS)
-    is_cons = _is_cons(org_l) and not is_saureus
-    is_staph_unspeciated = ("staphylococcus spp" in org_l
-                            or "gram-positive cocci" in org_l or "gram positive cocci" in org_l)
-    is_viridans = _has(org_l, _TK_VIRIDANS)
-    # Unspeciated streptococci are NOT assumed to be viridans flora: the same
-    # label covers S. pneumoniae, S. pyogenes and the anginosus group.
-    is_strep_unspeciated = org_l.startswith("streptococcus spp")
-    is_enterococcus = _has(org_l, _TK_ENTEROCOCCI) or org_l == "vre"
-    is_candida = _has(org_l, _TK_CANDIDA)
-    is_gnb_unidentified = "gram-negative bacilli" in org_l or "gram negative bacilli" in org_l
-    # "Klebsiella spp." / "Salmonella spp." are this app's ordinary labels for
-    # those genera, not a statement that identification is incomplete.
-    _standard_spp = ("klebsiella spp", "salmonella spp", "shigella spp",
-                     "providencia spp", "mycoplasma spp")
-    unspeciated = (("spp" in org_l and not _has(org_l, _standard_spp))
-                   or "unspeciated" in org_l or "unidentified" in org_l)
-    if unspeciated:
-        special_flags.append("UNSPECIATED_ORGANISM")
-        notes.append("🔬 الكائن غير محدد النوع — التقييم مبني على الجنس/صبغة Gram فقط. "
-                     "تحديد النوع (ID) يغيّر التفسير في بعض الحالات (مثل Staphylococcus: "
-                     "S. aureus ممرض دائماً، والسالب للتخثّر ملوِّث شائع).")
+    # ── Colony count against the threshold that applies ──────────────────
+    cfu_val = _parse_cfu(colony_count_text)
+    cfu_state = _cfu_report_state(colony_count_text)
+    _thr, threshold_text = _urine_threshold(collection_method, age, sex, symptomatic,
+                                            sci, catheterised)
+    if not symptoms_stated:
+        threshold_text = "Symptoms not entered — threshold shown assumes none. " + threshold_text
+    _d, _pos, _neg = _score_colony_count(cfu_state, cfu_val, age, sex,
+                                         symptomatic=symptomatic,
+                                         collection=collection_method,
+                                         sci=sci, catheterised=catheterised)
+    add("colony_count", _d, _pos or _neg)
+    if cfu_state == "unreported":
+        special_flags.append("CFU_NOT_REPORTED")
+        missing.append("Colony count")
+    if "bag" in coll_l:
+        special_flags.append("BAG_SPECIMEN")
+        notes.append("👶 عينة الكيس: نسبة تلوث عالية جداً — النتيجة السلبية تنفي العدوى، والإيجابية "
+                     "لازم تتأكد بقسطرة أو SPA قبل العلاج (AAP).")
+    if not collection_method or "مش محدد" in collection_method:
+        if catheterised or neurogenic or infant:
+            missing.append("Urine collection method")
 
-    # ══════════════════════════════════════════════════════════════════
-    # URINE
-    # ══════════════════════════════════════════════════════════════════
-    if "urine" in spec_lower:
-        references += ["IDSA Asymptomatic Bacteriuria 2019", "IDSA CA-UTI 2009",
-                       "IDSA cUTI 2025", "AAP UTI 2011 (reaffirmed 2016)"]
-        coll_l = collection_method.lower()
-        catheterised = (any(k in coll_l for k in ("indwelling", "foley", "intermittent",
-                                                  "suprapubic catheter", "nephrostomy", "conduit"))
-                        or _hf(host_factors, "urinary catheter"))
-        infant = age < 2
-        if infant:
-            special_flags.append("PEDIATRIC_UTI")
-
-        # ── Symptoms: specific / SCI-specific / non-specific / not stated ────
-        _specific = {"Dysuria / Frequency / Urgency", "Suprapubic pain / tenderness",
-                     "Acute haematuria"}
-        _upper = {"Fever (> 38°C)", "Flank pain / Loin pain", "Rigors / Hypotension (sepsis)"}
-        _sci_sym = {"Increased spasticity (SCI)", "Autonomic dysreflexia (SCI)",
-                    "Malaise / Lethargy / Sense of unease (SCI)",
-                    "New incontinence / Leaking around catheter"}
-        sym = set(symptoms)
-        has_upper = bool(sym & _upper)
-        has_specific = bool(sym & _specific)
-        has_sci_sym = bool(sym & _sci_sym) and (neurogenic or catheterised)
-        infant_nonspecific = infant and bool(sym & {"Nausea / Vomiting", "Abdominal pain"})
-        symptomatic = has_upper or has_specific or has_sci_sym or infant_nonspecific
-        explicit_asym = ("Asymptomatic" in sym) and not symptomatic
-        only_nonspecific = bool(sym) and not symptomatic and not explicit_asym
-        symptoms_stated = bool(sym)
-
-        if has_upper:
-            add("symptoms", 30, "✅ Fever / flank pain / sepsis — upper-tract or systemic infection")
-            special_flags.append("UPPER_UTI_FEATURES")
-        elif has_specific:
-            add("symptoms", 25, "✅ Urinary symptoms present (dysuria / frequency / urgency / suprapubic pain)")
-        elif has_sci_sym:
-            add("symptoms", 22, "✅ Symptoms compatible with UTI in neurogenic bladder / catheter "
-                                "(spasticity, autonomic dysreflexia, malaise, new leakage) — IDSA 2009")
-        elif infant_nonspecific:
-            add("symptoms", 15, "➕ Non-specific symptoms in an infant — UTI presents this way under 2 yr")
-        elif explicit_asym:
-            add("symptoms", -20, "⚠️ Asymptomatic — bacteriuria without symptoms is not a UTI")
-        elif only_nonspecific:
-            add("symptoms", -10, "⚠️ Only non-specific findings (cloudy/smelly urine, confusion, "
-                                 "abdominal pain) — none is an indication to treat bacteriuria")
-        else:
-            missing.append("Symptoms")
-            special_flags.append("SYMPTOMS_NOT_STATED")
-        if "Cloudy / Foul-smelling urine only" in sym:
-            notes.append("ℹ️ البول العكر أو كريه الرائحة وحده ليس دليلاً على عدوى ولا داعياً للمزرعة "
-                         "أو العلاج (IDSA CA-UTI 2009).")
-        if "Confusion / Delirium only (no urinary symptoms)" in sym and not symptomatic:
-            notes.append("ℹ️ تشوش/هذيان بلا أعراض بولية ولا حمى في مريض مسن: ابحث عن سبب آخر "
-                         "وراقب بدل علاج الـ bacteriuria (IDSA ASB 2019).")
-
-        # ── Organism ─────────────────────────────────────────────────────────
-        if (is_enterobacterales or "pseudomonas" in org_l or is_enterococcus
-                or "saprophyticus" in org_l or is_gnb_unidentified):
-            add("organism", 15, f"✅ {organism} -- recognised uropathogen")
-        elif is_saureus:
-            add("organism", -5, f"⚠️ {organism} in urine is unusual without a catheter or urological "
-                                "procedure — consider haematogenous seeding")
-            special_flags.append("SAUREUS_BACTERIURIA")
-            notes.append("🔴 S. aureus في البول بلا قسطرة أو تدخل بولي: قد يكون انعكاساً لـ bacteremia "
-                         "— اسحب مزارع دم قبل اعتباره تلوثاً.")
-        elif "agalactiae" in org_l or "group b" in org_l:
-            add("organism", 5, f"➕ {organism} -- occasional uropathogen")
-            if pregnant:
-                special_flags.append("GBS_BACTERIURIA_PREGNANCY")
-                notes.append("🤰 GBS في بول الحامل بأي عدد = استعمار كثيف: وقاية أثناء الولادة (ACOG 797)؛ "
-                             "العلاج قبل الولادة فقط عند ≥ 10⁵ أو أعراض.")
-        elif is_strep_unspeciated:
-            add("organism", -5, f"⚠️ {organism} -- streptococci are uncommon uropathogens (Group B "
-                                "excepted); speciate before interpreting")
-        elif is_candida:
-            add("organism", -10, f"⚠️ {organism} -- candiduria is usually colonisation; treat only "
-                                 "if symptomatic, neutropenic or before a urological procedure (IDSA 2016)")
-        elif is_cons or is_viridans or _has(org_l, ("lactobacill", "gardnerella")):
-            add("organism", -5 if catheterised else -20,
-                f"⚠️ {organism} -- skin / urethral / vaginal flora; usually contamination"
-                + (" (can be significant with a catheter or stent)" if catheterised else ""))
-        elif is_nonfermenter:
-            add("organism", 8 if (catheterised or neurogenic) else 0,
-                f"➕ {organism} -- healthcare-associated uropathogen (catheter, neurogenic bladder, "
-                "recent antibiotics); colonisation is common")
-        else:
-            add("organism", 5, f"➕ {organism} -- occasional uropathogen")
-
-        # ── Colony count against the threshold that applies ──────────────────
-        cfu_val = _parse_cfu(colony_count_text)
-        cfu_state = _cfu_report_state(colony_count_text)
-        _thr, threshold_text = _urine_threshold(collection_method, age, sex, symptomatic,
-                                                sci, catheterised)
-        if not symptoms_stated:
-            threshold_text = "Symptoms not entered — threshold shown assumes none. " + threshold_text
-        _d, _pos, _neg = _score_colony_count(cfu_state, cfu_val, age, sex,
-                                             symptomatic=symptomatic,
-                                             collection=collection_method,
-                                             sci=sci, catheterised=catheterised)
-        add("colony_count", _d, _pos or _neg)
-        if cfu_state == "unreported":
-            special_flags.append("CFU_NOT_REPORTED")
-            missing.append("Colony count")
-        if "bag" in coll_l:
-            special_flags.append("BAG_SPECIMEN")
-            notes.append("👶 عينة الكيس: نسبة تلوث عالية جداً — النتيجة السلبية تنفي العدوى، والإيجابية "
-                         "لازم تتأكد بقسطرة أو SPA قبل العلاج (AAP).")
-        if not collection_method or "مش محدد" in collection_method:
-            if catheterised or neurogenic or infant:
-                missing.append("Urine collection method")
-
-        # ── Pyuria ───────────────────────────────────────────────────────────
-        pus_val = _parse_pus(pus_cells_text)
-        ua_l = urinalysis_result.lower()
-        if catheterised or neurogenic:
-            # IDSA 2009: pyuria does not separate CA-UTI from CA-ASB; its
-            # ABSENCE points away from UTI.
-            if pus_val is not None and pus_val < 5 and not neutropenic:
-                add("pyuria", -15, f"⚠️ No pyuria ({pus_val} WBC/HPF) — in a catheterised / "
-                                   "neurogenic bladder this suggests a diagnosis other than UTI")
-            elif pus_val is None and ("طبيعي" in urinalysis_result or "normal" in ua_l) \
-                    and not neutropenic:
-                # Found by fuzzing 2026-11-11: this branch ignored a NORMAL
-                # urinalysis, so adding a catheter or SCI removed a -20 and
-                # raised the score.
-                add("pyuria", -20, "❌ Normal urinalysis -- strongly suggests colonisation, not UTI")
-            elif pus_val is not None:
-                add("pyuria", 0, None)
-                notes.append("ℹ️ الـ pyuria مع القسطرة أو المثانة العصبية شائعة بلا عدوى — لا تُحتسب "
-                             "دليلاً على UTI ولا داعياً للعلاج (IDSA CA-UTI 2009).")
+    # ── Pyuria ───────────────────────────────────────────────────────────
+    pus_val = _parse_pus(pus_cells_text)
+    ua_l = urinalysis_result.lower()
+    if catheterised or neurogenic:
+        # IDSA 2009: pyuria does not separate CA-UTI from CA-ASB; its
+        # ABSENCE points away from UTI.
+        if pus_val is not None and pus_val < 5 and not neutropenic:
+            add("pyuria", -15, f"⚠️ No pyuria ({pus_val} WBC/HPF) — in a catheterised / "
+                               "neurogenic bladder this suggests a diagnosis other than UTI")
+        elif pus_val is None and ("طبيعي" in urinalysis_result or "normal" in ua_l) \
+                and not neutropenic:
+            # Found by fuzzing 2026-11-11: this branch ignored a NORMAL
+            # urinalysis, so adding a catheter or SCI removed a -20 and
+            # raised the score.
+            add("pyuria", -20, "❌ Normal urinalysis -- strongly suggests colonisation, not UTI")
         elif pus_val is not None:
-            if pus_val > 10:
-                add("pyuria", 15, f"✅ Significant pyuria ({pus_val} WBC/HPF)")
-            elif pus_val >= 5:
-                add("pyuria", 8, f"➕ Mild pyuria ({pus_val} WBC/HPF)")
-            elif neutropenic:
-                add("pyuria", 0, None)
-                notes.append("ℹ️ غياب الـ pyuria لا ينفي العدوى في مريض neutropenic.")
-            else:
-                add("pyuria", -15, f"⚠️ No/minimal pyuria ({pus_val} WBC/HPF) -- argues against UTI")
-        elif "طبيعي" in urinalysis_result or "normal" in ua_l:
-            add("pyuria", -20, "❌ Normal urinalysis -- strongly suggests contamination")
-        elif "pyuria" in ua_l or "wbc" in ua_l:
-            add("pyuria", 10, "✅ Pyuria noted on urinalysis")
-        elif "nitrit" in ua_l:
-            add("pyuria", 8, "➕ Nitrites positive -- Enterobacterales bacteriuria")
+            add("pyuria", 0, None)
+            notes.append("ℹ️ الـ pyuria مع القسطرة أو المثانة العصبية شائعة بلا عدوى — لا تُحتسب "
+                         "دليلاً على UTI ولا داعياً للعلاج (IDSA CA-UTI 2009).")
+    elif pus_val is not None:
+        if pus_val > 10:
+            add("pyuria", 15, f"✅ Significant pyuria ({pus_val} WBC/HPF)")
+        elif pus_val >= 5:
+            add("pyuria", 8, f"➕ Mild pyuria ({pus_val} WBC/HPF)")
+        elif neutropenic:
+            add("pyuria", 0, None)
+            notes.append("ℹ️ غياب الـ pyuria لا ينفي العدوى في مريض neutropenic.")
         else:
-            missing.append("Pyuria / urinalysis")
+            add("pyuria", -15, f"⚠️ No/minimal pyuria ({pus_val} WBC/HPF) -- argues against UTI")
+    elif "طبيعي" in urinalysis_result or "normal" in ua_l:
+        add("pyuria", -20, "❌ Normal urinalysis -- strongly suggests contamination")
+    elif "pyuria" in ua_l or "wbc" in ua_l:
+        add("pyuria", 10, "✅ Pyuria noted on urinalysis")
+    elif "nitrit" in ua_l:
+        add("pyuria", 8, "➕ Nitrites positive -- Enterobacterales bacteriuria")
+    else:
+        missing.append("Pyuria / urinalysis")
 
-        # ── Asymptomatic bacteriuria (IDSA 2019: count + no symptoms) ────────
-        # "No urinary-specific symptom" covers the explicit "Asymptomatic" and
-        # the findings IDSA says must not be treated as UTI on their own
-        # (cloudy / smelly urine, delirium without urinary symptoms).
-        _sig_count = cfu_state == "counted" and cfu_val >= 100000
-        if (explicit_asym or only_nonspecific) and _sig_count:
-            abu_detected = True
-            special_flags.append("ABU_DETECTED")
-            if catheterised:
-                special_flags.append("CA_ASB")
-            if sex == "Female" and not catheterised:
-                notes.append("ℹ️ تعريف ABU في النساء يتطلب عينتين متتاليتين بنفس الكائن ≥ 10⁵ "
-                             "(IDSA 2019)؛ عينة واحدة تكفي في الرجال.")
-            if pregnant or uro_procedure:
-                add("abu", 0, "✅ Asymptomatic bacteriuria in pregnancy / before a urological "
-                               "procedure with mucosal trauma -- TREAT (IDSA 2019)")
-                special_flags.append("ABU_TREAT")
-            else:
-                # 0 points: the verdict is set by the flag. Subtracting here made
-                # the score FALL when the count rose past 10^5 (fuzzing, 2026-11-11).
-                add("abu", 0, None)
-                factors_neg.append("⚠️ Asymptomatic bacteriuria -- do NOT treat (IDSA 2019)")
-                special_flags.append("ABU_NO_TREAT")
-        elif pregnant and _sig_count and not symptomatic:
-            notes.append("🤰 حامل + bacteriuria ≥ 10⁵: إن كانت بلا أعراض فهي ABU تُعالَج في الحمل "
-                         "(IDSA 2019) — حدّد الأعراض.")
+    # ── Asymptomatic bacteriuria (IDSA 2019: count + no symptoms) ────────
+    # "No urinary-specific symptom" covers the explicit "Asymptomatic" and
+    # the findings IDSA says must not be treated as UTI on their own
+    # (cloudy / smelly urine, delirium without urinary symptoms).
+    _sig_count = cfu_state == "counted" and cfu_val >= 100000
+    if (explicit_asym or only_nonspecific) and _sig_count:
+        abu_detected = True
+        special_flags.append("ABU_DETECTED")
+        if catheterised:
+            special_flags.append("CA_ASB")
+        if sex == "Female" and not catheterised:
+            notes.append("ℹ️ تعريف ABU في النساء يتطلب عينتين متتاليتين بنفس الكائن ≥ 10⁵ "
+                         "(IDSA 2019)؛ عينة واحدة تكفي في الرجال.")
+        if pregnant or uro_procedure:
+            add("abu", 0, "✅ Asymptomatic bacteriuria in pregnancy / before a urological "
+                           "procedure with mucosal trauma -- TREAT (IDSA 2019)")
+            special_flags.append("ABU_TREAT")
+        else:
+            # 0 points: the verdict is set by the flag. Subtracting here made
+            # the score FALL when the count rose past 10^5 (fuzzing, 2026-11-11).
+            add("abu", 0, None)
+            factors_neg.append("⚠️ Asymptomatic bacteriuria -- do NOT treat (IDSA 2019)")
+            special_flags.append("ABU_NO_TREAT")
+    elif pregnant and _sig_count and not symptomatic:
+        notes.append("🤰 حامل + bacteriuria ≥ 10⁵: إن كانت بلا أعراض فهي ABU تُعالَج في الحمل "
+                     "(IDSA 2019) — حدّد الأعراض.")
 
-        # ── Spinal cord injury / neurogenic bladder ──────────────────────────
-        if neurogenic:
-            notes.append(
-                "♿ إصابة النخاع الشوكي / المثانة العصبية: الـ bacteriuria والـ pyuria شبه دائمة — "
-                "لا تُفحص ولا تُعالَج بلا أعراض (IDSA ASB 2019، توصية قوية). الأعراض هنا غير "
-                "نمطية: حمى، زيادة التشنج (spasticity)، autonomic dysreflexia، إحساس بالتوعك، "
-                "تسريب جديد حول القسطرة — وليست الحرقان.")
-            notes.append(
-                "♿ عند العلاج: غيّر القسطرة إذا مرّ عليها ≥ أسبوعين وخذ المزرعة من الجديدة؛ "
-                "المدة 7 أيام مع استجابة سريعة و10–14 يوم مع استجابة متأخرة (IDSA CA-UTI 2009). "
-                "احتمال الكائنات المقاومة أعلى (مضادات متكررة) — اعتمد على الحساسية.")
-            if not symptoms_stated:
-                notes.append("♿ الأعراض غير مُدخلة: في إصابة النخاع الشوكي لا يمكن تفسير المزرعة بدونها.")
+    # ── Spinal cord injury / neurogenic bladder ──────────────────────────
+    if neurogenic:
+        notes.append(
+            "♿ إصابة النخاع الشوكي / المثانة العصبية: الـ bacteriuria والـ pyuria شبه دائمة — "
+            "لا تُفحص ولا تُعالَج بلا أعراض (IDSA ASB 2019، توصية قوية). الأعراض هنا غير "
+            "نمطية: حمى، زيادة التشنج (spasticity)، autonomic dysreflexia، إحساس بالتوعك، "
+            "تسريب جديد حول القسطرة — وليست الحرقان.")
+        notes.append(
+            "♿ عند العلاج: غيّر القسطرة إذا مرّ عليها ≥ أسبوعين وخذ المزرعة من الجديدة؛ "
+            "المدة 7 أيام مع استجابة سريعة و10–14 يوم مع استجابة متأخرة (IDSA CA-UTI 2009). "
+            "احتمال الكائنات المقاومة أعلى (مضادات متكررة) — اعتمد على الحساسية.")
+        if not symptoms_stated:
+            notes.append("♿ الأعراض غير مُدخلة: في إصابة النخاع الشوكي لا يمكن تفسير المزرعة بدونها.")
 
-        if infant:
-            notes.append("👶 رضيع < سنتين: UTI = pyuria + ≥ 5×10⁴ CFU/mL لكائن واحد من قسطرة أو SPA "
-                         "(AAP). أي UTI مؤكد يُعالَج.")
-        if sex == "Male" and symptomatic and age >= 15:
-            notes.append("♂ UTI في الذكور: فكّر في البروستاتا (مدة أطول واختيار دواء يخترقها) عند "
-                         "الحمى أو التكرار.")
+    if infant:
+        notes.append("👶 رضيع < سنتين: UTI = pyuria + ≥ 5×10⁴ CFU/mL لكائن واحد من قسطرة أو SPA "
+                     "(AAP). أي UTI مؤكد يُعالَج.")
+    if sex == "Male" and symptomatic and age >= 15:
+        notes.append("♂ UTI في الذكور: فكّر في البروستاتا (مدة أطول واختيار دواء يخترقها) عند "
+                     "الحمى أو التكرار.")
+    return abu_detected, threshold_text
 
-    # ══════════════════════════════════════════════════════════════════
-    # SPUTUM / RESPIRATORY
-    # ══════════════════════════════════════════════════════════════════
-    elif any(k in spec_lower for k in ("sputum", "respiratory", "bal", "tracheal", "eta")):
-        references += ["ATS/IDSA HAP/VAP 2016", "ATS/IDSA CAP 2019",
-                       "Murray & Washington 1975 (sputum quality)"]
-        mw_pus = _parse_pus(sputum_pus_cells)
-        mw_epith = _parse_pus(sputum_epithelial)
-        invasive = any(k in spec_lower for k in ("bal", "tracheal", "eta", "psb"))
 
-        if not invasive:
-            if mw_pus is not None and mw_epith is not None:
-                if mw_pus >= 25 and mw_epith < 10:
-                    add("quality", 25, "✅ Murray-Washington: WBC ≥ 25, epithelial < 10 /LPF -- adequate sputum")
-                    special_flags.append("MW_ADEQUATE")
-                elif mw_pus >= 25 and mw_epith >= 10:
-                    add("quality", 8, "➕ Murray-Washington: WBC ≥ 25 but epithelial ≥ 10 -- mixed quality")
-                    special_flags.append("MW_MIXED")
-                elif mw_epith >= 25:
-                    add("quality", -20, "❌ Murray-Washington: epithelial ≥ 25 /LPF -- saliva, reject specimen")
-                    special_flags.append("MW_REJECT")
-                else:
-                    add("quality", 0, None)
-            elif mw_epith is not None and mw_epith >= 25:
-                add("quality", -20, "❌ Epithelial cells ≥ 25 /LPF -- specimen inadequate (saliva)")
+def _site_respiratory(
+    *, add,
+    colony_count_text,
+    is_candida,
+    is_cons,
+    is_enterobacterales,
+    is_enterococcus,
+    is_gnb_unidentified,
+    is_nonfermenter,
+    is_saureus,
+    is_strep_unspeciated,
+    is_viridans,
+    missing,
+    notes,
+    org_l,
+    organism,
+    references,
+    sci,
+    sci_quad,
+    spec_lower,
+    special_flags,
+    sputum_epithelial,
+    sputum_pus_cells,
+    symptoms,
+    threshold_text,
+    ventilated,
+):
+    """SPUTUM / LOWER RESPIRATORY: score this specimen's own evidence (moved from assess_pathogenicity)."""
+    references += ["ATS/IDSA HAP/VAP 2016", "ATS/IDSA CAP 2019",
+                   "Murray & Washington 1975 (sputum quality)"]
+    mw_pus = _parse_pus(sputum_pus_cells)
+    mw_epith = _parse_pus(sputum_epithelial)
+    invasive = any(k in spec_lower for k in ("bal", "tracheal", "eta", "psb"))
+
+    if not invasive:
+        if mw_pus is not None and mw_epith is not None:
+            if mw_pus >= 25 and mw_epith < 10:
+                add("quality", 25, "✅ Murray-Washington: WBC ≥ 25, epithelial < 10 /LPF -- adequate sputum")
+                special_flags.append("MW_ADEQUATE")
+            elif mw_pus >= 25 and mw_epith >= 10:
+                add("quality", 8, "➕ Murray-Washington: WBC ≥ 25 but epithelial ≥ 10 -- mixed quality")
+                special_flags.append("MW_MIXED")
+            elif mw_epith >= 25:
+                add("quality", -20, "❌ Murray-Washington: epithelial ≥ 25 /LPF -- saliva, reject specimen")
                 special_flags.append("MW_REJECT")
             else:
-                missing.append("Sputum quality (WBC / epithelial cells per LPF)")
+                add("quality", 0, None)
+        elif mw_epith is not None and mw_epith >= 25:
+            add("quality", -20, "❌ Epithelial cells ≥ 25 /LPF -- specimen inadequate (saliva)")
+            special_flags.append("MW_REJECT")
         else:
-            cfu_val = _parse_cfu(colony_count_text)
-            if _cfu_report_state(colony_count_text) == "counted":
-                thr = 10000 if "bal" in spec_lower else 1000 if "psb" in spec_lower else 100000
-                threshold_text = (f"Quantitative lower-respiratory culture: >= {thr:,} CFU/mL "
-                                  "(BAL 10^4 · PSB 10^3 · endotracheal aspirate 10^5; ATS/IDSA 2016)")
-                if cfu_val >= thr:
-                    add("colony_count", 20, f"✅ {cfu_val:,} CFU/mL meets the quantitative threshold")
-                else:
-                    add("colony_count", -15, f"⚠️ {cfu_val:,} CFU/mL is below the quantitative "
-                                             "threshold -- colonisation more likely")
-            else:
-                missing.append("Quantitative count (BAL / ETA)")
-
-        if _has(org_l, ("pneumoniae", "pneumococc", "haemophilus", "h. influenzae",
-                        "moraxella", "legionella", "mycoplasma")) or is_saureus:
-            add("organism", 20, f"✅ {organism} -- recognised respiratory pathogen")
-        elif is_strep_unspeciated:
-            add("organism", 0, f"➕ {organism} -- could be S. pneumoniae or oral streptococci; "
-                               "optochin / bile solubility decides")
-        elif is_enterobacterales or is_nonfermenter or is_gnb_unidentified:
-            add("organism", 10, f"➕ {organism} -- respiratory pathogen in hospital / ventilated / "
-                                "structural lung disease; frequent airway coloniser otherwise")
-        elif is_candida:
-            add("organism", -25, f"⚠️ {organism} -- Candida in respiratory specimens is colonisation; "
-                                 "Candida pneumonia is exceptionally rare -- do not treat")
-            special_flags.append("RESPIRATORY_CANDIDA")
-        elif is_cons or is_viridans or is_enterococcus or _has(org_l, ("neisseria spp", "corynebacterium")):
-            add("organism", -20, f"⚠️ {organism} -- oropharyngeal flora; not a cause of pneumonia")
-        else:
-            add("organism", 5, f"➕ {organism} -- uncommon respiratory isolate; correlate")
-
-        resp = [s for s in symptoms if s in ("Productive cough / Purulent sputum", "Fever (> 38°C)",
-                                             "Dyspnea", "Pleuritic chest pain",
-                                             "Worsening oxygenation / ventilator settings")]
-        if "New infiltrate on chest imaging" in symptoms:
-            add("imaging", 20, "✅ New infiltrate on chest imaging -- pneumonia requires this")
-        elif symptoms:
-            notes.append("🩻 تشخيص الالتهاب الرئوي يحتاج ارتشاحاً جديداً في الأشعة — المزرعة وحدها "
-                         "لا تكفي (ATS/IDSA).")
-        if len(resp) >= 2:
-            add("symptoms", 20, f"✅ {len(resp)} respiratory signs/symptoms present")
-        elif len(resp) == 1:
-            add("symptoms", 10, "➕ 1 respiratory sign/symptom present")
-        elif not symptoms:
-            missing.append("Respiratory signs / imaging")
-        if ventilated:
-            notes.append("🫁 مريض على tracheostomy/جهاز تنفس: استعمار مجرى الهواء شبه دائم — "
-                         "VAP يُشخَّص بارتشاح جديد + علامتين سريريتين + مزرعة كمية، لا بالمزرعة وحدها "
-                         "(ATS/IDSA 2016).")
-        if sci_quad:
-            notes.append("♿ Quadriplegia: ضعف السعال وعضلات التنفس ← احتباس إفرازات وشفط متكرر؛ "
-                         "الالتهاب الرئوي من أهم أسباب الوفاة في الإصابات العنقية — عتبة الاشتباه "
-                         "منخفضة عند وجود حمى أو تغيّر الإفرازات أو الأكسجة، لكن الاستعمار "
-                         "(خاصة مع tracheostomy) شائع ولا يُعالَج وحده.")
-        elif sci:
-            notes.append("♿ Paraplegia: الإصابات الصدرية العليا تُضعف السعال — قيّم سريرياً وبالأشعة.")
-
-    # ══════════════════════════════════════════════════════════════════
-    # BLOOD
-    # ══════════════════════════════════════════════════════════════════
-    elif "blood" in spec_lower:
-        references += ["CLSI M47 (blood cultures)", "IDSA CLABSI 2009",
-                       "Weinstein 1997 / Doern 2019 (contaminant criteria)"]
-        multiple = "multiple" in blood_source.lower()
-        single = "single" in blood_source.lower()
-        contaminant_org = is_cons or is_viridans or _has(org_l, ("micrococcus", "bacillus spp",
-                                                                 "cutibacterium", "propionibacterium"))
-
-        if _has(org_l, _TK_NEVER_CONTAMINANT_BLOOD):
-            add("organism", 45, f"🔴 {organism} في الدم لا يُعد ملوِّثاً أبداً — عزلة واحدة كافية. "
-                                "ابدأ العلاج فوراً ولا تنتظر إعادة المزرعة.")
-            special_flags.append("NEVER_CONTAMINANT")
-        elif is_enterobacterales or is_nonfermenter or is_enterococcus or is_gnb_unidentified \
-                or _has(org_l, ("anaerobes", "bacteroides", "لاهوائ")):
-            add("organism", 70, f"✅ {organism} -- true bloodstream pathogen; a single positive "
-                                "bottle is significant")
-            special_flags.append("BLOOD_TRUE_PATHOGEN")
-        elif contaminant_org:
-            add("organism", -15, f"⚠️ {organism} -- common blood-culture contaminant; significance "
-                                 "needs the same organism in ≥ 2 separately drawn sets")
-            special_flags.append("BLOOD_CONTAMINANT_RISK")
-        elif is_strep_unspeciated:
-            add("organism", 55, f"✅ {organism} -- streptococci in blood are usually significant "
-                                "(pneumococcus, beta-haemolytic, anginosus group, endocarditis); a "
-                                "single bottle of viridans streptococci can be contamination -- speciate")
-        elif is_staph_unspeciated:
-            # Never "contaminant" before identification: this label includes
-            # S. aureus. The floor below keeps the verdict at "possible".
-            add("organism", 45, f"➕ {organism} -- cannot be interpreted until speciated: clusters = "
-                                "staphylococci (coagulase decides), chains/pairs = streptococci/enterococci")
-            special_flags.append("BLOOD_PENDING_ID")
-            notes.append("🔬 Gram-positive cocci في الدم قبل التعريف: عامِلها كـ S. aureus محتملة "
-                         "(تغطية MRSA) لحين ظهور الـ coagulase/ID إذا كان المريض غير مستقر.")
-        else:
-            add("organism", 45, f"➕ {organism} -- possible bloodstream pathogen")
-
-        if multiple:
-            # For skin flora this is THE criterion: it outweighs the organism
-            # penalty above (same organism in >= 2 separately drawn sets).
-            add("bottles", 65 if contaminant_org else 15,
-                "✅ Same organism in multiple sets -- true bacteraemia")
-            if contaminant_org:
-                special_flags.append("MULTI_SET_SKIN_FLORA")
-        elif single and contaminant_org:
-            add("bottles", -20, "⚠️ Single positive bottle + skin-flora organism -- contamination likely")
-        elif not blood_source:
-            if contaminant_org:
-                missing.append("Number of positive sets / bottles")
-        if blood_source and "source" in blood_source.lower():
-            add("source", 10, f"➕ Source identified: {blood_source}")
-
-        sirs_count = len(sirs_criteria)
-        if sirs_count >= 3:
-            add("sirs", 20, f"✅ {sirs_count}/4 SIRS criteria met -- sepsis probable")
-            special_flags.append("SIRS_HIGH")
-        elif sirs_count == 2:
-            add("sirs", 15, "➕ 2/4 SIRS criteria met")
-            special_flags.append("SIRS_MET")
-        elif sirs_count == 1:
-            add("sirs", 5, "➕ 1 SIRS criterion")
-        elif contaminant_org:
-            missing.append("SIRS criteria")
-        if contaminant_org and (has_line or has_prosthesis or has_cns_device):
-            add("device", 15, "➕ Intravascular / prosthetic device -- coagulase-negative staphylococci "
-                              "are the leading cause of line and prosthetic-valve infection")
-            notes.append("🩸 CoNS مع قسطرة مركزية أو صمام صناعي: اسحب مجموعتين (واحدة طرفية) قبل الحكم؛ "
-                         "نفس الكائن في المجموعتين = CLABSI محتمل (IDSA 2009).")
-        if contaminant_org and age < 1:
-            add("neonate", 10, "➕ Infant < 1 yr -- CoNS is a true pathogen in neonates with lines")
-        if is_saureus:
-            notes.append("🔴 S. aureus bacteremia: مزارع دم متكررة كل 24–48 ساعة حتى السلبية، echo، "
-                         "بحث عن المصدر وإزالته، وعلاج وريدي ≥ 14 يوم (غير المعقدة) — استشارة ID تقلل الوفيات.")
-        if sci:
-            notes.append("♿ إصابة النخاع الشوكي مع bacteremia: المصادر الأشيع المسالك البولية، قرح "
-                         "الفراش/التهاب العظم تحتها، والالتهاب الرئوي — الحمى قد تكون العلامة الوحيدة.")
-
-    # ══════════════════════════════════════════════════════════════════
-    # CSF
-    # ══════════════════════════════════════════════════════════════════
-    elif "csf" in spec_lower or "cerebrospinal" in spec_lower:
-        references += ["IDSA Bacterial Meningitis 2004",
-                       "IDSA Healthcare-Associated Ventriculitis and Meningitis 2017"]
-        skin_flora = is_cons or is_viridans or _has(org_l, ("cutibacterium", "propionibacterium",
-                                                            "bacillus spp", "micrococcus"))
-        if skin_flora and not has_cns_device:
-            add("organism", 35, f"⚠️ {organism} in CSF without a shunt, drain or recent neurosurgery -- "
-                                "the commonest CSF contaminant")
-            special_flags.append("CSF_SKIN_FLORA")
-        elif skin_flora and has_cns_device:
-            add("organism", 75, f"🔴 {organism} with a CSF shunt / drain / recent neurosurgery -- "
-                                "device-associated ventriculitis until proven otherwise")
-            special_flags += ["CSF_ALWAYS_SIGNIFICANT", "CSF_DEVICE"]
-        else:
-            add("organism", 80, "✅ CSF -- growth of this organism from a sterile site is "
-                                "clinically significant")
-            special_flags.append("CSF_ALWAYS_SIGNIFICANT")
-
-    # ══════════════════════════════════════════════════════════════════
-    # STOOL / GI
-    # ══════════════════════════════════════════════════════════════════
-    elif "stool" in spec_lower or "fecal" in spec_lower or "rectal" in spec_lower:
-        references += ["IDSA Infectious Diarrhea 2017", "IDSA/SHEA C. difficile 2021"]
-        if _has(org_l, _TK_GI_PATHOGEN):
-            add("organism", 45, f"✅ {organism} -- enteric pathogen; always clinically significant")
-            special_flags.append("GI_TRUE_PATHOGEN")
-        elif is_enterobacterales or is_enterococcus or is_candida or is_nonfermenter:
-            add("organism", -15, f"⚠️ {organism} -- normal or transient bowel flora; not a cause of diarrhoea")
-        else:
-            add("organism", 10, f"➕ {organism} -- potential GI pathogen; correlate clinically")
-        gi = [s for s in symptoms if s in ("Fever (> 38°C)", "Bloody diarrhea", "Watery diarrhea",
-                                           "Vomiting", "Abdominal cramps")]
-        if len(gi) >= 2:
-            add("symptoms", 25, f"✅ {len(gi)} GI symptoms -- supports true infection")
-        elif len(gi) == 1:
-            add("symptoms", 10, "➕ 1 GI symptom")
-        elif not symptoms:
-            missing.append("GI symptoms")
-        notes.append("ℹ️ أغلب عدوى الأمعاء: علاج داعم (سوائل وأملاح). المضاد الحيوي فقط عند: إسهال "
-                     "دموي مع حمى، نقص مناعة، رضيع < 3 شهور، Shigella، التيفود، C. difficile، أو حالة شديدة.")
-        if "salmonella" in org_l and (immuno or age < 1 or age >= 50):
-            notes.append("⚠️ Salmonella غير التيفية: يُعالَج عند نقص المناعة، الرضع < 3 شهور، و > 50 سنة "
-                         "مع مرض وعائي/صمامات (خطر bacteremia وعدوى وعائية).")
-
-    # ══════════════════════════════════════════════════════════════════
-    # WOUND / PUS
-    # ══════════════════════════════════════════════════════════════════
-    elif any(w in spec_lower for w in ("wound", "pus", "abscess", "swab", "tissue")):
-        references += ["IDSA SSTI 2014", "IWGDF/IDSA Diabetic Foot Infection 2023",
-                       "NPIAP/EPUAP Pressure Injury Guideline 2019"]
-        wl = wound_type.lower()
-        aspirate = ("pus" in spec_lower or "abscess" in spec_lower or "tissue" in spec_lower
-                    or "abscess" in wl)
-        chronic = "chronic" in wl or "diabetic" in wl
-        pressure = "pressure" in wl or "bed sore" in wl
-        signs = [s for s in symptoms if s in ("Erythema / Warmth / Swelling", "Purulent discharge",
-                                              "Fever (> 38°C)", "Pain / Tenderness")]
-        skin_flora = is_cons or is_viridans or _has(org_l, ("micrococcus",))
-
-        if skin_flora:
-            add("organism", -15, f"⚠️ {organism} -- skin flora; usually colonisation of the wound surface")
-        elif is_saureus or _has(org_l, ("pyogenes", "group a", "agalactiae", "group b",
-                                        "anaerobes", "لاهوائ", "pasteurella")):
-            add("organism", 25, f"✅ {organism} -- recognised wound / soft-tissue pathogen")
-        elif is_enterobacterales or is_nonfermenter or is_enterococcus or is_gnb_unidentified:
-            add("organism", 12, f"➕ {organism} -- pathogen in surgical, burn and deep wounds; "
-                                "frequent coloniser of chronic wound surfaces")
-        elif is_candida:
-            add("organism", -10, f"⚠️ {organism} -- usually colonisation of a wound surface")
-        else:
-            add("organism", 10, f"➕ {organism} -- possible wound pathogen")
-
-        if aspirate:
-            add("specimen", 15, "✅ Pus / aspirate / tissue -- reflects the infected compartment, "
-                                "not the surface")
-        elif chronic or pressure:
-            add("specimen", -10, "⚠️ Surface swab of a chronic wound / pressure ulcer -- grows the "
-                                 "colonising flora; deep tissue after debridement is the valid specimen")
-            special_flags.append("CHRONIC_WOUND_SWAB")
-        if "surgical" in wl or "post-op" in wl:
-            add("wound_type", 10, "➕ Surgical site -- growth with local signs = surgical site infection")
-        elif "burn" in wl:
-            add("wound_type", 5, "➕ Burn wound -- colonisation is universal; quantitative biopsy or "
-                                 "clinical invasion defines infection")
-        elif "bite" in wl:
-            add("wound_type", 10, "➕ Bite wound -- polymicrobial oral flora, treat on clinical grounds")
-        elif "superficial" in wl:
-            add("wound_type", -5, "⚠️ Superficial wound -- assess depth and clinical signs")
-        no_signs = "No local signs of infection" in symptoms and not signs
-        if len(signs) >= 2:
-            add("signs", 25, f"✅ {len(signs)} local/systemic signs of infection (≥ 2 = clinical infection)")
-        elif len(signs) == 1:
-            add("signs", 10, "➕ 1 sign of infection")
-        elif no_signs:
-            add("signs", -15, "⚠️ No local signs of infection -- growth without inflammation is colonisation")
-        else:
-            missing.append("Local signs of infection")
-        # Only when the signs were actually assessed: "not entered" is not "absent".
-        if (chronic or pressure) and (no_signs or len(signs) == 1):
-            special_flags.append("WOUND_COLONISATION_LIKELY")
-        if pressure or (sci and (chronic or not wl or "مش محدد" in wl)):
-            notes.append("♿ قرح الفراش (شائعة مع Paraplegia/Quadriplegia): المسحة السطحية تعكس الاستعمار "
-                         "فقط — العدوى تُشخَّص سريرياً (احمرار منتشر، صديد، رائحة، حمى، عدم التئام). "
-                         "العينة الصحيحة نسيج عميق بعد التنضيف، وعند انكشاف العظم أو جرح لا يلتئم: "
-                         "خزعة عظم لتشخيص التهاب العظم (osteomyelitis).")
-        if chronic:
-            notes.append("🦶 الجروح المزمنة/القدم السكري: لا تُزرع ولا تُعالَج قرحة بلا علامات عدوى "
-                         "سريرية (≥ 2 علامة موضعية) — IWGDF/IDSA 2023.")
-
+            missing.append("Sputum quality (WBC / epithelial cells per LPF)")
     else:
-        missing.append("Specimen type not recognised")
-
-    # ══════════════════════════════════════════════════════════════════
-    # Shared: purity, Gram stain, host
-    # ══════════════════════════════════════════════════════════════════
-    _polymicrobial_ok = ("urine" in spec_lower and (_hf(host_factors, "urinary catheter")
-                                                    or "catheter" in collection_method.lower()))
-    if culture_purity == "Pure growth":
-        add("purity", 10, "✅ Pure culture -- supports true infection")
-    elif culture_purity == "Mixed growth":
-        if _polymicrobial_ok:
-            add("purity", -5, "⚠️ Mixed growth -- common with long-term catheters; interpret each "
-                              "organism against symptoms")
-        elif any(w in spec_lower for w in ("wound", "pus", "abscess", "swab")):
-            add("purity", -5, "⚠️ Mixed growth -- expected in chronic wounds and abscesses below "
-                              "the diaphragm; less so in a clean surgical site")
+        cfu_val = _parse_cfu(colony_count_text)
+        if _cfu_report_state(colony_count_text) == "counted":
+            thr = 10000 if "bal" in spec_lower else 1000 if "psb" in spec_lower else 100000
+            threshold_text = (f"Quantitative lower-respiratory culture: >= {thr:,} CFU/mL "
+                              "(BAL 10^4 · PSB 10^3 · endotracheal aspirate 10^5; ATS/IDSA 2016)")
+            if cfu_val >= thr:
+                add("colony_count", 20, f"✅ {cfu_val:,} CFU/mL meets the quantitative threshold")
+            else:
+                add("colony_count", -15, f"⚠️ {cfu_val:,} CFU/mL is below the quantitative "
+                                         "threshold -- colonisation more likely")
         else:
-            add("purity", -15, "⚠️ Mixed growth -- suggests contamination")
+            missing.append("Quantitative count (BAL / ETA)")
 
-    g_l = gram_stain.lower()
-    stain_done = bool(gram_stain) and "مش متعملة" not in gram_stain
-    st_type = _stain_type(gram_stain)
-    iso_type = _gram_type(org_l)
-    wbc_seen = "wbcs +" in g_l or g_l.startswith("wbcs")
-    no_org = "no organisms" in g_l or "طبيعية" in gram_stain or "wbcs بدون organisms" in g_l
-    if stain_done:
-        if "wbcs بدون organisms" in g_l:
-            add("gram_stain", 0, None)
-            notes.append("🔬 خلايا صديدية بلا كائنات في الصبغة: مضاد حيوي سابق، حمل بكتيري قليل، أو "
-                         "كائن لا يُصبغ (Mycoplasma / Legionella / Mycobacteria).")
-        elif no_org:
-            add("gram_stain", -8, "⚠️ Gram stain: no organisms seen")
-        elif wbc_seen:
-            add("gram_stain", 12, "✅ Gram stain: organisms WITH inflammatory cells -- supports infection")
-        elif "بدون wbcs" in g_l or "without" in g_l:
-            if immuno:
-                add("gram_stain", 3, "➕ Organisms without WBCs -- expected when neutropenic / "
-                                     "immunosuppressed")
-            else:
-                add("gram_stain", -5, "⚠️ Organisms WITHOUT inflammatory cells -- colonisation or "
-                                      "contamination more likely")
-        if st_type == "variable":
-            special_flags.append("GRAM_VARIABLE")
-            if _has(org_l, _TK_GRAM_VARIABLE):
-                notes.append(f"🔬 Gram-variable متوافق مع {organism}: "
-                             + ("Acinetobacter يقاوم إزالة اللون ويظهر coccobacilli موجبة/متغيرة "
-                                "وقد يُخلط بالمكورات الموجبة أو Neisseria."
-                                if "acinetobacter" in org_l else
-                                "هذا الجنس معروف بالتلوّن المتغير، خاصة في المزارع القديمة."))
-            else:
-                notes.append("🔬 Gram-variable: ليس نوعاً من البكتيريا بل نتيجة صبغة. الأسباب: "
-                             "كائنات متغيرة التلوّن فعلاً (Acinetobacter، Gardnerella، Bacillus/"
-                             "Clostridium في المزارع القديمة، Corynebacterium، Actinomyces)، مزرعة "
-                             "عمرها > 24 ساعة، مضاد حيوي سابق يُتلف الجدار، أو خطأ في إزالة اللون. "
-                             "أعِد الصبغة من مزرعة عمرها 18–24 ساعة مع شريحة ضابطة، واعتمد على التعريف "
-                             "(ID) لا على الصبغة.")
-        elif st_type == "mixed":
-            notes.append("🔬 فلورا مختلطة في الصبغة: تلوث بفلورا الموقع أو عدوى متعددة الميكروبات "
-                         "(بطن، قدم سكري، شفط) — الكائن المعزول قد لا يكون الوحيد.")
-        elif st_type and iso_type and iso_type != "variable" \
-                and st_type not in _GRAM_COMPATIBLE.get(iso_type, {iso_type}):
-            add("gram_stain", -10, f"⚠️ Gram stain shows {_GRAM_LABEL.get(st_type, st_type)} but the "
-                                   f"culture grew {organism} ({_GRAM_LABEL.get(iso_type, iso_type)}) -- "
-                                   "stain/culture discordance")
-            special_flags.append("GRAM_DISCORDANT")
-            notes.append("🔬 عدم توافق الصبغة مع المزرعة: عدوى مختلطة لم ينمُ أحد كائناتها (لاهوائي/"
-                         "متطلب)، ملوِّث طغى في المزرعة، مضاد حيوي سابق، أو خطأ صبغ — راجع الشريحة "
-                         "والأطباق قبل اعتماد العزلة كمسبب.")
-        elif st_type and iso_type and iso_type != "variable":
-            add("gram_stain", 5, "✅ Gram stain morphology matches the isolate")
+    if _has(org_l, ("pneumoniae", "pneumococc", "haemophilus", "h. influenzae",
+                    "moraxella", "legionella", "mycoplasma")) or is_saureus:
+        add("organism", 20, f"✅ {organism} -- recognised respiratory pathogen")
+    elif is_strep_unspeciated:
+        add("organism", 0, f"➕ {organism} -- could be S. pneumoniae or oral streptococci; "
+                           "optochin / bile solubility decides")
+    elif is_enterobacterales or is_nonfermenter or is_gnb_unidentified:
+        add("organism", 10, f"➕ {organism} -- respiratory pathogen in hospital / ventilated / "
+                            "structural lung disease; frequent airway coloniser otherwise")
+    elif is_candida:
+        add("organism", -25, f"⚠️ {organism} -- Candida in respiratory specimens is colonisation; "
+                             "Candida pneumonia is exceptionally rare -- do not treat")
+        special_flags.append("RESPIRATORY_CANDIDA")
+    elif is_cons or is_viridans or is_enterococcus or _has(org_l, ("neisseria spp", "corynebacterium")):
+        add("organism", -20, f"⚠️ {organism} -- oropharyngeal flora; not a cause of pneumonia")
+    else:
+        add("organism", 5, f"➕ {organism} -- uncommon respiratory isolate; correlate")
 
-    if immuno:
-        add("host", 5, "➕ Immunocompromised -- lower threshold to act; inflammatory signs may be blunted")
-    if _hf(host_factors, "diabetes") and "urine" not in spec_lower:
-        notes.append("ℹ️ السكري يزيد شدة العدوى ومضاعفاتها، لكنه ليس دليلاً على أن هذه العزلة ممرضة.")
+    resp = [s for s in symptoms if s in ("Productive cough / Purulent sputum", "Fever (> 38°C)",
+                                         "Dyspnea", "Pleuritic chest pain",
+                                         "Worsening oxygenation / ventilator settings")]
+    if "New infiltrate on chest imaging" in symptoms:
+        add("imaging", 20, "✅ New infiltrate on chest imaging -- pneumonia requires this")
+    elif symptoms:
+        notes.append("🩻 تشخيص الالتهاب الرئوي يحتاج ارتشاحاً جديداً في الأشعة — المزرعة وحدها "
+                     "لا تكفي (ATS/IDSA).")
+    if len(resp) >= 2:
+        add("symptoms", 20, f"✅ {len(resp)} respiratory signs/symptoms present")
+    elif len(resp) == 1:
+        add("symptoms", 10, "➕ 1 respiratory sign/symptom present")
+    elif not symptoms:
+        missing.append("Respiratory signs / imaging")
+    if ventilated:
+        notes.append("🫁 مريض على tracheostomy/جهاز تنفس: استعمار مجرى الهواء شبه دائم — "
+                     "VAP يُشخَّص بارتشاح جديد + علامتين سريريتين + مزرعة كمية، لا بالمزرعة وحدها "
+                     "(ATS/IDSA 2016).")
+    if sci_quad:
+        notes.append("♿ Quadriplegia: ضعف السعال وعضلات التنفس ← احتباس إفرازات وشفط متكرر؛ "
+                     "الالتهاب الرئوي من أهم أسباب الوفاة في الإصابات العنقية — عتبة الاشتباه "
+                     "منخفضة عند وجود حمى أو تغيّر الإفرازات أو الأكسجة، لكن الاستعمار "
+                     "(خاصة مع tracheostomy) شائع ولا يُعالَج وحده.")
+    elif sci:
+        notes.append("♿ Paraplegia: الإصابات الصدرية العليا تُضعف السعال — قيّم سريرياً وبالأشعة.")
+    return threshold_text
 
-    # ── Clamp, floors, completeness ─────────────────────────────────────────
-    score = max(0, min(100, score))
-    if "NEVER_CONTAMINANT" in special_flags and score < 75:
-        score = 75
-    if "BLOOD_PENDING_ID" in special_flags and score < 45:
-        score = 45
-    if "BLOOD_TRUE_PATHOGEN" in special_flags and score < 70:
-        score = 70            # missing metadata must not turn a GNB bacteraemia into "repeat"
-    if "BAG_SPECIMEN" in special_flags:
-        score = min(score, 65)   # AAP: a bag-specimen positive is never diagnostic on its own
-    _core_missing = [m for m in missing if m in ("Symptoms", "Colony count",
-                                                 "Respiratory signs / imaging",
-                                                 "Local signs of infection",
-                                                 "Number of positive sets / bottles")]
-    confidence = "high" if not missing else "moderate" if len(_core_missing) <= 1 else "low"
-    insufficient = (("urine" in spec_lower and "Symptoms" in missing and "Colony count" in missing)
-                    or "Specimen type not recognised" in missing)
-    if insufficient:
-        special_flags.append("INSUFFICIENT_DATA")
 
+def _site_blood(
+    *, add,
+    age,
+    blood_source,
+    has_cns_device,
+    has_line,
+    has_prosthesis,
+    is_cons,
+    is_enterobacterales,
+    is_enterococcus,
+    is_gnb_unidentified,
+    is_nonfermenter,
+    is_saureus,
+    is_staph_unspeciated,
+    is_strep_unspeciated,
+    is_viridans,
+    missing,
+    notes,
+    org_l,
+    organism,
+    references,
+    sci,
+    sirs_criteria,
+    special_flags,
+):
+    """BLOOD: score this specimen's own evidence (moved from assess_pathogenicity)."""
+    references += ["CLSI M47 (blood cultures)", "IDSA CLABSI 2009",
+                   "Weinstein 1997 / Doern 2019 (contaminant criteria)"]
+    multiple = "multiple" in blood_source.lower()
+    single = "single" in blood_source.lower()
+    contaminant_org = is_cons or is_viridans or _has(org_l, ("micrococcus", "bacillus spp",
+                                                             "cutibacterium", "propionibacterium"))
+
+    if _has(org_l, _TK_NEVER_CONTAMINANT_BLOOD):
+        # v6.7: in English like every other factor -- the English PDF stripped
+        # this Arabic one down to "🔴 Staphylococcus aureus — ." (the words gone).
+        add("organism", 45, f"🔴 {organism} in blood is never a contaminant -- one positive bottle "
+                            "is enough. Start treatment now; do not wait for a repeat culture.")
+        special_flags.append("NEVER_CONTAMINANT")
+    elif is_enterobacterales or is_nonfermenter or is_enterococcus or is_gnb_unidentified \
+            or _has(org_l, ("anaerobes", "bacteroides", "لاهوائ")):
+        add("organism", 70, f"✅ {organism} -- true bloodstream pathogen; a single positive "
+                            "bottle is significant")
+        special_flags.append("BLOOD_TRUE_PATHOGEN")
+    elif contaminant_org:
+        add("organism", -15, f"⚠️ {organism} -- common blood-culture contaminant; significance "
+                             "needs the same organism in ≥ 2 separately drawn sets")
+        special_flags.append("BLOOD_CONTAMINANT_RISK")
+    elif is_strep_unspeciated:
+        add("organism", 55, f"✅ {organism} -- streptococci in blood are usually significant "
+                            "(pneumococcus, beta-haemolytic, anginosus group, endocarditis); a "
+                            "single bottle of viridans streptococci can be contamination -- speciate")
+    elif is_staph_unspeciated:
+        # Never "contaminant" before identification: this label includes
+        # S. aureus. The floor below keeps the verdict at "possible".
+        add("organism", 45, f"➕ {organism} -- cannot be interpreted until speciated: clusters = "
+                            "staphylococci (coagulase decides), chains/pairs = streptococci/enterococci")
+        special_flags.append("BLOOD_PENDING_ID")
+        notes.append("🔬 Gram-positive cocci في الدم قبل التعريف: عامِلها كـ S. aureus محتملة "
+                     "(تغطية MRSA) لحين ظهور الـ coagulase/ID إذا كان المريض غير مستقر.")
+    else:
+        add("organism", 45, f"➕ {organism} -- possible bloodstream pathogen")
+
+    if multiple:
+        # For skin flora this is THE criterion: it outweighs the organism
+        # penalty above (same organism in >= 2 separately drawn sets).
+        add("bottles", 65 if contaminant_org else 15,
+            "✅ Same organism in multiple sets -- true bacteraemia")
+        if contaminant_org:
+            special_flags.append("MULTI_SET_SKIN_FLORA")
+    elif single and contaminant_org:
+        add("bottles", -20, "⚠️ Single positive bottle + skin-flora organism -- contamination likely")
+    elif not multiple and not single:     # "" or the UI's "مش محدد" (not specified)
+        if contaminant_org:
+            missing.append("Number of positive sets / bottles")
+    # v6.7: skin flora that cannot yet be called a contaminant. IDSA CRBSI
+    # 2009: with a central line or a prosthetic valve, a single CoNS
+    # bottle needs repeat sets BEFORE it is dismissed; and when the number
+    # of positive sets was not entered, "do not treat" is a guess.
+    if contaminant_org and not multiple:
+        if has_line or has_prosthesis or has_cns_device:
+            special_flags.append("SKIN_FLORA_DEVICE_UNRESOLVED")
+        elif not single:
+            special_flags.append("SKIN_FLORA_SETS_UNKNOWN")
+    if blood_source and "source" in blood_source.lower():
+        add("source", 10, f"➕ Source identified: {blood_source}")
+
+    sirs_count = len(sirs_criteria)
+    if sirs_count >= 3:
+        add("sirs", 20, f"✅ {sirs_count}/4 SIRS criteria met -- sepsis probable")
+        special_flags.append("SIRS_HIGH")
+    elif sirs_count == 2:
+        add("sirs", 15, "➕ 2/4 SIRS criteria met")
+        special_flags.append("SIRS_MET")
+    elif sirs_count == 1:
+        add("sirs", 5, "➕ 1 SIRS criterion")
+    elif contaminant_org:
+        missing.append("SIRS criteria")
+    if contaminant_org and (has_line or has_prosthesis or has_cns_device):
+        add("device", 15, "➕ Intravascular / prosthetic device -- coagulase-negative staphylococci "
+                          "are the leading cause of line and prosthetic-valve infection")
+        notes.append("🩸 CoNS مع قسطرة مركزية أو صمام صناعي: اسحب مجموعتين (واحدة طرفية) قبل الحكم؛ "
+                     "نفس الكائن في المجموعتين = CLABSI محتمل (IDSA 2009).")
+    if contaminant_org and age < 1:
+        add("neonate", 10, "➕ Infant < 1 yr -- CoNS is a true pathogen in neonates with lines")
+    if is_saureus:
+        notes.append("🔴 S. aureus bacteremia: مزارع دم متكررة كل 24–48 ساعة حتى السلبية، echo، "
+                     "بحث عن المصدر وإزالته، وعلاج وريدي ≥ 14 يوم (غير المعقدة) — استشارة ID تقلل الوفيات.")
+    if sci:
+        notes.append("♿ إصابة النخاع الشوكي مع bacteremia: المصادر الأشيع المسالك البولية، قرح "
+                     "الفراش/التهاب العظم تحتها، والالتهاب الرئوي — الحمى قد تكون العلامة الوحيدة.")
+
+
+def _site_csf(
+    *, add,
+    has_cns_device,
+    is_cons,
+    is_viridans,
+    org_l,
+    organism,
+    references,
+    special_flags,
+):
+    """CSF: score this specimen's own evidence (moved from assess_pathogenicity)."""
+    references += ["IDSA Bacterial Meningitis 2004",
+                   "IDSA Healthcare-Associated Ventriculitis and Meningitis 2017"]
+    skin_flora = is_cons or is_viridans or _has(org_l, ("cutibacterium", "propionibacterium",
+                                                        "bacillus spp", "micrococcus"))
+    if skin_flora and not has_cns_device:
+        add("organism", 35, f"⚠️ {organism} in CSF without a shunt, drain or recent neurosurgery -- "
+                            "the commonest CSF contaminant")
+        special_flags.append("CSF_SKIN_FLORA")
+    elif skin_flora and has_cns_device:
+        add("organism", 75, f"🔴 {organism} with a CSF shunt / drain / recent neurosurgery -- "
+                            "device-associated ventriculitis until proven otherwise")
+        special_flags += ["CSF_ALWAYS_SIGNIFICANT", "CSF_DEVICE"]
+    else:
+        add("organism", 80, "✅ CSF -- growth of this organism from a sterile site is "
+                            "clinically significant")
+        special_flags.append("CSF_ALWAYS_SIGNIFICANT")
+
+
+def _site_stool(
+    *, add,
+    age,
+    immuno,
+    is_candida,
+    is_enterobacterales,
+    is_enterococcus,
+    is_nonfermenter,
+    missing,
+    notes,
+    org_l,
+    organism,
+    references,
+    special_flags,
+    symptoms,
+):
+    """STOOL / GI: score this specimen's own evidence (moved from assess_pathogenicity)."""
+    references += ["IDSA Infectious Diarrhea 2017", "IDSA/SHEA C. difficile 2021"]
+    if _has(org_l, _TK_GI_PATHOGEN):
+        add("organism", 45, f"✅ {organism} -- enteric pathogen; always clinically significant")
+        special_flags.append("GI_TRUE_PATHOGEN")
+    elif is_enterobacterales or is_enterococcus or is_candida or is_nonfermenter:
+        add("organism", -15, f"⚠️ {organism} -- normal or transient bowel flora; not a cause of diarrhoea")
+    else:
+        add("organism", 10, f"➕ {organism} -- potential GI pathogen; correlate clinically")
+    gi = [s for s in symptoms if s in ("Fever (> 38°C)", "Bloody diarrhea", "Watery diarrhea",
+                                       "Vomiting", "Abdominal cramps")]
+    if len(gi) >= 2:
+        add("symptoms", 25, f"✅ {len(gi)} GI symptoms -- supports true infection")
+    elif len(gi) == 1:
+        add("symptoms", 10, "➕ 1 GI symptom")
+    elif not symptoms:
+        missing.append("GI symptoms")
+    notes.append("ℹ️ أغلب عدوى الأمعاء: علاج داعم (سوائل وأملاح). المضاد الحيوي فقط عند: إسهال "
+                 "دموي مع حمى، نقص مناعة، رضيع < 3 شهور، Shigella، التيفود، C. difficile، أو حالة شديدة.")
+    if "salmonella" in org_l and (immuno or age < 1 or age >= 50):
+        notes.append("⚠️ Salmonella غير التيفية: يُعالَج عند نقص المناعة، الرضع < 3 شهور، و > 50 سنة "
+                     "مع مرض وعائي/صمامات (خطر bacteremia وعدوى وعائية).")
+
+
+def _site_wound(
+    *, add,
+    is_candida,
+    is_cons,
+    is_enterobacterales,
+    is_enterococcus,
+    is_gnb_unidentified,
+    is_nonfermenter,
+    is_saureus,
+    is_viridans,
+    missing,
+    notes,
+    org_l,
+    organism,
+    references,
+    sci,
+    spec_lower,
+    special_flags,
+    symptoms,
+    wound_type,
+):
+    """WOUND / PUS / TISSUE: score this specimen's own evidence (moved from assess_pathogenicity)."""
+    references += ["IDSA SSTI 2014", "IWGDF/IDSA Diabetic Foot Infection 2023",
+                   "NPIAP/EPUAP Pressure Injury Guideline 2019"]
+    wl = wound_type.lower()
+    aspirate = ("pus" in spec_lower or "abscess" in spec_lower or "tissue" in spec_lower
+                or "abscess" in wl)
+    chronic = "chronic" in wl or "diabetic" in wl
+    pressure = "pressure" in wl or "bed sore" in wl
+    signs = [s for s in symptoms if s in ("Erythema / Warmth / Swelling", "Purulent discharge",
+                                          "Fever (> 38°C)", "Pain / Tenderness")]
+    skin_flora = is_cons or is_viridans or _has(org_l, ("micrococcus",))
+
+    if skin_flora:
+        add("organism", -15, f"⚠️ {organism} -- skin flora; usually colonisation of the wound surface")
+    elif is_saureus or _has(org_l, ("pyogenes", "group a", "agalactiae", "group b",
+                                    "anaerobes", "لاهوائ", "pasteurella")):
+        add("organism", 25, f"✅ {organism} -- recognised wound / soft-tissue pathogen")
+    elif is_enterobacterales or is_nonfermenter or is_enterococcus or is_gnb_unidentified:
+        add("organism", 12, f"➕ {organism} -- pathogen in surgical, burn and deep wounds; "
+                            "frequent coloniser of chronic wound surfaces")
+    elif is_candida:
+        add("organism", -10, f"⚠️ {organism} -- usually colonisation of a wound surface")
+    else:
+        add("organism", 10, f"➕ {organism} -- possible wound pathogen")
+
+    if aspirate:
+        add("specimen", 15, "✅ Pus / aspirate / tissue -- reflects the infected compartment, "
+                            "not the surface")
+    elif chronic or pressure:
+        add("specimen", -10, "⚠️ Surface swab of a chronic wound / pressure ulcer -- grows the "
+                             "colonising flora; deep tissue after debridement is the valid specimen")
+        special_flags.append("CHRONIC_WOUND_SWAB")
+    if "surgical" in wl or "post-op" in wl:
+        add("wound_type", 10, "➕ Surgical site -- growth with local signs = surgical site infection")
+    elif "burn" in wl:
+        add("wound_type", 5, "➕ Burn wound -- colonisation is universal; quantitative biopsy or "
+                             "clinical invasion defines infection")
+    elif "bite" in wl:
+        add("wound_type", 10, "➕ Bite wound -- polymicrobial oral flora, treat on clinical grounds")
+    elif "superficial" in wl:
+        add("wound_type", -5, "⚠️ Superficial wound -- assess depth and clinical signs")
+    no_signs = "No local signs of infection" in symptoms and not signs
+    # v6.7: an aspirated abscess IS a purulent infection (IDSA SSTI 2014): the
+    # pus in a closed cavity is the sign. With no signs ticked, a pure
+    # S. aureus from an aspirated abscess came back "possible -- correlate".
+    if "abscess" in wl and not no_signs and len(signs) < 2:
+        signs = signs + ["Purulent collection (aspirated abscess)"] * (2 - len(signs))
+    if len(signs) >= 2:
+        add("signs", 25, f"✅ {len(signs)} local/systemic signs of infection (≥ 2 = clinical infection)")
+    elif len(signs) == 1:
+        add("signs", 10, "➕ 1 sign of infection")
+    elif no_signs:
+        add("signs", -15, "⚠️ No local signs of infection -- growth without inflammation is colonisation")
+    else:
+        missing.append("Local signs of infection")
+    # Only when the signs were actually assessed: "not entered" is not "absent".
+    if (chronic or pressure) and (no_signs or len(signs) == 1):
+        special_flags.append("WOUND_COLONISATION_LIKELY")
+    if pressure or (sci and (chronic or not wl or "مش محدد" in wl)):
+        notes.append("♿ قرح الفراش (شائعة مع Paraplegia/Quadriplegia): المسحة السطحية تعكس الاستعمار "
+                     "فقط — العدوى تُشخَّص سريرياً (احمرار منتشر، صديد، رائحة، حمى، عدم التئام). "
+                     "العينة الصحيحة نسيج عميق بعد التنضيف، وعند انكشاف العظم أو جرح لا يلتئم: "
+                     "خزعة عظم لتشخيص التهاب العظم (osteomyelitis).")
+    if chronic:
+        notes.append("🦶 الجروح المزمنة/القدم السكري: لا تُزرع ولا تُعالَج قرحة بلا علامات عدوى "
+                     "سريرية (≥ 2 علامة موضعية) — IWGDF/IDSA 2023.")
+
+
+
+def _verdict(*, insufficient, missing, score, special_flags):
+    """Category, verdict, colour, interpretation and recommendations from the final score and the flags."""
     # ── Verdict ─────────────────────────────────────────────────────────────
     T_TRUE, T_POSSIBLE, T_LIKELY_CONTAM = 70, 45, 25
     if "CSF_ALWAYS_SIGNIFICANT" in special_flags:
@@ -1327,8 +1275,335 @@ def assess_pathogenicity(
             "لا تعطِ مضادات حيوية بناءً على هذه النتيجة.",
             "أعِد تقييم المريض إذا استمرت الأعراض أو تطورت.",
         ]
+    return category, color, interpretation, recommendations, verdict
+
+
+def _score_gram_stain(*, add, gram_stain, immuno, notes, org_l, organism, special_flags):
+    """Gram stain of the specimen versus the isolate (WBCs, organism type, concordance)."""
+    g_l = gram_stain.lower()
+    stain_done = bool(gram_stain) and "مش متعملة" not in gram_stain
+    st_type = _stain_type(gram_stain)
+    iso_type = _gram_type(org_l)
+    wbc_seen = "wbcs +" in g_l or g_l.startswith("wbcs")
+    no_org = "no organisms" in g_l or "طبيعية" in gram_stain or "wbcs بدون organisms" in g_l
+    if stain_done:
+        if "wbcs بدون organisms" in g_l:
+            add("gram_stain", 0, None)
+            notes.append("🔬 خلايا صديدية بلا كائنات في الصبغة: مضاد حيوي سابق، حمل بكتيري قليل، أو "
+                         "كائن لا يُصبغ (Mycoplasma / Legionella / Mycobacteria).")
+        elif no_org:
+            add("gram_stain", -8, "⚠️ Gram stain: no organisms seen")
+        elif wbc_seen:
+            add("gram_stain", 12, "✅ Gram stain: organisms WITH inflammatory cells -- supports infection")
+        elif "بدون wbcs" in g_l or "without" in g_l:
+            if immuno:
+                add("gram_stain", 3, "➕ Organisms without WBCs -- expected when neutropenic / "
+                                     "immunosuppressed")
+            else:
+                add("gram_stain", -5, "⚠️ Organisms WITHOUT inflammatory cells -- colonisation or "
+                                      "contamination more likely")
+        if st_type == "variable":
+            special_flags.append("GRAM_VARIABLE")
+            if _has(org_l, _TK_GRAM_VARIABLE):
+                notes.append(f"🔬 Gram-variable متوافق مع {organism}: "
+                             + ("Acinetobacter يقاوم إزالة اللون ويظهر coccobacilli موجبة/متغيرة "
+                                "وقد يُخلط بالمكورات الموجبة أو Neisseria."
+                                if "acinetobacter" in org_l else
+                                "هذا الجنس معروف بالتلوّن المتغير، خاصة في المزارع القديمة."))
+            else:
+                notes.append("🔬 Gram-variable: ليس نوعاً من البكتيريا بل نتيجة صبغة. الأسباب: "
+                             "كائنات متغيرة التلوّن فعلاً (Acinetobacter، Gardnerella، Bacillus/"
+                             "Clostridium في المزارع القديمة، Corynebacterium، Actinomyces)، مزرعة "
+                             "عمرها > 24 ساعة، مضاد حيوي سابق يُتلف الجدار، أو خطأ في إزالة اللون. "
+                             "أعِد الصبغة من مزرعة عمرها 18–24 ساعة مع شريحة ضابطة، واعتمد على التعريف "
+                             "(ID) لا على الصبغة.")
+        elif st_type == "mixed":
+            notes.append("🔬 فلورا مختلطة في الصبغة: تلوث بفلورا الموقع أو عدوى متعددة الميكروبات "
+                         "(بطن، قدم سكري، شفط) — الكائن المعزول قد لا يكون الوحيد.")
+        elif st_type and iso_type and iso_type != "variable" \
+                and st_type not in _GRAM_COMPATIBLE.get(iso_type, {iso_type}):
+            add("gram_stain", -10, f"⚠️ Gram stain shows {_GRAM_LABEL.get(st_type, st_type)} but the "
+                                   f"culture grew {organism} ({_GRAM_LABEL.get(iso_type, iso_type)}) -- "
+                                   "stain/culture discordance")
+            special_flags.append("GRAM_DISCORDANT")
+            notes.append("🔬 عدم توافق الصبغة مع المزرعة: عدوى مختلطة لم ينمُ أحد كائناتها (لاهوائي/"
+                         "متطلب)، ملوِّث طغى في المزرعة، مضاد حيوي سابق، أو خطأ صبغ — راجع الشريحة "
+                         "والأطباق قبل اعتماد العزلة كمسبب.")
+        elif st_type and iso_type and iso_type != "variable":
+            add("gram_stain", 5, "✅ Gram stain morphology matches the isolate")
+
+
+def _score_purity(*, add, collection_method, culture_purity, host_factors, spec_lower):
+    """Pure versus mixed growth (mixed is expected in a catheter urine)."""
+    # ══════════════════════════════════════════════════════════════════
+    # Shared: purity, Gram stain, host
+    # ══════════════════════════════════════════════════════════════════
+    _polymicrobial_ok = ("urine" in spec_lower and (_hf(host_factors, "urinary catheter")
+                                                    or "catheter" in collection_method.lower()))
+    if culture_purity == "Pure growth":
+        add("purity", 10, "✅ Pure culture -- supports true infection")
+    elif culture_purity == "Mixed growth":
+        if _polymicrobial_ok:
+            add("purity", -5, "⚠️ Mixed growth -- common with long-term catheters; interpret each "
+                              "organism against symptoms")
+        elif any(w in spec_lower for w in ("wound", "pus", "abscess", "swab")):
+            add("purity", -5, "⚠️ Mixed growth -- expected in chronic wounds and abscesses below "
+                              "the diaphragm; less so in a clean surgical site")
+        else:
+            add("purity", -15, "⚠️ Mixed growth -- suggests contamination")
+
+
+# =========================================================
+def assess_pathogenicity(
+    specimen: str,
+    organism: str,
+    colony_count_text: str,
+    culture_purity: str,
+    symptoms: list,
+    pus_cells_text: str,
+    urinalysis_result: str,
+    gram_stain: str,
+    age: int,
+    sex: str,
+    host_factors: list,
+    # Sputum-specific
+    sputum_pus_cells: str = "",
+    sputum_epithelial: str = "",
+    # Blood-specific (SIRS)
+    sirs_criteria: list = None,
+    blood_source: str = "",
+    # Wound-specific
+    wound_type: str = "",
+    # v3
+    collection_method: str = "",
+) -> dict:
+    """Pathogenicity engine v3 — is this isolate an infection, colonisation or
+    contamination?
+
+    Returns: {score, verdict, color, interpretation, recommendations,
+              factors_pos, factors_neg, abu_detected, special_flags,
+              engine_version, category, threshold, notes, missing_inputs,
+              confidence, references, evidence}
+    """
+    specimen = specimen or ""
+    organism = organism or ""
+    symptoms = list(symptoms or [])
+    host_factors = list(host_factors or [])
+    sirs_criteria = list(sirs_criteria or [])
+    culture_purity = culture_purity or ""
+    urinalysis_result = urinalysis_result or ""
+    gram_stain = gram_stain or ""
+    blood_source = blood_source or ""
+    wound_type = wound_type or ""
+    collection_method = collection_method or ""
+    # "مش محدد" (not specified) is the UI's empty choice, not a value.
+    if "مش محدد" in blood_source:
+        blood_source = ""
+    if not isinstance(age, (int, float)):
+        age = 40
+    spec_lower = specimen.lower()
+    org_l = re.sub(r"\s+", " ", organism.strip().lower())
+
+    score = 0
+    factors_pos: List[str] = []
+    factors_neg: List[str] = []
+    special_flags: List[str] = []
+    notes: List[str] = []
+    missing: List[str] = []
+    references: List[str] = []
+    evidence: List[Dict[str, Any]] = []
+    threshold_text = ""
+    abu_detected = False
+
+    def add(domain: str, pts: int, text: Optional[str]) -> None:
+        nonlocal score
+        score += pts
+        if text:
+            (factors_pos if pts >= 0 else factors_neg).append(text)
+        evidence.append({"domain": domain, "points": pts, "text": text or ""})
+
+    # ── Host context shared by every specimen ────────────────────────────────
+    sci_quad = _hf(host_factors, "quadripleg", "tetrapleg", "cervical cord")
+    sci = sci_quad or _hf(host_factors, "parapleg", "spinal cord")
+    neurogenic = sci or _hf(host_factors, "neurogenic")
+    immuno = _hf(host_factors, "immunosupp", "steroid", "neutropen", "transplant")
+    neutropenic = _hf(host_factors, "neutropen")
+    pregnant = _hf(host_factors, "pregnan")
+    uro_procedure = _hf(host_factors, "pre-surgical", "urologic procedure")
+    has_line = _hf(host_factors, "central line", "picc")
+    has_prosthesis = _hf(host_factors, "prosthetic", "pacemaker", "graft")
+    has_cns_device = _hf(host_factors, "shunt", "evd", "neurosurg")
+    ventilated = _hf(host_factors, "tracheostomy", "ventilat")
+    if sci:
+        special_flags.append("SCI")
+
+    is_enterobacterales = _has(org_l, _TK_ENTEROBACTERALES)
+    is_nonfermenter = _has(org_l, _TK_NONFERMENTERS)
+    is_saureus = _has(org_l, _TK_SAUREUS)
+    is_cons = _is_cons(org_l) and not is_saureus
+    is_staph_unspeciated = ("staphylococcus spp" in org_l
+                            or "gram-positive cocci" in org_l or "gram positive cocci" in org_l)
+    is_viridans = _has(org_l, _TK_VIRIDANS)
+    # Unspeciated streptococci are NOT assumed to be viridans flora: the same
+    # label covers S. pneumoniae, S. pyogenes and the anginosus group.
+    is_strep_unspeciated = org_l.startswith("streptococcus spp")
+    is_enterococcus = _has(org_l, _TK_ENTEROCOCCI) or org_l == "vre"
+    is_candida = _has(org_l, _TK_CANDIDA)
+    is_gnb_unidentified = "gram-negative bacilli" in org_l or "gram negative bacilli" in org_l
+    # "Klebsiella spp." / "Salmonella spp." are this app's ordinary labels for
+    # those genera, not a statement that identification is incomplete.
+    _standard_spp = ("klebsiella spp", "salmonella spp", "shigella spp",
+                     "providencia spp", "mycoplasma spp")
+    unspeciated = (("spp" in org_l and not _has(org_l, _standard_spp))
+                   or "unspeciated" in org_l or "unidentified" in org_l)
+    if unspeciated:
+        special_flags.append("UNSPECIATED_ORGANISM")
+        notes.append("🔬 الكائن غير محدد النوع — التقييم مبني على الجنس/صبغة Gram فقط. "
+                     "تحديد النوع (ID) يغيّر التفسير في بعض الحالات (مثل Staphylococcus: "
+                     "S. aureus ممرض دائماً، والسالب للتخثّر ملوِّث شائع).")
+
+    # ══════════════════════════════════════════════════════════════════
+    # URINE
+    # ══════════════════════════════════════════════════════════════════
+    if "urine" in spec_lower:
+        abu_detected, threshold_text = _site_urine(abu_detected=abu_detected, add=add, age=age,
+                collection_method=collection_method, colony_count_text=colony_count_text,
+                factors_neg=factors_neg, host_factors=host_factors, is_candida=is_candida,
+                is_cons=is_cons, is_enterobacterales=is_enterobacterales,
+                is_enterococcus=is_enterococcus, is_gnb_unidentified=is_gnb_unidentified,
+                is_nonfermenter=is_nonfermenter, is_saureus=is_saureus,
+                is_strep_unspeciated=is_strep_unspeciated, is_viridans=is_viridans,
+                missing=missing, neurogenic=neurogenic, neutropenic=neutropenic,
+                notes=notes, org_l=org_l, organism=organism, pregnant=pregnant,
+                pus_cells_text=pus_cells_text, references=references, sci=sci, sex=sex,
+                special_flags=special_flags, symptoms=symptoms,
+                threshold_text=threshold_text, urinalysis_result=urinalysis_result,
+                uro_procedure=uro_procedure)
+
+    # ══════════════════════════════════════════════════════════════════
+    # SPUTUM / RESPIRATORY
+    # ══════════════════════════════════════════════════════════════════
+    elif any(k in spec_lower for k in ("sputum", "respiratory", "bal", "tracheal", "eta")):
+        threshold_text = _site_respiratory(add=add, colony_count_text=colony_count_text,
+                is_candida=is_candida, is_cons=is_cons,
+                is_enterobacterales=is_enterobacterales, is_enterococcus=is_enterococcus,
+                is_gnb_unidentified=is_gnb_unidentified, is_nonfermenter=is_nonfermenter,
+                is_saureus=is_saureus, is_strep_unspeciated=is_strep_unspeciated,
+                is_viridans=is_viridans, missing=missing, notes=notes, org_l=org_l,
+                organism=organism, references=references, sci=sci, sci_quad=sci_quad,
+                spec_lower=spec_lower, special_flags=special_flags,
+                sputum_epithelial=sputum_epithelial, sputum_pus_cells=sputum_pus_cells,
+                symptoms=symptoms, threshold_text=threshold_text, ventilated=ventilated)
+
+    # ══════════════════════════════════════════════════════════════════
+    # BLOOD
+    # ══════════════════════════════════════════════════════════════════
+    elif "blood" in spec_lower:
+        _site_blood(add=add, age=age, blood_source=blood_source, has_cns_device=has_cns_device,
+                has_line=has_line, has_prosthesis=has_prosthesis, is_cons=is_cons,
+                is_enterobacterales=is_enterobacterales, is_enterococcus=is_enterococcus,
+                is_gnb_unidentified=is_gnb_unidentified, is_nonfermenter=is_nonfermenter,
+                is_saureus=is_saureus, is_staph_unspeciated=is_staph_unspeciated,
+                is_strep_unspeciated=is_strep_unspeciated, is_viridans=is_viridans,
+                missing=missing, notes=notes, org_l=org_l, organism=organism,
+                references=references, sci=sci, sirs_criteria=sirs_criteria,
+                special_flags=special_flags)
+
+    # ══════════════════════════════════════════════════════════════════
+    # CSF
+    # ══════════════════════════════════════════════════════════════════
+    elif "csf" in spec_lower or "cerebrospinal" in spec_lower:
+        _site_csf(add=add, has_cns_device=has_cns_device, is_cons=is_cons,
+                is_viridans=is_viridans, org_l=org_l, organism=organism,
+                references=references, special_flags=special_flags)
+
+    # ══════════════════════════════════════════════════════════════════
+    # STOOL / GI
+    # ══════════════════════════════════════════════════════════════════
+    elif "stool" in spec_lower or "fecal" in spec_lower or "rectal" in spec_lower:
+        _site_stool(add=add, age=age, immuno=immuno, is_candida=is_candida,
+                is_enterobacterales=is_enterobacterales, is_enterococcus=is_enterococcus,
+                is_nonfermenter=is_nonfermenter, missing=missing, notes=notes, org_l=org_l,
+                organism=organism, references=references, special_flags=special_flags,
+                symptoms=symptoms)
+
+    # ══════════════════════════════════════════════════════════════════
+    # WOUND / PUS
+    # ══════════════════════════════════════════════════════════════════
+    elif any(w in spec_lower for w in ("wound", "pus", "abscess", "swab", "tissue")):
+        _site_wound(add=add, is_candida=is_candida, is_cons=is_cons,
+                is_enterobacterales=is_enterobacterales, is_enterococcus=is_enterococcus,
+                is_gnb_unidentified=is_gnb_unidentified, is_nonfermenter=is_nonfermenter,
+                is_saureus=is_saureus, is_viridans=is_viridans, missing=missing,
+                notes=notes, org_l=org_l, organism=organism, references=references, sci=sci,
+                spec_lower=spec_lower, special_flags=special_flags, symptoms=symptoms,
+                wound_type=wound_type)
+
+    else:
+        missing.append("Specimen type not recognised")
+
+    _score_purity(
+        add=add, collection_method=collection_method, culture_purity=culture_purity,
+        host_factors=host_factors, spec_lower=spec_lower
+    )
+
+    _score_gram_stain(
+        add=add, gram_stain=gram_stain, immuno=immuno, notes=notes, org_l=org_l,
+        organism=organism, special_flags=special_flags
+    )
+
+    if immuno:
+        add("host", 5, "➕ Immunocompromised -- lower threshold to act; inflammatory signs may be blunted")
+    if _hf(host_factors, "diabetes") and "urine" not in spec_lower:
+        notes.append("ℹ️ السكري يزيد شدة العدوى ومضاعفاتها، لكنه ليس دليلاً على أن هذه العزلة ممرضة.")
+
+    # ── Clamp, floors, completeness ─────────────────────────────────────────
+    score = max(0, min(100, score))
+    if "NEVER_CONTAMINANT" in special_flags and score < 75:
+        score = 75
+    if "BLOOD_PENDING_ID" in special_flags and score < 45:
+        score = 45
+    if "BLOOD_TRUE_PATHOGEN" in special_flags and score < 70:
+        score = 70            # missing metadata must not turn a GNB bacteraemia into "repeat"
+    if "SKIN_FLORA_DEVICE_UNRESOLVED" in special_flags and score < 45:
+        score = 45            # device + one bottle: "possible", repeat sets -- never "do not treat"
+    if "SKIN_FLORA_SETS_UNKNOWN" in special_flags and score < 25:
+        score = 25            # sets not entered: "repeat recommended", not "do not treat"
+    if "BAG_SPECIMEN" in special_flags:
+        score = min(score, 65)   # AAP: a bag-specimen positive is never diagnostic on its own
+    _core_missing = [m for m in missing if m in ("Symptoms", "Colony count",
+                                                 "Respiratory signs / imaging",
+                                                 "Local signs of infection",
+                                                 "Number of positive sets / bottles")]
+    confidence = "high" if not missing else "moderate" if len(_core_missing) <= 1 else "low"
+    insufficient = (("urine" in spec_lower and "Symptoms" in missing and "Colony count" in missing)
+                    or "Specimen type not recognised" in missing)
+    if insufficient:
+        special_flags.append("INSUFFICIENT_DATA")
+
+    (category, color, interpretation, recommendations, verdict) = _verdict(
+        insufficient=insufficient, missing=missing, score=score, special_flags=special_flags
+    )
+    if ("GBS_BACTERIURIA_PREGNANCY" in special_flags
+            and category in ("CONTAMINANT_OR_COLONISER", "LIKELY_CONTAMINANT", "ASB_NO_TREAT")):
+        # v6.7: GBS in a pregnant woman's urine at any count marks heavy genital
+        # colonisation (ACOG Committee Opinion 797). Below 10^5 without symptoms
+        # it is not treated antenatally -- but it is never "a contaminant", and
+        # intrapartum prophylaxis is required.
+        category = "GBS_PREGNANCY_IAP"
+        verdict = "🟡 GBS BACTERIURIA IN PREGNANCY -- No antenatal treatment; INTRAPARTUM PROPHYLAXIS"
+        color = "warning"
+        interpretation = ("Streptococcus agalactiae في بول الحامل بأي عدد = استعمار كثيف بالـ GBS. "
+                          "تحت 10⁵ وبدون أعراض لا يُعالَج قبل الولادة، لكنه ليس تلوثاً.")
+        recommendations = [
+            "سجّل في ملف الحمل: وقاية بالمضاد الحيوي أثناء الولادة (IAP) مطلوبة — لا حاجة لمسحة GBS في الأسبوع 36–37 (ACOG 797).",
+            "لا تعالج قبل الولادة إلا عند ≥ 10⁵ CFU/mL أو وجود أعراض.",
+        ]
     if "BLOOD_CONTAMINANT_RISK" in special_flags and category != "TRUE_INFECTION":
         recommendations.append("اسحب مجموعتين جديدتين من موضعين مختلفين قبل الحكم على CoNS / فلورا الجلد.")
+    if "SKIN_FLORA_DEVICE_UNRESOLVED" in special_flags and category != "TRUE_INFECTION":
+        recommendations.append("مع قسطرة وريدية مركزية أو جهاز/صمام صناعي لا تُهمَل زجاجة CoNS واحدة: "
+                               "اسحب مجموعتين متزامنتين (طرفية + من القسطرة) قبل القرار (IDSA CRBSI 2009).")
     if "BAG_SPECIMEN" in special_flags:
         recommendations.append("عينة كيس: أكّد بعينة قسطرة أو SPA قبل اعتماد التشخيص — ولا تؤخر العلاج "
                                "في رضيع محموم يبدو مريضاً (خذ العينة الصحيحة ثم ابدأ).")
@@ -1343,6 +1618,10 @@ def assess_pathogenicity(
     recommendations_en = list(_recs_en)
     if "BLOOD_CONTAMINANT_RISK" in special_flags and category != "TRUE_INFECTION":
         recommendations_en.append("Draw two new sets from two separate sites before judging CoNS / skin flora.")
+    if "SKIN_FLORA_DEVICE_UNRESOLVED" in special_flags and category != "TRUE_INFECTION":
+        recommendations_en.append("With a central line or a prosthetic device/valve a single CoNS bottle is "
+                                  "not dismissed: draw paired sets (peripheral + through the line) before "
+                                  "deciding (IDSA CRBSI 2009).")
     if "BAG_SPECIMEN" in special_flags:
         recommendations_en.append("Bag specimen: confirm with a catheter or SPA specimen before accepting the diagnosis - "
                                   "do not delay treatment in a febrile, ill-looking infant (collect properly, then start).")
@@ -1612,7 +1891,25 @@ def _parse_pus(text: str):
     for _kw, _val in _PUS_VERBAL:
         if _kw in low:
             return _val
-    nums = re.findall(r'[\d]+', text)
-    if not nums:
+    # v6.7: honour a comparison in front of the number. "<5" WBC/HPF used to read
+    # as 5 ("mild pyuria") and "<10" epithelial cells as 10 ("mixed-quality
+    # sputum") -- both the opposite of what the microscopist wrote. "<N" is
+    # read as just below N, ">N" / "N+" as just above it; a range keeps its top.
+    vals = []
+    for cmp_, num, plus in _CMP_NUM.findall(str(text)):
+        v = int(num)
+        c = cmp_.strip().lower()
+        if c in _CMP_BELOW:
+            v = max(0, v - 1)
+        elif c in _CMP_ABOVE or plus:
+            v = v + 1
+        vals.append(v)
+    if not vals:
         return None
-    return max(int(n) for n in nums)
+    return max(vals)
+
+
+_CMP_NUM = re.compile(r'(<=|>=|≤|≥|<|>|less than|more than|under|over|أقل من|اقل من|أكثر من|اكثر من)?'
+                      r'\s*(\d+)\s*(\+)?', re.IGNORECASE)
+_CMP_BELOW = {"<", "less than", "under", "أقل من", "اقل من"}
+_CMP_ABOVE = {">", "more than", "over", "أكثر من", "اكثر من"}
