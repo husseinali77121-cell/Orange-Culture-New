@@ -66,23 +66,30 @@ def warned_note_for(item: Dict[str, Any], lang: str = "ar") -> str:
         if reason == "hepatic_adjustment":
             lvl, rec = item.get("hepatic_level"), item.get("hepatic_rec")
             if lvl or rec:
-                head = f"🫀 Child-Pugh: {lvl}" if lvl else "🫀 قصور كبدي"
+                head = (f"🫀 Child-Pugh: {lvl}" if lvl else
+                        ("🫀 قصور كبدي" if ar else "🫀 Hepatic impairment"))
                 body = f" — {rec}" if rec else ""
                 extra = pick("hepatic_note", "hepatic_note_en")
                 return f"{head}{body}" + (f"  \n{extra}" if extra else "")
-            return pick("hepatic_note", "hepatic_note_en")
+            return pick("hepatic_note", "hepatic_note_en") if ar else \
+                pick("hepatic_note_en", "hepatic_note")
 
         if reason == "renal_adjustment":
             return pick("renal_note", "renal_note_en") if ar else pick("renal_note_en", "renal_note")
 
         if reason == "possible_mrsa":
-            return pick("possible_mrsa_note")
+            return pick("possible_mrsa_note") if ar else \
+                pick("possible_mrsa_note_en", "possible_mrsa_note")
 
         if reason == "safety_gate":
             return pick("gate_note", "gate_note_en") if ar else pick("gate_note_en", "gate_note")
 
         if reason == "neonate" or category == "neonate":
-            short, detail = pick("reason_short"), pick("reason_detail")
+            if ar:
+                short, detail = pick("reason_short"), pick("reason_detail")
+            else:
+                short = pick("reason_short_en", "reason_short")
+                detail = pick("reason_detail_en", "reason_detail")
             return f"{short}  \n{detail}" if short and detail else (short or detail)
 
         if reason == "intermediate_culture":
@@ -94,10 +101,14 @@ def warned_note_for(item: Dict[str, Any], lang: str = "ar") -> str:
                     "لا تُستخدم إلا بجرعة أعلى/تسريب ممتد وبعد استبعاد بديل حسّاس (S).")
 
         if reason == "interaction" or category == "interaction":
-            return pick("interaction_note", "reason_detail", "reason_short")
+            return pick("interaction_note", "reason_detail", "reason_short") if ar else \
+                pick("interaction_note_en", "reason_detail_en", "interaction_note",
+                     "reason_detail", "reason_short")
 
         if reason == "pregnancy" or category == "pregnancy":
-            return pick("preg_note", "preg_note_en", "reason_detail", "reason_short")
+            return pick("preg_note", "preg_note_en", "reason_detail", "reason_short") if ar else \
+                pick("preg_note_en", "preg_note", "reason_detail_en", "reason_detail",
+                     "reason_short")
 
         # Warnings added by the 2026-11-10 review fixes carry their explanation
         # under ONE key, `clinical_note` (literal set: this function is lifted
@@ -113,6 +124,10 @@ def warned_note_for(item: Dict[str, Any], lang: str = "ar") -> str:
         # Unknown reason: try every explanation slot that exists before giving up,
         # and NEVER fall back to renal_note -- that silent substitution is the whole
         # defect this function replaces.
+        if not ar:
+            return pick("reason_short_en", "reason_detail_en", "gate_note_en", "esbl_note_en",
+                        "hepatic_rec", "reason_short", "reason_detail", "gate_note",
+                        "esbl_note", "note")
         return pick("reason_short", "reason_detail", "gate_note", "esbl_note",
                     "hepatic_rec", "note")
 

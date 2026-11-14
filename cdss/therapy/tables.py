@@ -75,6 +75,8 @@ NEONATAL_RESTRICTIONS: Dict[str, Dict[str, Any]] = {
         "months": 12, "action": "ban", "alt": "Vancomycin",
         "reason": ("🚫 غير موصى به تحت 12 شهر (Cubicin label: تأثيرات على العضلات والأعصاب "
                    "ظهرت في حديثي الولادة في الدراسات الحيوانية). البديل: Vancomycin."),
+        "reason_en": ("🚫 Not recommended under 12 months (Cubicin label: muscular and nervous-"
+                      "system effects in neonatal animal studies). Alternative: Vancomycin."),
     },
     "Ceftriaxone": {
         # WEB-VERIFIED 2026-08-03. The contraindication is TWO-PART, not one
@@ -106,21 +108,39 @@ NEONATAL_RESTRICTIONS: Dict[str, Dict[str, Any]] = {
                            "الحمل، فتحقّق يدوياً قبل الوصف. وتجنّبه مطلقاً مع أي "
                            "محلول كالسيوم وريدي أو فرط بيليروبين. "
                            "(FDA label / AAP Red Book 33rd ed.)"),
+        "reason_en": ("🚫 Contraindicated in neonates (≤ 28 days): displaces bilirubin from "
+                      "albumin (kernicterus) and forms a fatal precipitate with IV calcium "
+                      "solutions. Direct alternative: Cefotaxime, same spectrum. "
+                      "(FDA label / BNFc / AAP Red Book 33rd ed.)"),
+        "preterm_reason_en": ("⚠️ If the infant was born preterm, the contraindication runs to "
+                              "41 weeks postmenstrual age (gestational + chronological) — up "
+                              "to ~3 chronological months for a 28-week baby. The program does "
+                              "not know the gestational age, so check it before prescribing. "
+                              "Never give it with any IV calcium solution or with "
+                              "hyperbilirubinaemia. (FDA label / AAP Red Book 33rd ed.)"),
     },
     "Trimethoprim/Sulfamethoxazole": {
         "months": 2, "action": "ban", "alt": "بيتا-لاكتام حسب الحساسية",
+        "alt_en": "a beta-lactam per the AST",
         "reason": ("🚫 يُمنع تحت شهرين: السلفوناميد يزيح البيليروبين عن "
                    "الألبومين → kernicterus. (BNFc / AAP Red Book)"),
+        "reason_en": ("🚫 Contraindicated under 2 months: the sulfonamide displaces bilirubin "
+                      "from albumin (kernicterus). (BNFc / AAP Red Book)"),
     },
     "Nitrofurantoin": {
         "months": 3, "action": "ban", "alt": "Cephalexin أو Amoxicillin",
+        "alt_en": "Cephalexin or Amoxicillin",
         "reason": ("🚫 يُمنع تحت 3 شهور: أنظمة إنزيمات كرات الدم الحمراء غير "
                    "ناضجة → أنيميا انحلالية. (BNFc / EMA)"),
+        "reason_en": ("🚫 Contraindicated under 3 months: immature red-cell enzyme systems "
+                      "(haemolytic anaemia). (BNFc / EMA)"),
     },
     "Ciprofloxacin": {
         "months": 1, "action": "warn", "alt": "",
         "reason": ("⚠️ في حديثي الولادة يُستخدم فقط لدواعٍ مهدِّدة للحياة "
                    "وبقرار استشاري."),
+        "reason_en": ("⚠️ In neonates, only for life-threatening indications and on a "
+                      "consultant's decision."),
     },
 }
 

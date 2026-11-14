@@ -80,9 +80,9 @@ RULES: Tuple[Rule, ...] = (
 _NOTE_KEYS = {
     "esbl_bli_uti_only":      ("esbl_note", "esbl_note_en"),
     "possible_carbapenemase": ("esbl_note", "esbl_note_en"),
-    "possible_mrsa":          ("possible_mrsa_note",),
-    "neonate":                ("reason_detail",),
-    "hepatic_adjustment":     ("hepatic_note",),
+    "possible_mrsa":          ("possible_mrsa_note", "possible_mrsa_note_en"),
+    "neonate":                ("reason_detail", "reason_detail_en"),
+    "hepatic_adjustment":     ("hepatic_note", "hepatic_note_en"),
 }
 
 
@@ -117,18 +117,20 @@ def _finish_caution(out: Outcome) -> Dict[str, Any]:
 def _finish_pregnancy(out: Outcome) -> Dict[str, Any]:
     """The pregnancy caution, carrying any other caution and host fact with it."""
     item = out.preg_item
-    lines: List[str] = list(out.preg_extra)
-    if out.primary is not None:
-        # The drug has a caution of its own AND a pregnancy caution. It is shown
-        # in the pregnancy bucket; the other caution must not disappear.
-        first = warned_note_for(out.primary, "ar")
-        if first:
-            lines.append(first)
-        lines += out.extra
-        lines += _secondary_lines(out, "ar")
-    if lines:
-        item["preg_note"] = ((item.get("preg_note") or "").rstrip()
-                             + "\n" + "\n".join(lines)).strip()
+    for key, lang in (("preg_note", "ar"), ("preg_note_en", "en")):
+        if key == "preg_note_en" and not item.get(key):
+            continue
+        lines: List[str] = list(out.preg_extra)
+        if out.primary is not None:
+            # The drug has a caution of its own AND a pregnancy caution. It is
+            # shown in the pregnancy bucket; the other caution must not disappear.
+            first = warned_note_for(out.primary, lang)
+            if first:
+                lines.append(first)
+            lines += out.extra
+            lines += _secondary_lines(out, lang)
+        if lines:
+            item[key] = ((item.get(key) or "").rstrip() + "\n" + "\n".join(lines)).strip()
     return item
 
 
