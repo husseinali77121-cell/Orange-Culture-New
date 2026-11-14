@@ -2552,7 +2552,7 @@
   "esbl_conf": 0,
   "mdr": null,
   "mdr_cats": [],
-  "patho": "🟢 LIKELY CONTAMINANT / COLONIZER -- Do Not Treat",
+  "patho": "🟠 LIKELY CONTAMINANT -- Repeat Recommended",
   "phenotypes": [],
   "preg_warn": [],
   "qc_ids": [
@@ -2591,7 +2591,7 @@
    "Aminoglycosides",
    "Fluoroquinolones"
   ],
-  "patho": "🟢 LIKELY CONTAMINANT / COLONIZER -- Do Not Treat",
+  "patho": "🟠 LIKELY CONTAMINANT -- Repeat Recommended",
   "phenotypes": [],
   "preg_warn": [],
   "qc_ids": [],
@@ -2628,7 +2628,7 @@
   "mdr_cats": [
    "Anti-staphylococcal Beta-lactams"
   ],
-  "patho": "🟢 LIKELY CONTAMINANT / COLONIZER -- Do Not Treat",
+  "patho": "🟠 LIKELY CONTAMINANT -- Repeat Recommended",
   "phenotypes": [],
   "preg_warn": [],
   "qc_ids": [
@@ -2676,7 +2676,7 @@
    "Oxazolidinones",
    "Tetracyclines"
   ],
-  "patho": "🟢 LIKELY CONTAMINANT / COLONIZER -- Do Not Treat",
+  "patho": "🟠 LIKELY CONTAMINANT -- Repeat Recommended",
   "phenotypes": [],
   "preg_warn": [],
   "qc_ids": [
@@ -2699,7 +2699,7 @@
    "Aminoglycosides",
    "Fluoroquinolones"
   ],
-  "patho": "🟢 LIKELY CONTAMINANT / COLONIZER -- Do Not Treat",
+  "patho": "🟠 LIKELY CONTAMINANT -- Repeat Recommended",
   "phenotypes": [],
   "preg_warn": [],
   "qc_ids": [],
@@ -2730,7 +2730,7 @@
   "esbl_conf": 0,
   "mdr": null,
   "mdr_cats": [],
-  "patho": "🟢 LIKELY CONTAMINANT / COLONIZER -- Do Not Treat",
+  "patho": "🟠 LIKELY CONTAMINANT -- Repeat Recommended",
   "phenotypes": [],
   "preg_warn": [],
   "qc_ids": [
@@ -2766,7 +2766,7 @@
   "esbl_conf": 0,
   "mdr": null,
   "mdr_cats": [],
-  "patho": "🟢 LIKELY CONTAMINANT / COLONIZER -- Do Not Treat",
+  "patho": "🟠 LIKELY CONTAMINANT -- Repeat Recommended",
   "phenotypes": [],
   "preg_warn": [],
   "qc_ids": [],
@@ -2813,7 +2813,7 @@
    "Macrolides",
    "Tetracyclines"
   ],
-  "patho": "🟢 LIKELY CONTAMINANT / COLONIZER -- Do Not Treat",
+  "patho": "🟠 LIKELY CONTAMINANT -- Repeat Recommended",
   "phenotypes": [],
   "preg_warn": [],
   "qc_ids": [

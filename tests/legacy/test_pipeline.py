@@ -319,7 +319,8 @@ check("the full dose band DOES print for a renally impaired patient",
 # it must still name the threshold, so the short line is never read as "no
 # adjustment exists". Assert the withheld form directly rather than inferring
 # it from a document that legitimately omits the section.
-_src8 = open(module_path("report_service"), encoding="utf-8").read()
+from legacy_support import pdf_layer_source                         # noqa: E402
+_src8 = pdf_layer_source()   # v6.7: the PDF renderer spans report_service + pdf_parts + pdf_sections
 check("the withheld form names the CrCl threshold in both languages",
       "Renally adjusted below CrCl {int(_lim)}" in _src8
       and "يحتاج تعديل الجرعة تحت CrCl {int(_lim)}" in _src8,

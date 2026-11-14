@@ -235,6 +235,20 @@ def module_path(old_name: str) -> str:
     return str(ROOT.joinpath(*MODULE_MOVES[old_name].split(".")).with_suffix(".py"))
 
 
+# v6.7 (2026-11-14): generate_pdf_html_report() was split into report_service
+# (the orchestration), pdf_parts (style, strings, helpers) and pdf_sections (one
+# function per section). A check that reads "the PDF renderer's source" reads
+# all three.
+PDF_LAYER_MODULES = ("cdss.reports.report_service", "cdss.reports.pdf_parts",
+                     "cdss.reports.pdf_sections", "cdss.reports.image_parts")
+
+
+def pdf_layer_source() -> str:
+    """Source of the whole PDF layer, concatenated."""
+    return "\n".join(ROOT.joinpath(*m.split(".")).with_suffix(".py").read_text(encoding="utf-8")
+                     for m in PDF_LAYER_MODULES)
+
+
 def iter_trees(*packages: str):
     """(path, ast.Module) for every module under the given packages (default: engine + UI)."""
     import ast

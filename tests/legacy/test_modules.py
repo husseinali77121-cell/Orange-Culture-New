@@ -447,8 +447,12 @@ check("bind() no longer exists -- there is nothing to forget to wire",
       not hasattr(RS, "bind"))
 check("report_service uses the engine's own warned_note_for and classify_mdr",
       RS.warned_note_for is _notes5.warned_note_for and RS.classify_mdr is _mdr5.classify_mdr)
+# v6.7: the PDF renderer was split into report_service + pdf_parts + pdf_sections;
+# each name must be a real object in whichever of them now uses it.
+import cdss.reports.pdf_sections as _PS5                                  # noqa: E402
+import cdss.reports.pdf_parts as _PP5                                     # noqa: E402
 check("no injected placeholder is left as None",
-      all(getattr(RS, n, None) is not None for n in
+      all(any(getattr(_m, n, None) is not None for _m in (RS, _PS5, _PP5)) for n in
           ("ABX_GUIDELINES", "ORGANISM_PROFILE", "MDR_INFO", "INFECTION_SYNDROMES",
            "RENAL_BAN_REASONS", "predict_esbl", "rank_sensitive_antibiotics", "crcl_label",
            "resolve_crcl", "preg_status_of", "get_renal_severity", "_drop_intrinsic",

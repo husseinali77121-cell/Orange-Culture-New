@@ -449,7 +449,8 @@ print("    its own if/else that fell through to the RENAL note for every reason"
 print("    it did not name — hepatic, safety-gate, neonatal, possible-MRSA. One")
 print("    defect, two renderers, one fixed. Both now use the one resolver.")
 # ═══════════════════════════════════════════════════════════════════════════
-_src9 = open(module_path("report_service"), encoding="utf-8").read()
+from legacy_support import pdf_layer_source                         # noqa: E402
+_src9 = pdf_layer_source()   # v6.7: the PDF renderer spans report_service + pdf_parts + pdf_sections
 check("the PDF routes its fall-through branch through warned_note_for",
       "warned_note_for(_wd" in _src9,
       "the PDF still has its own fall-through — it will drift from the screen")
