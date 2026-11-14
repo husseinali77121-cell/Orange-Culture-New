@@ -33,6 +33,15 @@ def suggest_severity(
     _cat   = classify_specimen(specimen)
     hf     = [h.lower() for h in (host_factors or [])]
     syms   = [s.lower() for s in (symptoms or [])]
+    # FIX v6.7: the host factors come from the pathogenicity panel's lists
+    # ("Immunosuppressants / Steroids", "Neutropenia", "Renal transplant"), and
+    # none of them contains the word "immunocompromised" this function looked
+    # for -- an immunosuppressed host never raised the suggested severity.
+    _immuno = any(k in " ".join(hf) for k in ("immunocomp", "immunosupp", "steroid",
+                                              "neutropen", "transplant"))
+    # Neutropenia is the emergency (febrile neutropenia); other immunosuppression
+    # makes the infection complicated, not automatically severe.
+    _neutropenic = "neutropen" in " ".join(hf)
 
     reasons_severe   = []
     reasons_moderate = []
@@ -44,8 +53,10 @@ def suggest_severity(
             "altered consciousness", "confusion", "rigors"]):
         reasons_severe.append("Systemic sepsis signs / shock")
 
-    if "central line" in " ".join(hf) or "immunocompromised" in " ".join(hf):
+    if "central line" in " ".join(hf) or _neutropenic:
         reasons_severe.append("Immunocompromised / central line")
+    elif _immuno:
+        reasons_moderate.append("Immunosuppressed host (steroids / transplant) -> complicated")
 
     # ── Specimen-specific logic ────────────────────────────────────────────
     if _cat == "urine":
@@ -61,7 +72,11 @@ def suggest_severity(
             reasons_moderate.append(
                 f"Renal impairment (CrCl {_eff:.0f}"
                 f"{'' if _meas else ', assumed'}) -> complicated")
-        if any(k in " ".join(hf) for k in ["catheter", "urologic", "diabetes"]):
+        # v6.7: structural / functional abnormality makes a UTI complicated
+        # (IDSA cUTI 2025) -- obstruction, stone, stent, reflux, neurogenic bladder.
+        if any(k in " ".join(hf) for k in ["catheter", "urologic", "diabetes", "obstruction",
+                                           "stone", "stent", "reflux", "renal abnormality",
+                                           "neurogenic", "parapleg", "quadripleg", "tetrapleg"]):
             reasons_moderate.append("Host risk factor (DM / catheter / urologic anomaly)")
         if any(k in " ".join(syms) for k in ["fever", "flank pain", "costovertebral"]):
             reasons_moderate.append("Upper UTI symptoms -> pyelonephritis")
@@ -90,7 +105,7 @@ def suggest_severity(
         reasons_severe.append("CNS infection -> always severe")
 
     elif _cat in ("wound", "pus"):
-        if any(k in " ".join(hf) for k in ["diabetes", "immunocompromised"]):
+        if "diabetes" in " ".join(hf) or _immuno:
             reasons_moderate.append("Wound infection + DM/immunocompromised")
         elif not reasons_moderate and not reasons_severe:
             reasons_mild.append("Simple SSTI without systemic features")

@@ -25,6 +25,17 @@ HIGH_BIOAVAILABILITY: Dict[str, int] = {
     "Clarithromycin": 52, "Erythromycin": 35, "Trimethoprim": 90,
 }
 
+# IV agents whose oral step-down is a DIFFERENT name (v6.7, 2026-11-14). The
+# panel looked the IV name up in HIGH_BIOAVAILABILITY, found nothing, and told
+# the prescriber "Ampicillin: No established oral equivalent" -- the standard
+# enterococcal / streptococcal step-down is oral amoxicillin (IDSA, BNF).
+IV_TO_ORAL: Dict[str, str] = {
+    "Ampicillin": "Amoxicillin",
+    "Ampicillin/Sulbactam": "Amoxicillin + Clavulanic acid",
+    "Cefazolin": "Cephalexin",
+    "Cefuroxime sodium": "Cefuroxime",
+}
+
 # "bacteremia" removed 2026-11-10: oral step-down is standard for
 # uncomplicated Gram-negative and streptococcal bacteraemia once the patient
 # is stable (BALANCE 2025; IDSA cUTI 2025). S. aureus bacteraemia and
@@ -58,10 +69,14 @@ def evaluate_iv_po_switch(
             bioavail, matched = v, k
             break
     else:
-        for k, v in HIGH_BIOAVAILABILITY.items():
-            if _dl and _dl in k.lower():
-                bioavail, matched = v, k
-                break
+        _oral = IV_TO_ORAL.get((drug_name or "").strip())
+        if _oral:
+            bioavail, matched = HIGH_BIOAVAILABILITY.get(_oral, 0), _oral
+        else:
+            for k, v in HIGH_BIOAVAILABILITY.items():
+                if _dl and _dl in k.lower():
+                    bioavail, matched = v, k
+                    break
 
     blockers, supporters = [], []
     if not clinical_improving: blockers.append("No clinical improvement in 48-72h")
@@ -71,10 +86,13 @@ def evaluate_iv_po_switch(
     if not bacteremia_resolved: blockers.append("Active bacteremia / endovascular infection")
     else:                       supporters.append("No active bloodstream infection")
 
+    if matched and matched.lower() != _dl:
+        supporters.append(f"Oral step-down for IV {drug_name}: {matched}")
     if bioavail >= 80:     supporters.append(f"{matched}: Oral bioavailability {bioavail}% -- excellent for switch")
     elif bioavail >= 50:   blockers.append(f"{matched}: Moderate bioavailability ({bioavail}%) -- consider IV continuation")
     elif bioavail > 0:     blockers.append(f"{matched}: Low bioavailability ({bioavail}%) -- IV preferred")
-    else:                  blockers.append(f"{drug_name}: No established oral equivalent")
+    else:                  blockers.append(f"{drug_name}: No established oral equivalent -- step down "
+                                           "to an oral agent that is S on this panel")
 
     synd_lower = (syndrome or "").lower()
     if any(s in synd_lower for s in ALWAYS_IV_SYNDROMES):
