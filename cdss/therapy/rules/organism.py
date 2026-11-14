@@ -86,6 +86,12 @@ def rule_possible_mrsa(cx, dg, out):
         _screen_s = [d for d in ("Cefoxitin", "Oxacillin") if cx.sir.get(d) == "S"]
         _screen_i = [d for d in ("Cefoxitin", "Oxacillin") if cx.sir.get(d) == "I"]
         if _screen_i:
+            _note_en = (
+                "⚠️ Methicillin screen invalid — methicillin resistance is NOT excluded. "
+                f"{' and '.join(_screen_i)} = I, and this test has no Intermediate category in "
+                "staphylococci (EUCAST v16 / CLSI M100): the result is S or R.\n"
+                "Before relying on any beta-lactam: repeat the cefoxitin disk or request PCR "
+                "(mecA/mecC). In bacteraemia start vancomycin empirically until it is resolved.")
             _note = (
                 "⚠️ **فحص الميثيسيلين غير صالح — مقاومة الميثيسيلين غير مستبعدة.** "
                 f"{' و '.join(_screen_i)} = I، ولا توجد فئة Intermediate لهذا الاختبار في "
@@ -93,6 +99,13 @@ def rule_possible_mrsa(cx, dg, out):
                 "**قبل الاعتماد على أي بيتا-لاكتام:** أعِد Cefoxitin disk أو اطلب PCR "
                 "(mecA/mecC). في تجرثم الدم ابدأ بـ Vancomycin تجريبياً حتى تُحسم النتيجة.")
         elif _screen_s:
+            _note_en = (
+                "⚠️ Discordant results — methicillin resistance is NOT excluded. "
+                f"{' and '.join(_screen_s)} = S on the panel, but another beta-lactam is "
+                "resistant while vancomycin/linezolid are susceptible. The pattern is "
+                "inconsistent (BORSA / mecC / reading error).\n"
+                "Before relying on any beta-lactam: repeat the cefoxitin disk or request PCR "
+                "(mecA/mecC). In bacteraemia start vancomycin empirically until it is resolved.")
             _note = (
                 "⚠️ **نتائج متعارضة — مقاومة الميثيسيلين غير مستبعدة.** "
                 f"{' و '.join(_screen_s)} = S على اللوحة، لكن بيتا-لاكتام آخر مقاوم مع "
@@ -100,6 +113,14 @@ def rule_possible_mrsa(cx, dg, out):
                 "**قبل الاعتماد على أي بيتا-لاكتام:** أعِد Cefoxitin disk أو اطلب PCR "
                 "(mecA/mecC). في تجرثم الدم ابدأ بـ Vancomycin تجريبياً حتى يُحسم التعارض.")
         else:
+            _note_en = (
+                "⚠️ Unconfirmed MRSA suspicion. The panel has neither oxacillin nor "
+                "cefoxitin, and the pattern (a resistant beta-lactam with vancomycin/linezolid "
+                "susceptible) suggests methicillin resistance. If this is MRSA every "
+                "beta-lactam will fail whatever its disk result (mecA/PBP2a is an altered "
+                "target, not an enzyme).\n"
+                "Before using any beta-lactam: request a cefoxitin disk or PCR (mecA). In "
+                "bacteraemia start vancomycin empirically until confirmed.")
             _note = (
                 "⚠️ **اشتباه MRSA غير مؤكَّد.** اللوحة لا تحتوي Oxacillin "
                 "ولا Cefoxitin، والنمط (بيتا-لاكتام مقاوم + Vancomycin/"
@@ -111,7 +132,8 @@ def rule_possible_mrsa(cx, dg, out):
                 "حتى يظهر التأكيد.")
         _w = {"name": dg.name, **dg.info,
               "warning_reason": "possible_mrsa",
-              "possible_mrsa_note": _note}
+              "possible_mrsa_note": _note,
+              "possible_mrsa_note_en": _note_en}
         out.caution(_w)
         return
 

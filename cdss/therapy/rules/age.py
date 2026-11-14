@@ -65,6 +65,11 @@ def rule_neonate(cx, dg, out):
     if cx.age < 1 and dg.name in NEONATAL_RESTRICTIONS:
         _neo = NEONATAL_RESTRICTIONS[dg.name]
         _alt = f" البديل: {_neo['alt']}." if _neo.get("alt") else ""
+        _alt_en = (f" Alternative: {_neo.get('alt_en') or _neo['alt']}."
+                   if _neo.get("alt") else "")
+        # v6.7: every caution carries its English form too -- the English PDF
+        # printed "A clinical note ... in the Arabic report" for each one.
+        _reason_en = _neo.get("reason_en", "")
         # A months value outside 0-11 is not a patient, it is a data error.
         # Treating 99 as "older than the threshold" silently switched the
         # whole neonatal gate off; treat it as UNKNOWN instead, which warns.
@@ -83,6 +88,11 @@ def rule_neonate(cx, dg, out):
                 "reason_detail": (f"{_neo['reason']}{_alt}\n\n"
                                   "أدخل العمر بالشهور (خانة «أقل من سنة») "
                                   "ليطبّق النظام الحد العمري بدقة."),
+                "reason_short_en": (f"Age in months not entered — check the "
+                                    f"{_neo['months']}-month limit."),
+                "reason_detail_en": (f"{_reason_en}{_alt_en}\n\nEnter the age in months "
+                                     "(the 'under 1 year' field) so the age limit is applied "
+                                     "exactly."),
             })
             return
         if _m < _neo["months"]:
@@ -98,6 +108,8 @@ def rule_neonate(cx, dg, out):
                     "category": "neonate", "warning_reason": "neonate",
                     "reason_short": f"حذر شديد تحت {_neo['months']} شهر.",
                     "reason_detail": f"{_neo['reason']}{_alt}",
+                    "reason_short_en": f"Extreme caution under {_neo['months']} months.",
+                    "reason_detail_en": f"{_reason_en}{_alt_en}",
                 })
             return
 
@@ -117,5 +129,8 @@ def rule_preterm_window(cx, dg, out):
                 "category": "neonate", "warning_reason": "neonate",
                 "reason_short": f"خديج؟ تحقّق قبل الوصف (العمر {cx.age_months} شهر).",
                 "reason_detail": _neo2.get("preterm_reason", ""),
+                "reason_short_en": (f"Born preterm? Check before prescribing "
+                                    f"(age {cx.age_months} months)."),
+                "reason_detail_en": _neo2.get("preterm_reason_en", ""),
             })
             return

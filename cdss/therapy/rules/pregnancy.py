@@ -7,6 +7,7 @@ Every rule has the same shape:  rule(cx, dg, out) -> None
     dg   DrugUnderTest   one agent of the panel and its S/I/R result (read-only)
     out  Outcome         where the rule records a ban / caution / note
 """
+from cdss.formulary.pregnancy_en import preg_note_en
 from cdss.therapy.intrinsic import build_banned_item
 from cdss.therapy.tables import preg_status_of
 
@@ -164,3 +165,8 @@ def rule_pregnancy(cx, dg, out):
         # ── 9. Carbapenems / Vancomycin / Colistin (Warn): physician ──────
         elif preg_status_of(dg.info) == "Warn":
             out.preg_item = {"name": dg.name, **dg.info}
+
+        # v6.7: the English form travels with every pregnancy caution, so the
+        # English PDF prints the trimester rule instead of a generic sentence.
+        if out.preg_item is not None and not out.preg_item.get("preg_note_en"):
+            out.preg_item["preg_note_en"] = preg_note_en(dg.name)

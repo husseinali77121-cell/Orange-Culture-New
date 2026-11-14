@@ -219,6 +219,15 @@ def rule_esbl_or_carbapenemase_bli(cx, dg, out):
                  "حساسة. في حالة الصدمة أو تجرثم الدم: Carbapenem.")
                 if cx.mech_label == "ESBL" else
                 ("AmpC + التهاب حويضة: Cefepime (إذا S) مقدَّم على Pip-Tazo (IDSA 2026)."))
+            # v6.7: the English PDF had no English form of this note.
+            _w["esbl_note_en"] = (
+                ("ESBL organism + pyelonephritis / cUTI: piperacillin-tazobactam is an acceptable "
+                 "alternative (IDSA 2026) at 4.5 g q6h by extended infusion; TMP-SMX or "
+                 "ciprofloxacin/levofloxacin are preferred when susceptible. In shock or "
+                 "bacteraemia: a carbapenem.")
+                if cx.mech_label == "ESBL" else
+                ("AmpC + pyelonephritis: cefepime (if S) is preferred over "
+                 "piperacillin-tazobactam (IDSA 2026)."))
             out.caution({"name": dg.name, **_w})
             return
         if not cx.urine_lower:

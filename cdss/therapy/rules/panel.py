@@ -8,6 +8,8 @@ Every rule has the same shape:  rule(cx, dg, out) -> None
     out  Outcome         where the rule records a ban / caution / note
 """
 from cdss.formulary.co_medications import _canon_med
+from cdss.formulary.interaction_effects import HEPATIC_CAUTION_AR
+from cdss.formulary.interaction_effects import interaction_alert
 from cdss.therapy.intrinsic import build_banned_item
 
 
@@ -34,10 +36,15 @@ def rule_resistant(cx, dg, out):
 
 
 def rule_interaction_alerts(cx, dg, out):
-    """Co-medication interactions and the hepatic-caution alert (side notes, never a verdict)."""
+    """Co-medication interactions and the hepatic-caution alert (side notes, never a verdict).
+
+    v6.7: the alert names what the interaction DOES and what to do
+    (cdss.formulary.interaction_effects) -- the bare pair told the prescriber
+    that something was wrong, not whether to expect a high INR or a seizure.
+    """
     _declared = {_canon_med(x) for x in (dg.info.get("interacts_with") or [])}
     for med in cx.current_meds:
         if _canon_med(med) in _declared:
-            cx.alerts.append(f"⚡ تعارض: {dg.name} مع {med}")
+            cx.alerts.append(interaction_alert(dg.name, med, "ar"))
     if cx.is_hepatic and dg.info.get("hepatic_caution"):
-        cx.alerts.append(f"🏥 تحذير كبدي: {dg.name} — يحتاج متابعة أو تعديل حسب الحالة.")
+        cx.alerts.append(HEPATIC_CAUTION_AR.format(drug=dg.name))

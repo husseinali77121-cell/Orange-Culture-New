@@ -29,6 +29,11 @@ def rule_allergy(cx, dg, out):
         _allergy_ban = "حساسية مسجّلة للبنسلين."
     elif cx.allergy["cephalosporin"] and _is_ceph:
         _allergy_ban = "حساسية مسجّلة للسيفالوسبورينات."
+    elif cx.allergy["ceftazidime"] and "ceftazidime" in dg.low:
+        # FIX v6.7: a recorded Ceftazidime allergy only ever produced the
+        # aztreonam side-chain note -- Ceftazidime itself, and
+        # Ceftazidime-Avibactam, stayed in the recommended list.
+        _allergy_ban = "حساسية مسجّلة للـ Ceftazidime."
     elif cx.allergy["sulfa"] and ("sulfamethox" in dg.low or "sulfonamide" in dg.cls):
         _allergy_ban = "حساسية مسجّلة للسلفوناميد."
     elif cx.allergy["fluoroquinolone"] and "fluoroquinolone" in dg.cls:
@@ -52,3 +57,5 @@ def rule_allergy(cx, dg, out):
         out.note(dg.name, "warn", "حساسية سيفالوسبورين: تفاعل متصالب منخفض — راجع السلسلة الجانبية للدواء المسبب.", "allergy")
     elif cx.allergy["ceftazidime"] and "aztreonam" in dg.low:
         out.note(dg.name, "warn", "Aztreonam يشارك Ceftazidime نفس السلسلة الجانبية — تفاعل متصالب ممكن.", "allergy")
+    elif cx.allergy["ceftazidime"] and "cefiderocol" in dg.low:
+        out.note(dg.name, "warn", "Cefiderocol سلسلته الجانبية شبيهة بالـ Ceftazidime والـ Aztreonam — تفاعل متصالب ممكن.", "allergy")
