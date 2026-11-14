@@ -218,7 +218,7 @@ def build_final_checklist(
             add("pathogenicity", "تقييم الـ Pathogenicity", WARN, verdict + " — مع تعارض صبغة/مزرعة.")
         elif cat in ("ASB_NO_TREAT", "COLONISATION", "CONTAMINANT_OR_COLONISER",
                      "LIKELY_CONTAMINANT", "SPECIMEN_REJECT",
-                     "POSSIBLE_CONTAMINANT_STERILE_SITE"):
+                     "POSSIBLE_CONTAMINANT_STERILE_SITE", "GBS_PREGNANCY_IAP"):
             add("pathogenicity", "تقييم الـ Pathogenicity", WARN,
                 verdict + " — التقييم لا يدعم العلاج؛ قائمة المضادات للعلم فقط.")
         else:
