@@ -202,6 +202,13 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
                     "الطرد + AmpC مُحدَث، أو إنزيم كاربابينيميز مكتسب (MBL شائع في "
                     "الشرق الأوسط). الاثنان يبدوان متطابقين على أقراص البيتا-لاكتام."
                 ),
+                "detail_en": (
+                    "Non-susceptible to the whole first line (beta-lactams + fluoroquinolones): "
+                    f"{', '.join(_dtr_ns)} — the IDSA definition of DTR. The panel cannot tell the "
+                    "mechanism: OprD porin loss + efflux + derepressed AmpC, or an acquired "
+                    "carbapenemase (MBLs are common in the Middle East). Both look identical on "
+                    "beta-lactam disks."
+                ),
                 "action": (
                     "الخيارات المفضّلة (IDSA AMR Guidance 2026): Ceftolozane-Tazobactam · "
                     "Ceftazidime-Avibactam · Imipenem-Relebactam · Cefiderocol — "
@@ -225,6 +232,13 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
                 + (f"  \nلا يزال حسّاساً لـ: {', '.join(_active_bl)}."
                    if _active_bl else "")
             ),
+            "detail_en": (
+                f"Carbapenem resistance ({', '.join(carb_R_list) or 'Meropenem I'}) in "
+                "P. aeruginosa. The commonest mechanism is OprD porin loss ± efflux ± derepressed "
+                "AmpC — not a carbapenemase. EUCAST has no validated algorithm that separates "
+                "them from beta-lactam disks."
+                + (f" Still susceptible to: {', '.join(_active_bl)}." if _active_bl else "")
+            ),
             "action": (
                 (f"ابدأ بـ {_active_bl[0]} بجرعة عالية وتسريب ممتد (extended infusion) "
                  "— IDSA: العزلة المقاومة للكاربابينيم والحسّاسة لبيتا-لاكتام تقليدي "
@@ -244,6 +258,8 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
             "mechanism": "Carbapenemase (KPC / MBL / OXA-48-like) — Predicted",
             "markers_R": carb_R_list + primary_R,
             "detail": f"مقاومة لـ ≥2 كاربابينيم ({', '.join(carb_R_list)}) -- نمط Carbapenemase صريح.",
+            "detail_en": (f"Resistant to ≥2 carbapenems ({', '.join(carb_R_list)}) — an overt "
+                          "carbapenemase pattern."),
             "action": ("أرسل للمختبر المرجعي فوراً وحدّد نوع الإنزيم (NG-Test CARBA-5 أو PCR). عزل صارم. "
                        "KPC: Ceftazidime-avibactam أو Meropenem-vaborbactam أو Imipenem-relebactam؛ "
                        "OXA-48: Ceftazidime-avibactam؛ NDM/VIM/IMP: Aztreonam-avibactam أو "
@@ -265,6 +281,9 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
             "detail": ("Ertapenem R مع Meropenem S/I -- نمط قد يوحي بـ OXA-48 (شائع في "
                        "مصر/الشرق الأوسط) أو بفقدان بورين + ESBL/AmpC بدون إنزيم "
                        "كاربابينيميز حقيقي."),
+            "detail_en": ("Ertapenem R with Meropenem S/I — may suggest OXA-48 (common in "
+                          "Egypt / the Middle East) or porin loss + ESBL/AmpC without a true "
+                          "carbapenemase."),
             "action": "أكد بـ mCIM / PCR (OXA-48) قبل اعتماد التشخيص. راقب بحذر؛ قد تكون الكاربابينيمات أقل فعالية.",
         }
     if len(carb_R_list) == 1 or mero_I:
@@ -274,6 +293,7 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
             "mechanism": "Possible carbapenemase (low-level) — Predicted",
             "markers_R": carb_R_list or ["Meropenem (I)"],
             "detail": "مقاومة/توسط لكاربابينيم واحد -- يستلزم اختبار تأكيدي.",
+            "detail_en": "Resistant / intermediate to one carbapenem — needs a confirmatory test.",
             "action": "أجرِ mCIM/CarbaNP. قد يكون فقدان بورين + ESBL/AmpC وليس carbapenemase حقيقياً.",
         }
 
@@ -292,6 +312,8 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
             "mechanism": "Possible AmpC β-lactamase (Predicted)",
             "markers_R": primary_R,
             "detail": "مقاومة لـ 3rd-gen cephalosporin في كائن Enterobacterale منتج لـ AmpC مزمن -- نمط AmpC وليس ESBL.",
+            "detail_en": ("3rd-generation cephalosporin resistance in an Enterobacterale with a "
+                          "chromosomal AmpC — an AmpC pattern, not ESBL."),
             "action": "تجنب 3rd-gen cephalosporins حتى لو S. استخدم Cefepime أو Carbapenem. لا يُكتشف بـ DDST.",
         }
 
@@ -318,6 +340,12 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
                 "AmpC كروموسومي. الـ ESBL الكلاسيكي لا يحلّل السيفاميسينات، فيكون "
                 "عادةً حسّاساً للـ Cefoxitin — والنمط ده يرجّح AmpC مكتسب "
                 "(CMY-2 وأشباهه) أو فقد بورين، وليس ESBL بسيط."
+            ),
+            "detail_en": (
+                "3rd-generation resistance WITH cefoxitin resistance in an organism that has no "
+                "chromosomal AmpC. A classic ESBL does not hydrolyse cephamycins and is usually "
+                "cefoxitin-susceptible — this pattern points to an acquired AmpC (CMY-2-like) or "
+                "porin loss, not a plain ESBL."
             ),
             "action": (
                 "⚠️ اختبار التأكيد (DDST / combination disk) قد يخرج **سالباً** — "
@@ -349,6 +377,7 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
             "mechanism": "ESBL (Extended-Spectrum β-Lactamase) — Predicted",
             "markers_R": primary_R + second_R,
             "detail": f"مقاومة لـ {', '.join(primary_R)} -- احتمال ESBL مرتفع.",
+            "detail_en": f"Resistant to {', '.join(primary_R)} — high probability of ESBL.",
             "action": "استخدم Carbapenem للعدوى الشديدة (MERINO 2018). تجنب جميع cephalosporins.",
         }
     if len(primary_R) == 1:
@@ -361,9 +390,13 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
             _base_conf = min(_base_conf, 45)
         _detail = f"مقاومة لـ {primary_R[0]}" + (
             " مع كاربابينيم حساس -- نمط ESBL كلاسيكي." if carbS else ".")
+        _detail_en = f"Resistant to {primary_R[0]}" + (
+            " with a susceptible carbapenem — a classic ESBL pattern." if carbS else ".")
         if _thin_panel:
             _detail += (" ⚠️ لوحة محدودة: تم اختبار سيفالوسبورين أساسي واحد فقط "
                         "-- التفسير أقل موثوقية؛ وسّع اللوحة (Ceftazidime/Cefotaxime).")
+            _detail_en += (" ⚠️ Limited panel: only one key cephalosporin was tested — the "
+                           "reading is less reliable; extend the panel (Ceftazidime/Cefotaxime).")
         return {
             # FIX 2026-11-10 (round 2): a thin panel forced "moderate", and at
             # "moderate" the engine applied NO ESBL handling at all -- E. coli in
@@ -378,6 +411,7 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
             "mechanism": "Probable ESBL — Predicted",
             "markers_R": primary_R + med_R,
             "detail": _detail,
+            "detail_en": _detail_en,
             "action": "أكد بـ Double-Disk Synergy Test (DDST) أو PCR. عامل كـ ESBL حتى التأكيد.",
         }
     if len(med_R) >= 2:
@@ -387,6 +421,7 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
             "mechanism": "Possible ESBL (lower-gen cephalosporin resistance) — Predicted",
             "markers_R": med_R,
             "detail": "مقاومة لـ ≥2 من الجيل الأقل -- يستدعي تأكيد ESBL.",
+            "detail_en": "Resistant to ≥2 lower-generation cephalosporins — ESBL confirmation is needed.",
             "action": "أجرِ DDST. قد يكون ESBL مبكر أو آلية أخرى.",
         }
 
