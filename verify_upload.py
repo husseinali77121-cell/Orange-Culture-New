@@ -54,7 +54,8 @@ CRITICAL_ROOT_FILES = {"streamlit_app.py", "launcher.py", "verify_upload.py", "o
 def _critical(rel):
     return rel.startswith(CRITICAL_PREFIXES) or rel in CRITICAL_ROOT_FILES
 MANIFEST = os.path.join(HERE, "RELEASE_MANIFEST.sha256")
-SKIP_DIRS = {".git", "__pycache__", "build", "dist", ".venv", "venv", ".pytest_cache"}
+SKIP_DIRS = {".git", "__pycache__", "build", "dist", ".venv", "venv", ".pytest_cache",
+             ".mypy_cache", ".ruff_cache"}     # tool caches on a developer's machine, never uploaded
 SKIP_FILES = {"RELEASE_MANIFEST.sha256"}
 
 

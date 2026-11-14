@@ -127,17 +127,28 @@ Streamlit ويُرجع قيم widgets مكتوبة أو عشوائية ببذر�
 
 ## 6. ما لم يُفكَّك بعد
 
-هذه كانت ملفات مستقلة أصلاً ونُقلت كما هي (سلوكها مطابق حرفياً للأصل)، لكنها ما زالت
-تحمل دوال طويلة، وهي المرشح التالي لنفس المعالجة:
+**v6.7 (2026-11-14) — اتفكّك:**
+
+| الدالة | كانت | بقت | فين |
+|---|---|---|---|
+| `generate_pdf_html_report` | ~1,120 سطر | 225 (توزيع فقط) | الأقسام في `cdss/reports/pdf_sections.py` (دالة لكل قسم)، والـ CSS والنصوص الثابتة والأدوات الصغيرة في `pdf_parts.py`، وجداول الترجمة في `i18n_en.py` |
+| `assess_pathogenicity` | ~890 سطر | 299 | `_site_urine` / `_site_respiratory` / `_site_blood` / `_site_csf` / `_site_stool` / `_site_wound` + `_score_purity` + `_score_gram_stain` + `_verdict` (نفس الملف) |
+| `generate_decision_tree_image` | ~560 سطر | 365 | الألوان والخطوط والصناديق والنص الملفوف في `cdss/reports/image_parts.py` |
+| `generate_report` | ~320 سطر | 159 | `_text_allowed` / `_text_warned` / `_text_banned` / `_text_pathogenicity` / `_text_panel_completeness` |
+
+كل الأجسام اتنقلت **حرف بحرف**: كل قسم بياخد بالاسم بالظبط اللي بيقراه (اتحسب من الـ AST، مش
+بالعين)، والناتج اتقارن بايت ببايت قبل وبعد على 600 تقرير (PDF عربي وإنجليزي + التقرير النصي +
+صورة الـ decision tree) و 40,000 حالة pathogenicity عشوائية — صفر فرق.
+`tests/test_report_split.py` + `tests/golden_outputs.json` بيحفظوا الضمان ده لأي تعديل جاي
+(تعديل مقصود: `python tests/test_report_split.py --update` ومراجعة الفرق).
+
+**لسه:**
 
 | الدالة | الطول | الملف |
 |---|---|---|
-| `generate_pdf_html_report` | ~1,120 سطر | `cdss/reports/report_service.py` |
-| `assess_pathogenicity` | ~850 سطر | `cdss/organisms/pathogenicity.py` |
-| `generate_decision_tree_image` | ~560 سطر | `cdss/reports/report_service.py` |
-| `generate_report` | ~320 سطر | `cdss/reports/report_service.py` |
 | `predict_esbl` | ~310 سطر | `cdss/resistance/mechanism.py` |
 | `classify_mdr` | ~215 سطر | `cdss/resistance/mdr.py` |
+| `_site_urine` | ~230 سطر | `cdss/organisms/pathogenicity.py` |
 
 `tests/test_architecture.py::LARGE_BY_DESIGN` يسمّي هذه الاستثناءات صراحةً؛ أي ملف
 **جديد** يتجاوز 650 سطراً يفشل الاختبار.
