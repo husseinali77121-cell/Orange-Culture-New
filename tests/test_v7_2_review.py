@@ -167,7 +167,9 @@ def test_the_page_withholds_the_lists_and_the_override_brings_them_back(monkeypa
     txt = rendered_text(traces[-1])
     assert "لا يوجد داعٍ لمضاد حيوي" in txt and "🏆 Smart Antibiotic Ranking" not in txt
     assert seen["preferred"] == [] and seen["first_line"][0].startswith("NO ANTIBIOTIC")
-    script["treat_override_chk_ASB_NO_TREAT"] = True
+    # v7.3: the override key carries the assessment signature -- tick it by its label
+    script["أنا الطبيب المعالج: اعرض الخيارات رغم ذلك (قرار إكلينيكي مختلف — يُطبع في "
+           "التقرير)"] = True
     traces, _state, errors = run_page(pl, runs=3, script=script)
     assert not errors, errors
     txt = rendered_text(traces[-1])
@@ -200,9 +202,12 @@ def test_resolver_separates_cuti_from_pyelonephritis():
     auto, cyst, upper, cuti = UTI_SYNDROME_OPTIONS
     assert resolve_uti_syndrome(auto, [], catheter=True) == "cuti"
     assert resolve_uti_syndrome(auto, ["Flank pain / Loin pain"], catheter=True) == "upper"
-    assert resolve_uti_syndrome(cuti, ["Fever (> 38°C)"]) == "cuti", "an explicit choice wins"
+    # v7.3 (third review): fever is no longer silenced by the manual choice ...
+    assert resolve_uti_syndrome(cuti, ["Fever (> 38°C)"]) == "upper"
+    # ... unless the physician confirms a non-urinary source
+    assert resolve_uti_syndrome(cuti, ["Fever (> 38°C)"], confirm_non_urinary=True) == "cuti"
     assert resolve_uti_syndrome(upper, []) == "upper"
-    assert resolve_uti_syndrome(cyst, [], catheter=True) == "lower"
+    assert resolve_uti_syndrome(cyst, [], catheter=True) == "cuti", "v7.3: the device keeps it complicated"
 
 
 def test_a_stent_makes_it_complicated_and_the_card_and_course_agree():
@@ -361,10 +366,12 @@ def test_meropenem_r_ertapenem_s_is_verify_with_mic_and_carbapenemase_test():
     assert len(iss) == 1 and iss[0]["severity"] == "warning" and "MIC" in iss[0]["fix_en"]
 
 
+# v7.3 (third review): ampicillin / amox-clav and piperacillin / pip-tazo moved to
+# "verify" -- their own registry rows said so (see test_v7_3_review.py).
 @pytest.mark.parametrize("org,sir", [
     ("Staphylococcus aureus", {"Oxacillin": S, "Cefoxitin": R}),
-    ("Escherichia coli", {"Ampicillin": S, "Amoxicillin + Clavulanic acid": R}),
-    ("Pseudomonas aeruginosa", {"Piperacillin": S, "Piperacillin + Tazobactam": R}),
+    ("Enterococcus faecalis", {"Vancomycin": S, "Teicoplanin": R}),
+    ("Staphylococcus aureus", {"Tetracycline": S, "Doxycycline": R}),
 ])
 def test_impossibilities_stay_errors(org, sir):
     iss = check_consistency(org, sir)

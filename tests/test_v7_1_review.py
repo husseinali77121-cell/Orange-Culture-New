@@ -69,7 +69,8 @@ def test_a_catheter_resolves_auto_mode_to_cuti_but_an_explicit_choice_wins():
     # v7.2 (second external review): complicated ("cuti"), not pyelonephritis ("upper")
     assert resolve_uti_syndrome("تلقائي (من الأعراض)", [], catheter=True) == "cuti"
     assert resolve_uti_syndrome("تلقائي (من الأعراض)", ["Fever (> 38°C)"], catheter=True) == "upper"
-    assert resolve_uti_syndrome("التهاب مثانة (سفلي)", [], catheter=True) == "lower"
+    # v7.3 (third review): a device keeps an explicit cystitis complicated
+    assert resolve_uti_syndrome("التهاب مثانة (سفلي)", [], catheter=True) == "cuti"
     assert resolve_uti_syndrome("تلقائي (من الأعراض)", [], catheter=False) is None
 
 
