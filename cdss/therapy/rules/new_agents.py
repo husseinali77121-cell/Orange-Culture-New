@@ -27,19 +27,31 @@ What it checks, per agent:
                       (CRE data "extremely limited").
        AmpC only      cefepime-enmetazobactam is "preferentially reserved for
                       ESBL-E or AmpC + ESBL co-producers": a caution.
-  3. The site: oral sulopenem for pyelonephritis / cUTI only as a step-down
-     after clinical improvement. (Pivmecillinam and gepotidacin outside the
-     bladder are removed by postprocess.apply_upper_uti and the site matrix.)
+  3. The site: oral sulopenem is not offered for pyelonephritis / cUTI (v7.1 --
+     FDA excludes cUTI and IV step-down; IDSA's step-down use cannot be verified
+     here). Pivmecillinam and gepotidacin outside the bladder are removed by
+     postprocess.apply_upper_uti and the site matrix.
+  4. The label population: gepotidacin needs >= 40 kg (v7.1, weight read).
 """
-from cdss.resistance.mechanism import is_esbl_producer
+from cdss.astqc.ast_reportability import ENTEROBACTERALES
 from cdss.therapy.intrinsic import build_banned_item
 
 NEW_IDSA_2026_AGENTS = frozenset({
     "Pivmecillinam", "Sulopenem", "Gepotidacin", "Cefepime + Enmetazobactam", "Fosfomycin IV",
 })
 
-_E_COLI = ("e. coli", "escherichia", "e.coli")
-_K_PNEUMO = ("klebsiella pneumoniae", "klebsiella spp.", "k. pneumoniae")
+# v7.1 (external review 2026-11-19): SPECIES, not genera. "Klebsiella spp." is
+# not K. pneumoniae and "Escherichia" is not E. coli; a genus-level isolate now
+# falls to the "another Enterobacterales species" caution.
+_E_COLI = ("e. coli", "escherichia coli", "e.coli")
+_K_PNEUMO = ("klebsiella pneumoniae", "k. pneumoniae")
+
+
+def _is_enterobacterales(org_l: str) -> bool:
+    """Taxonomic membership of the order (v7.1) -- not the list of known ESBL
+    producers, which it was read from (a Pantoea or Raoultella was "not
+    Enterobacterales" for cefepime-enmetazobactam)."""
+    return "enterobacterales" in org_l or any(t in org_l for t in ENTEROBACTERALES)
 
 # agent -> (organism tokens with criteria, who sets them)
 _SCOPE = {
@@ -58,12 +70,12 @@ def _in_scope(name: str, org_l: str, organism: str) -> str:
     """'yes' | 'enterobacterales' (another species of the order) | 'no'."""
     tokens, _src = _SCOPE[name]
     if name == "Cefepime + Enmetazobactam":
-        if is_esbl_producer(organism) or "pseudomonas aeruginosa" in org_l:
+        if _is_enterobacterales(org_l) or "pseudomonas aeruginosa" in org_l:
             return "yes"
         return "no"
     if any(t in org_l for t in tokens):
         return "yes"
-    return "enterobacterales" if is_esbl_producer(organism) else "no"
+    return "enterobacterales" if _is_enterobacterales(org_l) else "no"
 
 
 def rule_new_agents(cx, dg, out):
@@ -107,6 +119,24 @@ def rule_new_agents(cx, dg, out):
         out.note(dg.name, "warn", (
             "CRE / اشتباه كاربابينيميز: IDSA 2026 تقترح Pivmecillinam كبديل لالتهاب المثانة فقط إذا "
             "كان KPC غير مرجّح (0% حساسية في منتجي KPC) — أكّد نوع الإنزيم."), "idsa_new_agent")
+    # v7.1 (external review 2026-11-19): FDA label -- 12 years and older AND
+    # at least 40 kg. The weight was named in a note but never read.
+    if dg.name == "Gepotidacin":
+        _wt = getattr(cx, "weight_kg", None)
+        try:
+            _wt = float(_wt) if _wt not in (None, "") else None
+        except (TypeError, ValueError):
+            _wt = None
+        if _wt is not None and _wt < 40:
+            out.ban(build_banned_item(
+                dg.name, "child", "الوزن < 40 kg — خارج ترخيص Gepotidacin.",
+                f"Gepotidacin مرخّص (FDA) لمن عمرهم 12 سنة فأكثر ووزنهم ≥ 40 kg فقط — الوزن المُدخل "
+                f"{_wt:g} kg."))
+            return
+        if _wt is None and cx.age < 18:
+            out.note(dg.name, "warn", (
+                "Gepotidacin تحت 18 سنة: الترخيص (FDA) يشترط وزن ≥ 40 kg — الوزن غير مُدخل؛ "
+                "أدخله قبل الاعتماد عليه."), "label_population")
     if dg.name == "Gepotidacin" and (carb or cx.is_possible_carb):
         out.note(dg.name, "warn", (
             "CRE: بيانات Gepotidacin محدودة جداً — بديل فقط لالتهاب المثانة (IDSA 2026)."),
@@ -131,8 +161,14 @@ def rule_new_agents(cx, dg, out):
             "محدودة؛ تأكّد أنها عدوى مثانة بسيطة وليست prostatitis أو cUTI."), "label_population")
 
     # ── site ───────────────────────────────────────────────────────────────
+    # v7.1 (external review 2026-11-19): banned, not a caution. The FDA label
+    # excludes cUTI AND step-down after IV therapy for cUTI; IDSA 2026 names it
+    # only as an oral step-down after clinical improvement -- a condition the
+    # program cannot verify, so it no longer offers the drug for upper UTI.
     if dg.name == "Sulopenem" and cx.spec_cat == "urine" and cx.uti_upper:
-        out.note(dg.name, "warn", (
-            "Sulopenem في الـ pyelonephritis / cUTI: IDSA 2026 تقترحه بديلاً **فقط كتنزيل فموي بعد "
-            "التحسن الإكلينيكي**، و FDA لا يرخّصه لـ cUTI (ولا للتنزيل بعد العلاج الوريدي)."),
-            "idsa_new_agent")
+        out.ban(build_banned_item(
+            dg.name, "specimen", "Sulopenem غير مرخّص لـ pyelonephritis / cUTI.",
+            "Sulopenem: FDA يرخّصه لالتهاب المثانة البسيط في النساء فقط، ويستثني صراحةً الـ cUTI والتنزيل "
+            "الفموي بعد العلاج الوريدي. IDSA 2026 تذكره فقط كتنزيل فموي بعد تحسّن إكلينيكي موثّق — "
+            "قرار يتخذه الطبيب المعالج خارج البرنامج، والبرنامج لا يقترحه هنا."))
+        return

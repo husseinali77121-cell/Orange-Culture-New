@@ -325,9 +325,14 @@ def rule_oral_fosfomycin(cx, dg, out):
     if (dg.name == "Fosfomycin" and dg.result in ("S", "I")
             and not any(k in cx.org_l for k in ("e. coli", "escherichia", "e.coli",
                                                  "enterococcus faecalis"))):
+        # v7.1: the note named Klebsiella (fosA) for every organism -- an
+        # E. faecium urine was told about Klebsiella's chromosome.
+        _fosa = any(k in cx.org_l for k in ("klebsiella", "enterobacter", "serratia",
+                                             "citrobacter", "raoultella"))
         out.note(dg.name, "warn", (
-            "Fosfomycin الفموي: breakpoints في CLSI و EUCAST لـ E. coli (و E. faecalis في "
-            "CLSI) فقط. Klebsiella تحمل fosA كروموسومياً — النتيجة هنا غير مُعايَرة."),
+            "Fosfomycin الفموي: breakpoints في CLSI M100 لـ E. coli و E. faecalis (عينات البول) "
+            "فقط (EUCAST: E. coli فقط) — لا يوجد breakpoint لهذا الكائن، والنتيجة هنا غير مُعايَرة"
+            + ("؛ هذا الجنس يحمل fosA كروموسومياً." if _fosa else ".")),
             "no_breakpoint")
 
 
@@ -354,6 +359,24 @@ def rule_staph_penicillin_note(cx, dg, out):
                 "Penicillin = S في Staphylococcus يحتاج تأكيد سلبية البنسليناز (zone-edge "
                 "أو nitrocefin أو blaZ PCR) قبل الاعتماد عليه — CLSI M100."),
                 "penicillinase_unconfirmed")
+
+
+def rule_saureus_bsi_tmp_smx(cx, dg, out):
+    """TMP-SMX is not initial therapy for S. aureus bacteraemia (v7.1).
+
+    Paul et al. (BMJ 2015): TMP-SMX did not reach non-inferiority to
+    vancomycin for severe MRSA infections and did worse in bacteraemia. The
+    ranking put it third (Access class) for an MRSA bacteraemia, ahead of the
+    agents that are used.
+    """
+    if (("trimethoprim" in dg.low or "sulfamethox" in dg.low) and dg.result in ("S", "I")
+            and cx.spec_cat == "blood"
+            and any(k in cx.org_l for k in ("staphylococcus aureus", "s. aureus", "mrsa", "mssa"))):
+        out.note(dg.name, "warn", (
+            "TMP-SMX لـ S. aureus bacteremia: ليس علاجاً أولياً — أقل من Vancomycin في العدوى "
+            "الشديدة وفي الـ bacteremia (Paul et al., BMJ 2015). يُستخدم فقط كخطوة فموية لاحقة "
+            "في حالات مختارة غير معقدة وبمشورة الأمراض المعدية."),
+            "saureus_bsi_tmp_smx")
 
 
 def rule_strep_tmp_smx(cx, dg, out):

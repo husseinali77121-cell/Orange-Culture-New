@@ -35,7 +35,19 @@ def rule_d_test(cx, dg, out):
 
 
 def rule_fusidic_alert(cx, dg, out):
-    """Fusidic acid is never monotherapy in systemic infection."""
+    """Fusidic acid is never monotherapy in systemic infection.
+
+    v7.1: and its result is read by EUCAST -- CLSI M100 publishes no fusidic
+    acid criteria at all. EUCAST is the program's second source, used only where
+    CLSI is silent and always labelled as such (decision recorded in
+    DECISIONS_2026-11-14.md, v7.1 note).
+    """
+    if ("fusidic" in dg.low and dg.result in ("S", "I")
+            and any(k in (cx.organism or "").lower() for k in ("staph", "mrsa", "mssa"))):
+        out.note(dg.name, "allow", (
+            "قراءة Fusidic acid: CLSI M100 لا يضع له breakpoints — النتيجة مقروءة بمعايير "
+            "EUCAST (Staphylococcus) كمرجع ثانٍ، وتُبلَّغ على أنها كذلك."),
+            "eucast_only_breakpoint")
     # ── Fusidic acid: لا monotherapy في العدوى الجهازية ─────────────────────
     if "fusidic" in dg.low and dg.info.get("no_monotherapy_systemic"):
         # Substring match rather than equality: culture_type comes from the
