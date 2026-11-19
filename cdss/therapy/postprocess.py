@@ -8,6 +8,7 @@ Each takes the four buckets and returns them; none can move a drug out of
 from typing import Dict, List
 
 from cdss.common.specimen import classify_specimen
+from cdss.therapy.clsi_categories import intermediate_fields
 from cdss.therapy.intrinsic import build_banned_item
 from cdss.therapy.therapy_rules import CLINICAL_NOTE_EN as _NOTE_EN
 
@@ -20,7 +21,9 @@ def apply_upper_uti(cx, allowed, warned, banned, preg_warn_items):
     # cystitis. They used to be offered for pyelonephritis because the engine
     # only knew "urine", not which part of the urinary tract was infected.
     if cx.uti_upper:
-        _lower_only = {"Nitrofurantoin", "Fosfomycin", "Norfloxacin"}
+        # v6.9: pivmecillinam and gepotidacin "stay in cystitis" (IDSA 2026).
+        _lower_only = {"Nitrofurantoin", "Fosfomycin", "Norfloxacin", "Pivmecillinam",
+                       "Gepotidacin"}
         _hit = ({d["name"] for d in allowed if d.get("name") in _lower_only}
                 | {d["name"] for d in warned if d.get("name") in _lower_only}
                 | {d["name"] for d in preg_warn_items if d.get("name") in _lower_only})
@@ -37,6 +40,16 @@ def apply_upper_uti(cx, allowed, warned, banned, preg_warn_items):
     return allowed, warned, banned, preg_warn_items
 
 
+def _notes_en(reasons) -> str:
+    """The English sentence of every merged note, in the order they were recorded."""
+    out = []
+    for r in reasons:
+        t = _NOTE_EN.get(r, _NOTE_EN["organism_caution"])
+        if t not in out:
+            out.append(t)
+    return "  \n".join(out)
+
+
 def apply_clinical_notes(cx, allowed, warned, banned, preg_warn_items, post_notes):
     """Attach the notes recorded by the rules; a 'warn' note demotes allowed -> warned."""
     # ── Post-loop clinical notes (2026-11-10) ─────────────────────────────────
@@ -48,10 +61,10 @@ def apply_clinical_notes(cx, allowed, warned, banned, preg_warn_items, post_note
         for _it in allowed:
             _nm = _it.get("name")
             if _nm in post_notes and _nm not in _banned_names:
-                _lvl, _note, _rsn = post_notes[_nm]
+                _lvl, _note, _rsn, _all = post_notes[_nm]
                 _it = dict(_it)
                 _it["clinical_note"] = _note
-                _it["clinical_note_en"] = _NOTE_EN.get(_rsn, _NOTE_EN["organism_caution"])
+                _it["clinical_note_en"] = _notes_en(_all)
                 if _lvl == "warn":
                     _it["warning_reason"] = _rsn
                     warned.append(_it)
@@ -63,8 +76,7 @@ def apply_clinical_notes(cx, allowed, warned, banned, preg_warn_items, post_note
                 _nm = _it.get("name")
                 if _nm in post_notes and not _it.get("clinical_note"):
                     _it["clinical_note"] = post_notes[_nm][1]
-                    _it["clinical_note_en"] = _NOTE_EN.get(post_notes[_nm][2],
-                                                           _NOTE_EN["organism_caution"])
+                    _it["clinical_note_en"] = _notes_en(post_notes[_nm][3])
     return allowed, warned, banned, preg_warn_items
 
 
@@ -79,10 +91,10 @@ def flag_intermediate(cx, allowed, warned, banned, preg_warn_items):
     # banner filters on warning_reason == "intermediate_culture" and no longer
     # matched.
     #
-    # The two facts are not merely both true, they pull OPPOSITE WAYS. EUCAST
-    # redefined I as "Susceptible, Increased exposure" — the agent works only at
-    # a HIGHER dose or longer infusion — while the renal note instructs the
-    # clinician to REDUCE the dose. Showing one and hiding the other is the
+    # The two facts are not merely both true, they can pull OPPOSITE WAYS. For a
+    # beta-lactam outside the urine a CLSI I is usable only at a HIGHER dose
+    # (and an SDD only at its higher-exposure regimen), while the renal note
+    # instructs the clinician to REDUCE the dose. Showing one and hiding the other is the
     # worst of the three possible outputs.
     #
     # Reordering the branches was rejected: the ordering is load-bearing (see
@@ -90,6 +102,11 @@ def flag_intermediate(cx, allowed, warned, banned, preg_warn_items):
     # ban. A separate key costs nothing and cannot be overwritten.
     for _item in warned:
         _item["culture_intermediate"] = (cx.sir.get(_item.get("name")) == "I")
+        # v6.9 (CLSI, decision D4): the I / SDD explanation travels with the
+        # item whatever won the warning_reason slot.
+        if _item["culture_intermediate"] and "intermediate_note" not in _item:
+            _item.update(intermediate_fields(_item.get("name"), _item, cx.spec_cat,
+                                             cx.uti_upper, cx.sdd, cx.organism))
     for _item in allowed:
         _item["culture_intermediate"] = False   # an I never reaches allowed
     return allowed, warned, banned, preg_warn_items

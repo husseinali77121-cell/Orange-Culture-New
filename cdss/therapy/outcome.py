@@ -18,8 +18,11 @@ whether a contraindication is checked at all.
 """
 from typing import Any, Dict, List, Optional, Tuple
 
-# (level, text, reason) per drug -- applied after the loop (postprocess.apply_clinical_notes)
-PostNotes = Dict[str, Tuple[str, str, str]]
+# (level, text, primary reason, every reason) per drug -- applied after the loop
+# (postprocess.apply_clinical_notes). The 4th element (v6.9) lets the English
+# report print the English sentence of EVERY note merged on the drug, not only
+# the primary one -- an organism caution must not hide a paediatric one.
+PostNotes = Dict[str, Tuple[str, str, str, Tuple[str, ...]]]
 
 
 class Outcome:
@@ -55,9 +58,10 @@ class Outcome:
         the first WARNING is kept as the primary one; texts are joined."""
         notes = self._post_notes
         if drug not in notes:
-            notes[drug] = (level, text, reason)
+            notes[drug] = (level, text, reason, (reason,))
             return
-        old_level, old_text, old_reason = notes[drug]
+        old_level, old_text, old_reason, old_all = notes[drug]
         new_level = "warn" if "warn" in (old_level, level) else "allow"
         new_reason = old_reason if (old_level == "warn" or level != "warn") else reason
-        notes[drug] = (new_level, old_text if text in old_text else f"{old_text}  \n{text}", new_reason)
+        notes[drug] = (new_level, old_text if text in old_text else f"{old_text}  \n{text}", new_reason,
+                       old_all if reason in old_all else old_all + (reason,))

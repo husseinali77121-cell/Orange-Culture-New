@@ -21,9 +21,12 @@ RENAL_BAN_REASONS = {
 }
 
 CHILD_BAN_REASONS = {
+    # v6.9: reached only by the quinolones WITHOUT paediatric data -- for
+    # ciprofloxacin / levofloxacin a child gets CHILD_FQ_CAUTION instead (AAP 2016).
     "fluoroquinolone": (
-        "الفلوروكينولونات قد تؤثر على غضاريف النمو في الأطفال < 18 سنة.\n"
-        "تُستخدم فقط عند انعدام البدائل وبقرار متخصص."
+        "لا توجد بيانات جرعات أو أمان كافية لهذا الفلوروكينولون في الأطفال < 18 سنة.\n"
+        "إذا لزم فلوروكينولون لطفل (لا يوجد بديل آمن وفعّال): Ciprofloxacin أو Levofloxacin "
+        "(AAP 2016)."
     ),
     "tetracycline": (
         "Doxycycline والتتراسيكلينات قد تترسب في العظام والأسنان النامية.\n"
@@ -31,6 +34,21 @@ CHILD_BAN_REASONS = {
         "ممنوعة غالباً تحت 8 سنوات."
     ),
 }
+
+# v6.9 (2026-11-14, decision D3). AAP Clinical Report 2016 (Jackson & Schutze,
+# "The Use of Systemic and Topical Fluoroquinolones", Pediatrics
+# 138:e20162706): use in children is justified when no safe and effective
+# alternative exists -- e.g. UTI / pyelonephritis by a multidrug-resistant
+# Gram-negative (P. aeruginosa included), or oral therapy in place of IV.
+# Musculoskeletal events are uncommon and reversible. Ciprofloxacin carries
+# the FDA paediatric cUTI indication; levofloxacin has paediatric dosing.
+PAEDIATRIC_FQ = frozenset({"Ciprofloxacin", "Levofloxacin"})
+CHILD_FQ_CAUTION = (
+    "طفل < 18 سنة: الفلوروكينولون ليس خياراً أول (AAP 2016)، لكنه مقبول إذا لم يوجد بديل آمن "
+    "وفعّال — مثل UTI/pyelonephritis بكائن سالب الجرام مقاوم متعدد (منها P. aeruginosa)، أو "
+    "للتحويل الفموي بدل علاج وريدي — بعد شرح المخاطر للأهل. آثار المفاصل/الأوتار غير شائعة "
+    "وقابلة للانعكاس: أوقفه عند ألم مفصلي أو وتري. الجرعة بالوزن حسب مرجع الأطفال."
+)
 
 ORGANISM_AVOID_CLASS_MAP = {
     "cephalosporins (كل الجيل)": ["cephalosporin"],
@@ -150,6 +168,8 @@ NEONATAL_RESTRICTIONS: Dict[str, Dict[str, Any]] = {
 # ═══════════════════════════════════════════════════════════════════════
 HEPATIC_DOSING: Dict[str, Dict] = {
     # ── Keys match abx_guidelines.py drug names exactly for lookup to work ──
+    # v6.9 (decision D5): Blujepa label -- no change in Child-Pugh A/B for uUTI.
+    "Gepotidacin":                   {"A": ("Normal","No adjustment"), "B": ("Normal","No adjustment for uUTI (label)"), "C": ("Avoid","Avoid in Child-Pugh C (label: higher exposure, QTc prolongation)"), "note": "CYP3A4 substrate; QTc and acetylcholinesterase warnings"},
     # Drugs marked [MDR/REF only] not in active formulary -- kept for reference display.
     "Metronidazole":                 {"A": ("Normal","No adjustment"), "B": ("Normal","No adjustment (label) -- monitor for adverse effects"), "C": ("Reduce 50%","Child-Pugh C: reduce the dose by 50% (label)"), "note": "Extensive hepatic metabolism. FIX 2026-11-10: the level string 'Avoid/Reduce' contained 'avoid' and BANNED metronidazole in Child-Pugh C; the label halves the dose"},
     "Clindamycin":                   {"A": ("Normal","No adjustment"), "B": ("Normal","No adjustment"), "C": ("Caution","No fixed reduction -- half-life is prolonged in severe liver disease; monitor liver enzymes (label)"), "note": "Primary hepatic metabolism. FIX 2026-11-10: was 'Avoid' in Child-Pugh C; the label asks for monitoring, not avoidance"},
