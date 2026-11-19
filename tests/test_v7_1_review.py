@@ -66,7 +66,9 @@ def test_catheter_stent_or_fever_make_it_complicated(hf, sym):
 
 
 def test_a_catheter_resolves_auto_mode_to_cuti_but_an_explicit_choice_wins():
-    assert resolve_uti_syndrome("تلقائي (من الأعراض)", [], catheter=True) == "upper"
+    # v7.2 (second external review): complicated ("cuti"), not pyelonephritis ("upper")
+    assert resolve_uti_syndrome("تلقائي (من الأعراض)", [], catheter=True) == "cuti"
+    assert resolve_uti_syndrome("تلقائي (من الأعراض)", ["Fever (> 38°C)"], catheter=True) == "upper"
     assert resolve_uti_syndrome("التهاب مثانة (سفلي)", [], catheter=True) == "lower"
     assert resolve_uti_syndrome("تلقائي (من الأعراض)", [], catheter=False) is None
 
@@ -74,11 +76,18 @@ def test_a_catheter_resolves_auto_mode_to_cuti_but_an_explicit_choice_wins():
 @pytest.mark.parametrize("coll", ["Indwelling catheter (Foley)", "Intermittent catheterisation (in-out / CIC)",
                                   "Suprapubic catheter", "Nephrostomy / Ileal conduit"])
 def test_pipeline_bans_bladder_only_agents_with_a_catheter(coll):
+    # v7.2 (second external review): with a catheter and no fever / flank pain the
+    # UTI is complicated, not a pyelonephritis -- the bladder-only agents are
+    # CAUTIONS (IDSA cUTI 2025 "generally not appropriate"); fever bans them.
     p = Patient(age_years=40, sex="Female", collection_method=coll)
     r = run_analysis(p, "Escherichia coli", "Urine", PAN)
     assert build_case_context("Urine", [], coll).cuti_device
     for d in ("Nitrofurantoin", "Fosfomycin"):
-        assert _bucket(r, d)[0] == "banned", (coll, d, _bucket(r, d)[0])
+        assert _bucket(r, d)[0] == "warned", (coll, d, _bucket(r, d)[0])
+        assert _bucket(r, d)[1].get("warning_reason") == "cuti_bladder_agent"
+    r_up = run_analysis(p, "Escherichia coli", "Urine", PAN, uti_syndrome="upper")
+    for d in ("Nitrofurantoin", "Fosfomycin"):
+        assert _bucket(r_up, d)[0] == "banned", (coll, d, _bucket(r_up, d)[0])
 
 
 def test_a_mans_uti_has_its_own_card_and_seven_days():
