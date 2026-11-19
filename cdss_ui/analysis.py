@@ -53,10 +53,12 @@ def run_case_analysis(page):
         allergies=list(page.allergies or []),
         host_factors=list(page.case.host_factors),
         collection_method=page.case.collection_method,
+        weight_kg=getattr(page, "weight", None),
     )
     page._carb_type_now = normalize_carbapenemase_type(page.carbapenemase_choice)
     page._uti_syn_now = resolve_uti_syndrome(page.uti_syndrome_choice,
-                                        st.session_state.get("patho_symptoms") or [])
+                                        st.session_state.get("patho_symptoms") or [],
+                                        catheter=page.case.cuti_device)
     st.session_state["carb_type_now"] = page._carb_type_now
     # page.aux_tests (D-test / penicillinase) ride in the panel; run_analysis()
     # hands them to the therapy rules and strips them for every other step.
@@ -66,7 +68,11 @@ def run_case_analysis(page):
                         drugs=page.final_drugs, carbapenemase_type=page._carb_type_now,
                         uti_syndrome=page._uti_syn_now)
     if page._uti_syn_now == "upper" and classify_specimen(page.culture_type) == "urine":
-        st.info("🫘 التهاب حويضة / cUTI — Nitrofurantoin و Fosfomycin الفموي و Norfloxacin "
+        st.info("🫘 التهاب حويضة / cUTI"
+                + (" (قسطرة بولية / nephrostomy — IDSA cUTI 2025)"
+                   if page.case.cuti_device and "حويضة" not in str(page.uti_syndrome_choice)
+                   else "")
+                + " — Nitrofurantoin و Fosfomycin الفموي و Norfloxacin "
                 "مُستبعدة (لا تصل لنسيج الكلى).")
     page.allowed              = _res["allowed"]
     page.warned               = _res["warned"]

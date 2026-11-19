@@ -88,13 +88,15 @@ def render_resistance_profile(page):
                 f"{_esbl_r.get('detail','')}  \n🔹 {_esbl_r.get('action','')}"
             )
         elif _prob == "crpa":
-            (st.error if _esbl_r.get("dtr") else st.warning)(
-                f"{'🚨' if _esbl_r.get('dtr') else '⚠️'} **{_mech}** (confidence {_conf}%)  \n"
+            _dtr_any = _esbl_r.get("dtr") or _esbl_r.get("dtr_possible")
+            (st.error if _dtr_any else st.warning)(
+                f"{'🚨' if _dtr_any else '⚠️'} **{_mech}** (confidence {_conf}%)  \n"
                 f"{_esbl_r.get('detail','')}  \n🔹 {_esbl_r.get('action','')}"
             )
         elif _prob == "high":
             st.error(
-                f"⚠️ **High Probability ESBL Producer** (confidence {_conf}%)  \n"
+                f"⚠️ **ESBL phenotype {'highly suggestive' if (_conf or 0) >= 85 else 'suspected'}** "
+                f"— predicted, not molecularly confirmed (confidence {_conf}%)  \n"
                 f"{_esbl_r.get('detail','')}  \n🔹 {_esbl_r.get('action','')}"
             )
         elif _prob == "moderate":
@@ -318,14 +320,15 @@ def render_resistance(page):
                        + page.esbl_result["detail"] + "  \n🔹 " + page.esbl_result["action"])
                 st.error(_em)
             elif prob == "high":
-                _em = (f"[!] High Probability ESBL Producer (confidence {_conf}%)\n"
+                _em = (f"[!] ESBL phenotype {'highly suggestive' if (_conf or 0) >= 85 else 'suspected'}"
+                       f" — predicted, not molecularly confirmed (confidence {_conf}%)\n"
                        + page.esbl_result["detail"] + "  \n🔹 " + page.esbl_result["action"])
                 st.error(_em)
             elif prob == "crpa":
                 _em = (f"[{'!!' if page.esbl_result.get('dtr') else '!'}] "
                        f"{_mech} (confidence {_conf}%)\n"
                        + page.esbl_result["detail"] + "  \n🔹 " + page.esbl_result["action"])
-                if page.esbl_result.get("dtr"):
+                if page.esbl_result.get("dtr") or page.esbl_result.get("dtr_possible"):
                     st.error(_em)
                 else:
                     st.warning(_em)

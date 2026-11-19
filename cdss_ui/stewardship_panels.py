@@ -82,7 +82,8 @@ def render_stewardship(page):
             is_renal=page.is_renal, phenotypes=page.phenotypes, severity=_sev,
             is_cath=bool(getattr(getattr(page, "case", None), "is_cath", False)
                          and getattr(page.case, "is_urine", False)),
-            primary=(getattr(page, "ranked", None) or [None])[0])
+            primary=(getattr(page, "ranked", None) or [None])[0],
+            is_preg=bool(page.is_preg))
         _d1, _d2, _d3 = st.columns(3)
         _d1.metric("Standard", f"{_dur.get('standard_days',_dur.get('standard','?'))}d")
         _d2.metric("Range", f"{_dur.get('min_days','?')}–{_dur.get('max_days','?')}d")

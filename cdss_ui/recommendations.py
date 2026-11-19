@@ -35,7 +35,8 @@ def render_recommendations(page):
         )
         page.ranked = ranked          # v7.0: the duration panel reads the top agent's route
         with st.expander("🏆 Smart Antibiotic Ranking", expanded=False):
-            st.caption("مرتب حسب: نتيجة المزرعة ← المفضّل في الإرشادات للآلية والموقع (IDSA 2026) "
+            st.caption("مرتب حسب: نتيجة المزرعة ← المفضّل في الإرشادات للآلية والموقع (IDSA 2026؛ "
+                       "التهاب المثانة: IDSA/ESCMID 2011؛ MSSA: β-lactam) "
                        "← WHO AWaRe ← طريق الإعطاء (لا أفضلية للفموي في الدم/السائل النخاعي) ← الأولوية. "
                        "⭐ = مفضّل في الإرشادات لهذه الآلية والموقع")
             _aic = {"Access": "🟢", "Watch": "🟡", "Reserve": "🔴"}
@@ -58,10 +59,9 @@ def render_recommendations(page):
         organism=page.organism_type,
         age=page.age,
         is_preg=page.is_preg,
-        # v7.0: a URINARY catheter from the case record -- only for urine (for
-        # blood / sputum is_cath means a line / a ventilator).
-        is_cath=bool(getattr(getattr(page, "case", None), "is_cath", False)
-                     and getattr(page.case, "is_urine", False)),
+        # v7.0: a URINARY catheter from the case record. v7.1: for sputum the
+        # ventilator / tracheostomy (HAP/VAP), for blood the central line (CRBSI).
+        is_cath=bool(getattr(page, "case", None) is not None and page.case.syndrome_device()),
         sex=page.sex,
         uti_upper=(getattr(page, "_uti_syn_now", "") == "upper"),
     )
@@ -71,7 +71,13 @@ def render_recommendations(page):
             with s1:
                 st.markdown(f"**النوع:** {page.syndrome_info['sub_type']}")
                 st.markdown(f"**مدة العلاج:** {page.syndrome_info['duration']}")
-                st.markdown(f"**الخط الأول (guidelines):** {', '.join(page.syndrome_info['first_choice'])}")
+                # v7.1: this list is EMPIRICAL (before the culture). Printed alone it
+                # contradicted the result -- ceftriaxone "first line" for a VRE urine.
+                st.markdown(f"**الخط الأول التجريبي (قبل المزرعة):** "
+                            f"{', '.join(page.syndrome_info['first_choice'])}")
+                _by_ast = [r.get("name", "") for r in (getattr(page, "ranked", None) or [])[:3]]
+                if _by_ast:
+                    st.markdown(f"**حسب نتيجة المزرعة:** {', '.join(_by_ast)}")
             with s2:
                 st.info(f"**Escalation:** {page.syndrome_info['escalation']}")
                 st.caption(f"📌 Culture threshold: {page.syndrome_info['threshold']}")
@@ -210,5 +216,9 @@ def render_recommendations(page):
                     pn = (item.get("preg_note") or "").splitlines()
                     if pn:
                         st.caption(f"🤰 {pn[0]}")
+    elif page.warned and page.is_renal:
+        # v7.1: renal dose adjustment is a caution, never a ban.
+        st.info("لا يوجد خيار بلا تحذير: الأدوية الفعّالة موجودة في قائمة الحذر أعلاه بجرعتها "
+                "الكلوية المعدّلة — تُستخدم بهذه الجرعة.")
     elif not page.banned and not page.warned:
         st.info("اختر المضادات الحساسة أو المناسبة من القائمة أعلاه.")

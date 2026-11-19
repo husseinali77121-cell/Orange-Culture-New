@@ -392,6 +392,7 @@ def render_pdf_export(page):
                 is_cath=bool(getattr(getattr(page, "case", None), "is_cath", False)
                              and getattr(page.case, "is_urine", False)),
                 primary=(getattr(page, "ranked", None) or [None])[0],
+                is_preg=bool(page.is_preg),
             ) if _pdf_dur else None
             # organism= restored 2026-08-21 -- see the matching note on
             # the UI call site above. Same missing-organism defect, same
@@ -507,6 +508,7 @@ def render_summary_image(page):
             f"|{page.pus_cells_text}|{page.rbcs_text}|{str(sorted(page.sir_map.items()))}"
             f"|{_lists_sig}"
             f"|{page.mdr_result.get('level','')}|{_ph_sig}|{_esbl_sig}"
+            f"|{getattr(page, '_carb_type_now', None)}"
             f"|{st.session_state.get('lab_name','')}|{st.session_state.get('lab_city','')}"
             f"|{st.session_state.get('referring_physician','')}"
             f"|{st.session_state.get('culture_condition','Aerobic')}"
@@ -545,6 +547,7 @@ def render_summary_image(page):
                     microbiologist=st.session_state.get("microbiologist",""),
                     sir_map=page.sir_map, is_hepatic=page.is_hepatic,
                     case=getattr(page, "case", None),
+                    carbapenemase_type=getattr(page, "_carb_type_now", None),
                 )
                 st.session_state._img_bytes = _new_img
                 st.session_state._img_hash  = _img_input_hash

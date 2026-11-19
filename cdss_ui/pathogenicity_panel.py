@@ -21,6 +21,14 @@ from cdss_ui.patho_view import _render_patho_result
 from cdss_ui.resistance_panels import render_resistance_profile
 
 
+def _patho_age(page) -> float:
+    """Age in years with the months the UI collects for infants (v7.1): the
+    pathogenicity rules split under 2 months / 2-24 months (AAP 2021 / 2011)."""
+    from cdss.common.clinical_utils import resolve_age_years
+    a = resolve_age_years(page.age, getattr(page, "age_months", None))
+    return float(a if a is not None else (page.age or 0))
+
+
 def render_pathogenicity(page):
     """Pathogenicity assessment (urine and non-urine) and, for non-urine, the resistance panels."""
     # ── Pathogenicity Assessment Module v2 ───────────────────────────────
@@ -135,7 +143,7 @@ def render_pathogenicity(page):
                     pus_cells_text=page.pus_cells_text,
                     urinalysis_result=patho_urinalysis,
                     gram_stain=patho_gram,
-                    age=page.age,
+                    age=_patho_age(page),
                     sex=page.sex,
                     host_factors=patho_host,
                     collection_method=patho_collection,
@@ -280,7 +288,7 @@ def render_pathogenicity(page):
                         pus_cells_text="",
                         urinalysis_result="",
                         gram_stain=np_gram,
-                        age=page.age, sex=page.sex,
+                        age=_patho_age(page), sex=page.sex,
                         host_factors=np_host,
                         sputum_pus_cells=np_sputum_wbc,
                         sputum_epithelial=np_sputum_epi,

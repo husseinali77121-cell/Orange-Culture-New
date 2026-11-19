@@ -22,8 +22,12 @@ def _render_patho_result(patho_result: dict) -> None:
     color = patho_result["color"]
     flags = patho_result.get("special_flags", [])
 
-    st.markdown(f"### Pathogenicity Score: **{sc}%**")
+    # v7.1 (external review 2026-11-19): the 0-100 figure ranks the strength of
+    # the evidence; it is not a calibrated probability, so it is no longer a "%".
+    st.markdown(f"### Evidence score: **{sc} / 100**")
     st.progress(sc / 100)
+    st.caption("مقياس لقوة الأدلة وليس احتمالاً مُعايَراً لوجود العدوى — الحكم يطبّق فوقه قواعد "
+               "ثابتة (الأعراض، الأشعة، ABU، العينة المعقمة).")
 
     if color == "error":
         st.error(patho_result["verdict"])
