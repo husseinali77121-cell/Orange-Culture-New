@@ -456,6 +456,19 @@ for _k in _GRAM_POSITIVE_ROWS:
 for _k in _ENTEROCOCCAL_ROWS:
     _merge_row(_k, ["Fusidic acid"])
 
+# v7.1 (review 2026-11-19): nitroimidazoles are pro-drugs activated only by
+# anaerobic reduction, so no aerobic or facultative organism is a target. A
+# "Metronidazole S" read off a report for E. coli BLOOD or CSF was RECOMMENDED.
+# Campylobacter (microaerophilic) and the anaerobes are deliberately not listed.
+_NITROIMIDAZOLES = ["Metronidazole", "Tinidazole"]
+for _k in (_ENTERIC_AND_NONFERMENTER + ["salmonella", "shigella", "haemophilus influenzae",
+                                        "h. influenzae"] + _GRAM_POSITIVE_ROWS
+           # the UI's genus-level and unidentified labels (same set in ast_reportability)
+           + ["enterobacterales", "gram-negative bacilli", "non-fermenting gram-negative",
+              "pseudomonas spp.", "acinetobacter spp.", "coagulase-negative",
+              "streptococcus spp.", "gram-positive cocci", "legionella", "mycoplasma"]):
+    _merge_row(_k, _NITROIMIDAZOLES)
+
 # Anaerobes: selectable in the UI, absent from the table entirely, so Colistin
 # and Gentamicin reported S came back RECOMMENDED. Aminoglycoside uptake is
 # oxygen-dependent and polymyxins need an aerobic outer membrane -- both are

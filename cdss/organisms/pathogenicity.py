@@ -158,7 +158,7 @@ def _org_in(name: str, group) -> bool:
 #  New keys: engine_version, category, threshold, notes, missing_inputs,
 #  confidence, references, evidence.
 # ════════════════════════════════════════════════════════════════════════════
-PATHO_ENGINE_VERSION = "3.0 (2026-11-10)"
+PATHO_ENGINE_VERSION = "3.1 (2026-11-19)"
 
 # ── Option lists (single source for the UI) ─────────────────────────────────
 HOST_SCI_PARA = "Paraplegia (spinal cord injury)"
@@ -307,7 +307,7 @@ _NOTES_EN = [
     ("رضيع < سنتين", "Infant < 2 years: UTI = pyuria + >= 5x10^4 CFU/mL of a single organism from catheter or SPA (AAP). Any confirmed UTI is treated."),
     ("UTI في الذكور", "UTI in males: consider prostatic involvement (longer course, an agent that penetrates the prostate) with fever or recurrence."),
     ("تشخيص الالتهاب الرئوي يحتاج", "Pneumonia requires a new infiltrate on imaging - a culture alone is not sufficient (ATS/IDSA)."),
-    ("مريض على tracheostomy", "Tracheostomy / ventilated patient: airway colonisation is near-universal. VAP = new infiltrate + two clinical signs + quantitative culture, not the culture alone (ATS/IDSA 2016)."),
+    ("مريض على tracheostomy", "Tracheostomy / ventilated patient: airway colonisation is near-universal. VAP = new infiltrate + clinical signs (fever, purulent secretions, leucocytosis, worsening oxygenation), not the culture alone; an endotracheal aspirate with semi-quantitative culture is sufficient (ATS/IDSA 2016)."),
     ("Quadriplegia: ضعف السعال", "Quadriplegia: impaired cough and respiratory muscles cause retained secretions and aspiration; pneumonia is a leading cause of death after cervical injury. Low threshold with fever or changing secretions / oxygenation, but colonisation alone (especially with tracheostomy) is not treated."),
     ("Paraplegia: الإصابات الصدرية", "Paraplegia: high thoracic lesions impair cough - assess clinically and with imaging."),
     ("Gram-positive cocci في الدم قبل التعريف", "Gram-positive cocci in blood before identification: in an unstable patient treat as possible S. aureus (MRSA cover) until coagulase / ID is available."),
@@ -354,6 +354,9 @@ _CATEGORY_EN = {
     "COLONISATION": ("Chronic wound / pressure ulcer without two clinical signs of infection: the growth represents colonisation of the wound surface.",
         ["No systemic antibiotic - wound care, debridement and pressure relief.",
          "Reassess if signs of infection appear, and sample deep tissue rather than a surface swab."]),
+    "LRTI_POSSIBLE": ("Strong culture findings, but no new infiltrate on imaging was entered: neither pneumonia nor HAP/VAP can be diagnosed without one (ATS/IDSA 2016 / 2019) - the isolate may be airway colonisation.",
+        ["Obtain a chest radiograph (or enter its result): a new infiltrate is required for the diagnosis of pneumonia.",
+         "Without an infiltrate, decide on antibiotics clinically (e.g. a COPD exacerbation by the Anthonisen criteria), not on the culture alone."]),
     "TRUE_INFECTION": ("The findings strongly support true infection. Treat according to the susceptibility result and the clinical context.",
         ["Start treatment guided by the AST result.",
          "Adjust the dose to renal function and use the shortest effective course.",
@@ -498,22 +501,70 @@ def _urine_threshold(collection: str, age, sex: str, symptomatic: bool, sci: boo
         return 100000, ("Bag specimen: high contamination rate — a positive result must be "
                         "confirmed by catheter or SPA before treating (AAP)")
     if "condom" in c:
-        return ((10000, "Condom catheter in spinal cord injury: >= 10^4 CFU/mL (NIDRR consensus)")
-                if sci else (100000, "Condom catheter: >= 10^5 CFU/mL (IDSA CA-UTI 2009)"))
+        # v7.1 (review 2026-11-19): IDSA CA-UTI 2009 gives NO count for CA-UTI
+        # in men with condom catheters (1i: "insufficient data"); its >= 10^5
+        # from a freshly applied condom catheter is the CA-ASB definition. The
+        # NIDRR >= 10^4 is a spinal-cord-injury figure for symptomatic men. The
+        # old text cited IDSA for a CA-UTI count it does not give, and applied
+        # the 10^4 SCI figure to an ASYMPTOMATIC specimen too.
+        if not symptomatic:
+            return 100000, ("Condom catheter WITHOUT symptoms: >= 10^5 CFU/mL from a freshly "
+                            "applied condom catheter defines catheter-associated asymptomatic "
+                            "bacteriuria — not an infection (IDSA CA-UTI 2009)")
+        if sci:
+            return 10000, ("Condom catheter in spinal cord injury, symptomatic: >= 10^4 CFU/mL "
+                           "(NIDRR consensus)")
+        return 100000, ("Condom catheter, symptomatic: IDSA CA-UTI 2009 gives no CA-UTI count "
+                        "for condom-catheter specimens; >= 10^5 CFU/mL (its CA-ASB definition) is "
+                        "applied — interpret 10^4-10^5 with symptoms clinically")
     # Found by fuzzing 2026-11-11: the catheter rule used to run before the
     # infant rule, so marking "urinary catheter" on a febrile infant dropped
     # the threshold from 5x10^4 to 10^3. AAP's 5x10^4 IS the catheter-specimen
     # threshold for this age; it takes precedence.
+    # v7.1 (external review 2026-11-19): AAP 2011 covers 2-24 MONTHS; it was
+    # cited for every child under 2. Under 2 months the AAP 2021 febrile-infant
+    # guideline (8-60 days) applies; the first week of life is outside both.
     if isinstance(age, (int, float)) and age < 2:
-        return 50000, ("Infant < 2 yr (catheter/SPA): >= 5×10^4 CFU/mL of one uropathogen "
+        if age < 2 / 12:
+            return 50000, ("Infant < 2 months (catheter/SPA): >= 5×10^4 CFU/mL of one "
+                           "uropathogen, or 10^4-5×10^4 with an abnormal urinalysis (AAP 2021 "
+                           "febrile infant guideline, 8-60 days); the first 7 days of life are "
+                           "outside it — neonatal assessment")
+        return 50000, ("Infant 2-24 months (catheter/SPA): >= 5×10^4 CFU/mL of one uropathogen "
                        "WITH pyuria (AAP 2011, reaffirmed 2016)")
-    if catheterised or "nephrostomy" in c or "conduit" in c:
+    if "nephrostomy" in c or "conduit" in c:
+        # v7.1: IDSA CA-UTI 2009 covers urethral, suprapubic and intermittent
+        # catheters only; it was cited as if it set the nephrostomy figure.
+        if symptomatic:
+            return 1000, ("Nephrostomy / ileal-conduit specimen with compatible symptoms: "
+                          ">= 10^3 CFU/mL, applied by analogy with catheter specimens (IDSA "
+                          "CA-UTI 2009 does not cover these devices); bacteriuria is expected "
+                          "with them")
+        return 100000, ("Nephrostomy / ileal-conduit specimen WITHOUT symptoms: bacteriuria is "
+                        "expected (>= 10^5 CFU/mL = asymptomatic bacteriuria) — not an infection "
+                        "(IDSA ASB 2019)")
+    # v7.1 (external review 2026-11-19): in spinal cord injury the NIDRR consensus
+    # figures by collection method are APPLIED (not only quoted in a borderline
+    # note): intermittent catheterisation >= 10^2, condom >= 10^4, spontaneous
+    # voiding >= 10^5. Indwelling / suprapubic catheters keep the IDSA >= 10^3
+    # (NIDRR counts "any detectable concentration" there -- always colonised).
+    if sci and symptomatic and "intermittent" in c:
+        return 100, ("Intermittent catheterisation in spinal cord injury, symptomatic: >= 10^2 "
+                     "CFU/mL (NIDRR consensus; IDSA CA-UTI 2009 uses >= 10^3)")
+    if catheterised:
         if symptomatic:
             return 1000, ("Catheter specimen with compatible symptoms: >= 10^3 CFU/mL "
-                          "(IDSA CA-UTI 2009)")
+                          "(IDSA CA-UTI 2009)"
+                          + ("; NIDRR counts any detectable concentration from an indwelling / "
+                             "suprapubic catheter in spinal cord injury" if sci else ""))
         return 100000, ("Catheter specimen WITHOUT symptoms: >= 10^5 CFU/mL defines "
                         "catheter-associated asymptomatic bacteriuria — not an infection "
                         "(IDSA CA-UTI 2009)")
+    if symptomatic and sci:
+        # v7.1: NIDRR >= 10^5 for spontaneous voiding after spinal cord injury
+        # (reflex voiding contaminates easily) -- applied, as for IC and condom.
+        return 100000, ("Spontaneous voiding in spinal cord injury, symptomatic: >= 10^5 CFU/mL "
+                        "(NIDRR consensus; IDSA / EAU use >= 10^3 outside SCI)")
     if symptomatic:
         return 1000, ("Symptomatic patient, midstream urine: >= 10^3 CFU/mL of a uropathogen "
                       "(IDSA / EAU)")
@@ -543,12 +594,8 @@ def _score_colony_count(state: str, cfu_val: int, age: int, sex: str,
     if cfu_val >= thr:
         return 30, f"✅ Colony count {cfu_val:,} CFU/mL meets the threshold — {rule}", None
     if cfu_val * 10 >= thr:
-        extra = ""
-        if sci and "intermittent" in (collection or "").lower() and cfu_val >= 100:
-            extra = (" In spinal cord injury on intermittent catheterisation >= 10^2 "
-                     "CFU/mL counts when symptomatic (NIDRR consensus).")
         return 12, (f"➕ Colony count {cfu_val:,} CFU/mL is borderline (within one log of the "
-                    f"threshold) — {rule}.{extra}"), None
+                    f"threshold) — {rule}."), None
     return -15, None, f"⚠️ Colony count {cfu_val:,} CFU/mL is below the threshold — {rule}"
 
 
@@ -604,10 +651,15 @@ def _site_urine(
     # paediatric guideline was listed for a 30-year-old woman, and the CA-UTI
     # guideline for patients without a catheter.
     references += ["IDSA Asymptomatic Bacteriuria 2019", "IDSA cUTI 2025"]
-    if catheterised:
+    if catheterised or "condom" in coll_l:
         references.append("IDSA CA-UTI 2009")
+    if sci:
+        # v7.1: the SCI thresholds and symptoms come from this consensus.
+        references.append("NIDRR consensus statement (UTI after spinal cord injury)")
     if age < 18 or "bag" in coll_l or "كيس" in coll_l:
         references.append("AAP UTI 2011 (reaffirmed 2016)")
+    if age < 2 / 12:
+        references.append("AAP 2021 febrile infant guideline (8-60 days)")
     infant = age < 2
     if infant:
         special_flags.append("PEDIATRIC_UTI")
@@ -761,6 +813,9 @@ def _site_urine(
         if sex == "Female" and not catheterised:
             notes.append("ℹ️ تعريف ABU في النساء يتطلب عينتين متتاليتين بنفس الكائن ≥ 10⁵ "
                          "(IDSA 2019)؛ عينة واحدة تكفي في الرجال.")
+            # v7.1 (external review): one voided specimen in a woman is
+            # bacteriuria, not yet a confirmed ABU -- the verdict says so.
+            special_flags.append("ABU_PROVISIONAL")
         if pregnant or uro_procedure:
             add("abu", 0, "✅ Asymptomatic bacteriuria in pregnancy / before a urological "
                            "procedure with mucosal trauma -- TREAT (IDSA 2019)")
@@ -791,7 +846,8 @@ def _site_urine(
 
     if infant:
         notes.append("👶 رضيع < سنتين: UTI = pyuria + ≥ 5×10⁴ CFU/mL لكائن واحد من قسطرة أو SPA "
-                     "(AAP). أي UTI مؤكد يُعالَج.")
+                     "(AAP 2011 لعمر 2–24 شهر؛ تحت شهرين AAP 2021 للرضيع المحموم 8–60 يوم، "
+                     "والأسبوع الأول خارج الاثنين). أي UTI مؤكد يُعالَج.")
     if sex == "Male" and symptomatic and age >= 15:
         notes.append("♂ UTI في الذكور: فكّر في البروستاتا (مدة أطول واختيار دواء يخترقها) عند "
                      "الحمى أو التكرار.")
@@ -887,7 +943,12 @@ def _site_respiratory(
                                          "Worsening oxygenation / ventilator settings")]
     if "New infiltrate on chest imaging" in symptoms:
         add("imaging", 20, "✅ New infiltrate on chest imaging -- pneumonia requires this")
-    elif symptoms:
+    else:
+        # v7.1 (external review 2026-11-19): without an infiltrate the verdict is
+        # capped below "true infection" (see assess_pathogenicity) -- a note
+        # alone left "TRUE INFECTION -- Treat" standing for an unproven pneumonia.
+        special_flags.append("NO_INFILTRATE")
+    if "New infiltrate on chest imaging" not in symptoms and symptoms:
         notes.append("🩻 تشخيص الالتهاب الرئوي يحتاج ارتشاحاً جديداً في الأشعة — المزرعة وحدها "
                      "لا تكفي (ATS/IDSA).")
     if len(resp) >= 2:
@@ -897,8 +958,11 @@ def _site_respiratory(
     elif not symptoms:
         missing.append("Respiratory signs / imaging")
     if ventilated:
+        # v7.1: ATS/IDSA 2016 suggests NON-invasive sampling with SEMI-quantitative
+        # culture; the note said the diagnosis needs a quantitative culture.
         notes.append("🫁 مريض على tracheostomy/جهاز تنفس: استعمار مجرى الهواء شبه دائم — "
-                     "VAP يُشخَّص بارتشاح جديد + علامتين سريريتين + مزرعة كمية، لا بالمزرعة وحدها "
+                     "VAP يُشخَّص بارتشاح جديد + علامات سريرية (حمى، إفرازات صديدية، كرات بيضاء، "
+                     "تدهور الأكسجة)، لا بالمزرعة وحدها؛ شفط رغامي بمزرعة شبه كمية يكفي "
                      "(ATS/IDSA 2016).")
     if sci_quad:
         notes.append("♿ Quadriplegia: ضعف السعال وعضلات التنفس ← احتباس إفرازات وشفط متكرر؛ "
@@ -1014,7 +1078,9 @@ def _site_blood(
         notes.append("🩸 CoNS مع قسطرة مركزية أو صمام صناعي: اسحب مجموعتين (واحدة طرفية) قبل الحكم؛ "
                      "نفس الكائن في المجموعتين = CLABSI محتمل (IDSA 2009).")
     if contaminant_org and age < 1:
-        add("neonate", 10, "➕ Infant < 1 yr -- CoNS is a true pathogen in neonates with lines")
+        add("neonate", 10, "➕ Infant < 1 yr -- CoNS is the leading cause of late-onset sepsis in "
+                           "neonates (prematurity, central lines); do not dismiss it on one bottle "
+                           "without repeat cultures")
     if is_saureus:
         notes.append("🔴 S. aureus bacteremia: مزارع دم متكررة كل 24–48 ساعة حتى السلبية، echo، "
                      "بحث عن المصدر وإزالته، وعلاج وريدي ≥ 14 يوم (غير المعقدة) — استشارة ID تقلل الوفيات.")
@@ -1233,10 +1299,14 @@ def _verdict(*, insufficient, missing, score, special_flags):
         ]
     elif "ABU_NO_TREAT" in special_flags:
         category = "ASB_NO_TREAT"
-        verdict = "🟡 ASYMPTOMATIC BACTERIURIA (ABU) -- Do NOT Treat"
+        _prov = "ABU_PROVISIONAL" in special_flags
+        verdict = ("🟡 ASYMPTOMATIC BACTERIURIA (provisional — one specimen) -- Do NOT Treat"
+                   if _prov else "🟡 ASYMPTOMATIC BACTERIURIA (ABU) -- Do NOT Treat")
         color = "warning"
         interpretation = ("bacteriuria بعدد معنوي بلا أعراض = Asymptomatic Bacteriuria"
                           + (" مرتبطة بالقسطرة (CA-ASB)" if "CA_ASB" in special_flags else "")
+                          + (" — مبدئياً: في النساء يُثبَت بعينتين متتاليتين بنفس الكائن "
+                             "(IDSA 2019)، والقرار (لا علاج) لا يتغير" if _prov else "")
                           + ". IDSA 2019: لا فحص ولا علاج — يشمل كبار السن، السكري، القسطرة، "
                           "إصابة النخاع الشوكي، وزرع الكلى بعد الشهر الأول.")
         recommendations = [
@@ -1512,7 +1582,8 @@ def assess_pathogenicity(
     # ══════════════════════════════════════════════════════════════════
     # SPUTUM / RESPIRATORY
     # ══════════════════════════════════════════════════════════════════
-    elif any(k in spec_lower for k in ("sputum", "respiratory", "bal", "tracheal", "eta")):
+    elif any(k in spec_lower for k in ("sputum", "respiratory", "bal", "tracheal", "eta",
+                                        "psb", "bronch")):
         threshold_text = _site_respiratory(add=add, colony_count_text=colony_count_text,
                 is_candida=is_candida, is_cons=is_cons,
                 is_enterobacterales=is_enterobacterales, is_enterococcus=is_enterococcus,
@@ -1605,7 +1676,12 @@ def assess_pathogenicity(
                                                  "Local signs of infection",
                                                  "Number of positive sets / bottles")]
     confidence = "high" if not missing else "moderate" if len(_core_missing) <= 1 else "low"
-    insufficient = (("urine" in spec_lower and "Symptoms" in missing and "Colony count" in missing)
+    # v7.1 (external review 2026-11-19): for urine the symptoms ARE the
+    # diagnosis -- the same count, pus and Gram stain are a UTI with symptoms and
+    # asymptomatic bacteriuria without. "Symptoms not entered" now stops the
+    # verdict on its own; it used to need the colony count missing too, so an
+    # E. coli 10^5 with pyuria and no symptoms entered scored 87 "Treat".
+    insufficient = (("urine" in spec_lower and "Symptoms" in missing)
                     or "Specimen type not recognised" in missing)
     if insufficient:
         special_flags.append("INSUFFICIENT_DATA")
@@ -1613,8 +1689,24 @@ def assess_pathogenicity(
     (category, color, interpretation, recommendations, verdict) = _verdict(
         insufficient=insufficient, missing=missing, score=score, special_flags=special_flags
     )
+    if category == "TRUE_INFECTION" and "NO_INFILTRATE" in special_flags:
+        # v7.1 (external review 2026-11-19): a respiratory isolate without a new
+        # infiltrate is not a pneumonia (ATS/IDSA 2016 / 2019). The evidence
+        # score is kept; the verdict is capped at "possible".
+        category = "LRTI_POSSIBLE"
+        verdict = "🟡 POSSIBLE LOWER RESPIRATORY INFECTION -- no infiltrate entered: pneumonia NOT established"
+        color = "warning"
+        interpretation = ("مؤشرات المزرعة قوية، لكن لم يُدخَل ارتشاح جديد في الأشعة: لا يُشخَّص "
+                          "pneumonia ولا HAP/VAP بدونه (ATS/IDSA 2016 / 2019) — الكائن قد يكون "
+                          "استعماراً لمجرى الهواء.")
+        recommendations = [
+            "اطلب أشعة صدر (أو أدخل نتيجتها): الارتشاح الجديد شرط لتشخيص الالتهاب الرئوي.",
+            "بدون ارتشاح: قرار المضاد حسب الحالة الإكلينيكية (مثلاً نوبة COPD بمعايير Anthonisen) "
+            "لا حسب المزرعة وحدها.",
+        ]
     if ("GBS_BACTERIURIA_PREGNANCY" in special_flags
-            and category in ("CONTAMINANT_OR_COLONISER", "LIKELY_CONTAMINANT", "ASB_NO_TREAT")):
+            and category in ("CONTAMINANT_OR_COLONISER", "LIKELY_CONTAMINANT", "ASB_NO_TREAT",
+                             "INSUFFICIENT_DATA")):
         # v6.7: GBS in a pregnant woman's urine at any count marks heavy genital
         # colonisation (ACOG Committee Opinion 797). Below 10^5 without symptoms
         # it is not treated antenatally -- but it is never "a contaminant", and
@@ -1644,6 +1736,10 @@ def assess_pathogenicity(
 
     # ── English forms for the English report ───────────────────────────────
     interpretation_en, _recs_en = _CATEGORY_EN.get(category, ("", []))
+    if category == "ASB_NO_TREAT" and "ABU_PROVISIONAL" in special_flags:
+        interpretation_en += (" Provisional: in women ASB is confirmed by two consecutive specimens "
+                              "with the same organism (IDSA 2019); the decision (no treatment) does "
+                              "not change.")
     recommendations_en = list(_recs_en)
     if "BLOOD_CONTAMINANT_RISK" in special_flags and category != "TRUE_INFECTION":
         recommendations_en.append("Draw two new sets from two separate sites before judging CoNS / skin flora.")
