@@ -910,6 +910,54 @@ SITE_PENETRATION.update({
     },
 })
 
+# ── v6.9 (2026-11-14, decision D5): the five IDSA 2026 agents ─────────────
+# Pivmecillinam, sulopenem and gepotidacin are licensed and studied for
+# uncomplicated cystitis only (IDSA 2026: they "stay in cystitis"; oral
+# sulopenem is a cUTI step-down only after improvement -- rules/new_agents.py).
+# Cefepime-enmetazobactam: cUTI (with its bacteraemia) is the studied site.
+# IV fosfomycin outside the urinary tract: "only in combination with another
+# active agent" (IDSA 2026).
+_UUTI_ONLY = (DENY, "licensed and studied for uncomplicated cystitis only (FDA label; IDSA 2026)",
+              "مرخّص ومدروس لالتهاب المثانة البسيط فقط (FDA؛ IDSA 2026)")
+_FOS_IV_COMBO = (CAUTION, "only in combination with another active agent (IDSA 2026); "
+                          "sodium load ~14 mmol per gram",
+                 "في توليفة مع دواء فعّال آخر فقط (IDSA 2026)؛ حمل صوديوم ~14 mmol لكل جرام")
+_FEP_ENM_LIMITED = (CAUTION, "studied in cUTI only — data outside the urinary tract remain limited "
+                             "(IDSA 2026: an alternative)",
+                    "مدروس في cUTI فقط — بيانات محدودة خارج المسالك (IDSA 2026: بديل)")
+SITE_PENETRATION.update({
+    "Pivmecillinam": {"Urine": _OK, "Blood": _NO_ORAL_BSI, "Sputum": _UUTI_ONLY,
+                      "Wound Swab": _UUTI_ONLY, "Pus": _UUTI_ONLY,
+                      "Stool": (DENY, "no enteric indication", "لا استطباب معوي"), "CSF": _NO_CSF},
+    "Sulopenem": {"Urine": _OK, "Blood": _NO_ORAL_BSI, "Sputum": _UUTI_ONLY,
+                  "Wound Swab": _UUTI_ONLY, "Pus": _UUTI_ONLY,
+                  "Stool": (DENY, "no enteric indication", "لا استطباب معوي"), "CSF": _NO_CSF},
+    "Gepotidacin": {"Urine": _OK, "Blood": _NO_ORAL_BSI, "Sputum": _UUTI_ONLY,
+                    "Wound Swab": _UUTI_ONLY, "Pus": _UUTI_ONLY,
+                    "Stool": (DENY, "no enteric indication", "لا استطباب معوي"), "CSF": _NO_CSF},
+    "Cefepime + Enmetazobactam": {
+        "Urine": _OK, "Blood": _OK, "Sputum": _FEP_ENM_LIMITED,
+        "Wound Swab": _FEP_ENM_LIMITED, "Pus": _FEP_ENM_LIMITED,
+        "Stool": (CAUTION, "systemic agent", "دواء جهازي"),
+        "CSF": (CAUTION, "cefepime penetrates inflamed meninges; no enmetazobactam CSF data",
+                "الـ Cefepime ينفذ السحايا الملتهبة؛ لا بيانات سحائية للـ enmetazobactam")},
+    "Fosfomycin IV": {
+        "Urine": _OK, "Blood": _FOS_IV_COMBO, "Sputum": _FOS_IV_COMBO,
+        "Wound Swab": _FOS_IV_COMBO, "Pus": _FOS_IV_COMBO,
+        "Stool": (DENY, "no role in enteric infection", "لا دور له في عدوى الأمعاء"),
+        "CSF": (CAUTION, "licensed for meningitis (SmPC) — in combination only",
+                "مرخّص للسحايا (SmPC) — في توليفة فقط")},
+})
+PREGNANCY_CAUTION.update({
+    "Sulopenem": ("no human pregnancy data; cleft palate in mice at ~23x exposure",
+                  "لا بيانات بشرية في الحمل؛ شقّ حنك في الفئران بتعرّض ~23 ضعفاً"),
+    "Gepotidacin": ("no human data; fetal toxicity in animals below human exposure (label)",
+                    "لا بيانات بشرية؛ سمية جنينية حيوانية بتعرّض أقل من جرعة الإنسان"),
+    "Cefepime + Enmetazobactam": ("no data for the combination; cephalosporin data reassuring",
+                                  "لا بيانات للتوليفة؛ بيانات السيفالوسبورينات مطمئنة"),
+    "Fosfomycin IV": ("crosses the placenta; no data for IV use in pregnancy (SmPC)",
+                      "يعبر المشيمة؛ لا بيانات للاستخدام الوريدي في الحمل"),
+})
 RENAL_RULES.update({
     # FIX 2026-11-10 (round 2): these rows carried a REFUSE threshold (6 / 15),
     # so the gate DENIED the agent in exactly the patients it is dosed for --
@@ -927,6 +975,17 @@ RENAL_RULES.update({
                               "خفض الجرعة تحت CrCl 50 (تحميل + صيانة)"),
     "Sulbactam + Durlobactam": (44, None, "interval extension below CrCl 45; q4h if CrCl >=130",
                                 "إطالة الفترة تحت CrCl 45؛ وكل 4 ساعات إذا CrCl ≥130"),
+    # v6.9 (decision D5) -- from the labels / SmPC.
+    "Cefepime + Enmetazobactam": (60, None, "dose reduction below eGFR 60 — the label doses down to "
+                                  "<15 / HD (0.625 g q24h); 4-h infusion if eGFR >=130",
+                                  "خفض الجرعة تحت eGFR 60 — النشرة تحدد جرعة حتى <15 والغسيل "
+                                  "(0.625 g q24h)؛ تسريب 4 ساعات إذا eGFR ≥130"),
+    "Fosfomycin IV": (40, None, "reduce the daily dose below CrCl 40 (SmPC %); HD: 2 g after each session",
+                      "خفض الجرعة اليومية تحت CrCl 40 (نسب SmPC)؛ الغسيل: 2 g بعد كل جلسة"),
+    "Gepotidacin": (30, 30, "avoid below eGFR 30 or on dialysis — higher exposure, QTc risk (label)",
+                    "يُتجنب تحت eGFR 30 أو مع الغسيل — تعرّض أعلى وخطر QTc (النشرة)"),
+    "Sulopenem": (15, 15, "not recommended below CrCl 15 or on haemodialysis (label)",
+                  "غير موصى به تحت CrCl 15 أو مع الغسيل الكلوي (النشرة)"),
     "Cefiderocol": (60, None, "dose reduction below CrCl 60 (0.75 g q12h below 15 / HD); INCREASE if CrCl >=120",
                     "خفض الجرعة تحت CrCl 60 (0.75 g q12h تحت 15 / الغسيل)؛ وزيادتها إذا CrCl ≥120"),
     "Ceftaroline": (50, None, "dose reduction below CrCl 50 (200 mg q12h in ESRD / HD)",
@@ -992,12 +1051,23 @@ HEPATIC_RULES: Dict[str, Tuple[str, str, str]] = {
                    "لا تعديل كبدي، لكن وظائف الكلى تبدو أفضل من الحقيقة في التشمع"),
 }
 
+# v6.9 (decision D5)
+HEPATIC_RULES.update({
+    "Gepotidacin": (DENY, "avoid in Child-Pugh C — higher exposure and QTc risk (label)",
+                    "يُتجنب في Child-Pugh C — تعرّض أعلى وخطر إطالة QTc (النشرة)"),
+})
+
 # Age. Bands in YEARS; a neonate is expressed as a fraction (7 days ≈ 0.02).
 AGE_RULES: Dict[str, Tuple[Optional[float], str, str, str]] = {
-    "Ciprofloxacin": (18, CAUTION, "cartilage toxicity — reserve for when no alternative exists",
-                      "سمية غضروفية — يُحفظ لحالات انعدام البديل"),
-    "Levofloxacin": (18, CAUTION, "cartilage toxicity — reserve for when no alternative exists",
-                     "سمية غضروفية — يُحفظ لحالات انعدام البديل"),
+    # v6.9 (decision D3): wording from AAP 2016 (Pediatrics 138:e20162706).
+    "Ciprofloxacin": (18, CAUTION, "AAP 2016: only when no safe, effective alternative exists "
+                      "(e.g. MDR Gram-negative UTI, oral step-down); joint/tendon events uncommon",
+                      "AAP 2016: فقط عند غياب بديل آمن وفعّال (مثل UTI بكائن مقاوم متعدد أو "
+                      "التحويل الفموي)؛ آثار المفاصل/الأوتار غير شائعة"),
+    "Levofloxacin": (18, CAUTION, "AAP 2016: only when no safe, effective alternative exists "
+                     "(e.g. MDR Gram-negative UTI, oral step-down); joint/tendon events uncommon",
+                     "AAP 2016: فقط عند غياب بديل آمن وفعّال (مثل UTI بكائن مقاوم متعدد أو "
+                     "التحويل الفموي)؛ آثار المفاصل/الأوتار غير شائعة"),
     "Ofloxacin": (18, CAUTION, "cartilage toxicity", "سمية غضروفية"),
     "Norfloxacin": (18, CAUTION, "cartilage toxicity", "سمية غضروفية"),
     "Moxifloxacin": (18, DENY, "cartilage toxicity and no paediatric dosing established",
@@ -1064,14 +1134,22 @@ def evaluate(
     # ---- Layer 1: culture result ----------------------------------------
     if sir:
         s = str(sir).strip().upper()[:1]
+        # "SDD" starts with S but is not susceptible at the standard dose: it is
+        # read as I (CLSI M100; decision D4, v6.9).
+        if str(sir).strip().upper().replace("_", " ") in (
+                "SDD", "SUSCEPTIBLE-DOSE DEPENDENT", "SUSCEPTIBLE DOSE DEPENDENT"):
+            s = "I"
         if s == "R":
             v.add(DENY, "culture", "resistant in vitro", "مقاوم معملياً",
-                  "EUCAST Breakpoint Tables v16.1")
+                  "CLSI M100 Ed36")
         elif s == "I":
+            # v6.9 (decision D1): CLSI Intermediate, not EUCAST "increased exposure".
             v.add(CAUTION, "culture",
-                  "susceptible, increased exposure — requires the high-dose regimen",
-                  "حساس بزيادة الجرعة — يلزم نظام الجرعة العالية",
-                  "EUCAST v16.1 definition of category I")
+                  "intermediate — efficacy only where the drug is concentrated (e.g. urine) "
+                  "or at a higher-than-normal dose; prefer a susceptible agent",
+                  "Intermediate — فعّال فقط حيث يتركّز الدواء (مثل البول) أو بجرعة أعلى "
+                  "من المعتادة؛ الأفضل دواء حسّاس",
+                  "CLSI M100 Ed36 definition of category I")
 
     # ---- Layer 2: PK compartment (the layer that was missing) ------------
     if site is None:
@@ -1099,7 +1177,7 @@ def evaluate(
         if rule:
             lvl, en, ar = rule
             v.add(lvl, "intrinsic", en, ar,
-                  "EUCAST Intrinsic Resistance and Unusual Phenotypes v3.3")
+                  "CLSI M100 Ed36 Appendix B · EUCAST Intrinsic Resistance and Unusual Phenotypes v3.3")
 
     # ---- Layer 5: pregnancy ----------------------------------------------
     if is_pregnant:

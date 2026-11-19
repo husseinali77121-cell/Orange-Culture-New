@@ -88,10 +88,32 @@ CLINICAL_NOTE_EN = {
                  "with renal monitoring, when no safer option exists."),
     "penicillinase_unconfirmed": ("Staphylococcus with penicillin-class 'S': exclude penicillinase "
                                   "(zone-edge / blaZ test) before relying on it."),
-    "no_breakpoint": "No CLSI / EUCAST breakpoint for this organism-agent pair: the result is uncalibrated.",
-    "ampc_sdd": ("AmpC-producing organism with cefepime SDD / I: a concurrent ESBL is possible - "
-                 "a carbapenem is preferred (IDSA AMR Guidance 2026)."),
+    "no_breakpoint": ("No CLSI M100 breakpoint for this organism-agent pair: the result is "
+                      "uncalibrated and is not a basis for treatment."),
+    "fq_low_level": ("Split quinolone result (ofloxacin / norfloxacin S beside a non-susceptible "
+                     "quinolone): low-level resistance from a first-step gyrA mutation. CLSI revised "
+                     "the ciprofloxacin / levofloxacin breakpoints in 2019, not these - test "
+                     "ciprofloxacin and levofloxacin (MIC) before relying on it."),
+    "legacy_breakpoint": ("Cefoperazone: the CLSI M100 Enterobacterales criterion (S <= 16 / R >= 64 "
+                          "mg/L) dates from the original dosing and was never re-evaluated - the "
+                          "result stands, but prefer an agent with current criteria "
+                          "(ceftriaxone / cefepime) when susceptible."),
+    "ampc_sdd": ("AmpC-producing organism with cefepime SDD (MIC 4-8): IDSA 2026 keeps cefepime as "
+                 "the preferred agent while the MIC is <=8 and no ESBL gene has been identified "
+                 "(SDD is not associated with ESBL production) - at the high-exposure regimen, "
+                 "2 g q8h (CLSI SDD). If an ESBL is confirmed: a carbapenem."),
     "ampc_cefepime": "AmpC-producing organism: cefepime is the preferred agent when susceptible (IDSA AMR Guidance 2026).",
+    "idsa_new_agent": ("IDSA AMR Guidance 2026 limits this agent here (resistance mechanism or site): "
+                       "for CRE it is an alternative only when KPC is unlikely (pivmecillinam) or with "
+                       "very limited data (gepotidacin); cefepime-enmetazobactam is reserved for ESBL "
+                       "or AmpC + ESBL; oral sulopenem in cUTI only as a step-down after improvement."),
+    "label_population": ("Licensed (FDA) for uncomplicated cystitis in women — data in men are "
+                         "limited; make sure this is simple cystitis, not prostatitis or cUTI."),
+    "child_fq": ("Child < 18 y: a fluoroquinolone is not a first choice (AAP 2016) but is acceptable "
+                 "when no safe, effective alternative exists - e.g. UTI / pyelonephritis due to a "
+                 "multidrug-resistant Gram-negative (P. aeruginosa included), or oral step-down "
+                 "instead of IV - after discussing the risks with the family. Joint / tendon events "
+                 "are uncommon and reversible: stop for joint or tendon pain. Weight-based dosing."),
 }
 
 

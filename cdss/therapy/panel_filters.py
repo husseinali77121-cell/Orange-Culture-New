@@ -43,3 +43,14 @@ def _hide_urine_only(names, specimen):
     if cat != "stool":
         drop = drop | {"norfloxacin"}
     return [n for n in (names or []) if n.lower().strip() not in drop]
+
+
+def _drop_tested_ns(names, sir_map):
+    """Drop agents this isolate tested non-susceptible (I / SDD / R) -- v7.0.
+
+    The text report printed the organism's GENERIC first line (Klebsiella:
+    TMP-SMX, amoxicillin-clavulanate, cefuroxime) under the AST of an isolate
+    resistant to all three. After the AST, a first-line list must agree with it.
+    """
+    sm = {str(k).strip().lower(): str(v or "").strip().upper() for k, v in (sir_map or {}).items()}
+    return [n for n in (names or []) if sm.get(str(n).strip().lower(), "") not in ("I", "R", "SDD")]

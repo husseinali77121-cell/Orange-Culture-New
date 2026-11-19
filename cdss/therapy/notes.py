@@ -93,12 +93,16 @@ def warned_note_for(item: Dict[str, Any], lang: str = "ar") -> str:
             return f"{short}  \n{detail}" if short and detail else (short or detail)
 
         if reason == "intermediate_culture":
+            # v6.9 (decision D1): CLSI M100 Intermediate, explained for this
+            # class and site by the rule (clsi_categories.intermediate_note).
             if not ar:
-                return ("Result is Intermediate (I) - EUCAST: susceptible, increased exposure. "
-                        "Use only at the higher dose / extended infusion and after excluding a "
-                        "susceptible (S) alternative.")
-            return ("النتيجة Intermediate (I) — حسب EUCAST تعني حساسية عند تعرّض أعلى: "
-                    "لا تُستخدم إلا بجرعة أعلى/تسريب ممتد وبعد استبعاد بديل حسّاس (S).")
+                return (pick("intermediate_note_en")
+                        or "CLSI M100: Intermediate (I) -- efficacy only where the drug is "
+                           "concentrated (e.g. urine) or at a higher-than-normal dose. Prefer a "
+                           "susceptible (S) alternative.")
+            return (pick("intermediate_note")
+                    or "CLSI M100: النتيجة Intermediate (I) — فعّال فقط حيث يتركّز الدواء "
+                       "(مثل البول) أو بجرعة أعلى من المعتادة. الأفضل بديل حسّاس (S).")
 
         if reason == "interaction" or category == "interaction":
             return pick("interaction_note", "reason_detail", "reason_short") if ar else \
@@ -115,7 +119,9 @@ def warned_note_for(item: Dict[str, Any], lang: str = "ar") -> str:
         # by name into bare test namespaces, so it must not depend on a global).
         if reason in ("novel_agent", "organism_caution", "allergy", "uti_upper",
                       "aminoglycoside_pseudomonas", "colistin", "penicillinase_unconfirmed",
-                      "no_breakpoint", "ampc_sdd", "ampc_cefepime"):
+                      "no_breakpoint", "ampc_sdd", "ampc_cefepime", "child_fq",
+                      "idsa_new_agent", "label_population", "legacy_breakpoint",
+                      "fq_low_level"):
             if not ar:
                 return (pick("clinical_note_en")
                         or "Clinical caution applies to this agent for this organism / site - review before use.")

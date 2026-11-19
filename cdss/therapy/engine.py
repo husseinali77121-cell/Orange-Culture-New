@@ -22,7 +22,8 @@ from cdss.therapy import postprocess
 from cdss.therapy.context import DrugUnderTest, TherapyContext, build_context
 from cdss.therapy.notes import warned_note_for
 from cdss.therapy.outcome import Outcome, PostNotes
-from cdss.therapy.rules import age, allergy, host, mechanism, organism, panel, pregnancy, specific
+from cdss.therapy.rules import (age, allergy, host, mechanism, new_agents, organism, panel,
+                                 pregnancy, specific)
 
 Rule = Callable[[TherapyContext, DrugUnderTest, Outcome], None]
 
@@ -38,8 +39,10 @@ RULES: Tuple[Rule, ...] = (
     organism.rule_mrsa,
     organism.rule_possible_mrsa,
     organism.rule_novel_agents,
+    new_agents.rule_new_agents,          # v6.9: the five IDSA 2026 agents (sets skip_mech)
     organism.rule_pseudomonas_aminoglycosides,
     organism.rule_surrogate_and_no_breakpoint,
+    organism.rule_qc_no_breakpoint,       # v7.0: QC no-breakpoint flags reach the advisory
     organism.rule_organism_cautions,
     organism.rule_colistin,
     organism.rule_oral_fosfomycin,
@@ -49,6 +52,7 @@ RULES: Tuple[Rule, ...] = (
     organism.rule_enterococci,
     organism.rule_pneumococcus_csf,
     organism.rule_staph_fluoroquinolone,
+    organism.rule_fq_discordance,         # v7.0: low-level FQ resistance (CLSI Ed29)
     # ── the resistance mechanism ────────────────────────────────────────────
     mechanism.rule_esbl_not_excluded,
     mechanism.rule_ampc_cefepime,

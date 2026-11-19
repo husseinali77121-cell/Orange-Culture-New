@@ -13,6 +13,7 @@ from cdss.common.renal import resolve_crcl
 from cdss.common.specimen import classify_specimen
 from cdss.ocr.ocr_parsing import normalize_sir_map, normalize_sir_value
 from cdss.resistance.mechanism import predict_esbl
+from cdss.therapy.clsi_categories import sdd_drugs
 from cdss.therapy.therapy_rules import allergy_profile as _allergy_profile
 from cdss.therapy.therapy_rules import normalize_carbapenemase_type
 
@@ -62,6 +63,7 @@ class TherapyContext:
     possible_mrsa: Any
     sex: Any
     sir: Any
+    sdd: Any                  # drugs the panel reports as CLSI SDD (read as I in `sir`)
     spec_cat: Any
     specimen: Any
     unreadable: Any
@@ -108,6 +110,10 @@ def build_context(
     # D-test / penicillinase are Positive/Negative, not S/I/R: read them from the
     # RAW panel -- normalize_sir_map() below drops them.
     _aux = read_aux_tests(sir_map)
+    # CLSI SDD (decision D4, v6.9): normalised to I like every other consumer
+    # expects, and remembered here so the note can name the SDD regimen.
+    _sdd = frozenset(sdd_drugs({d: v for d, v in (sir_map or {}).items() if not is_aux_key(d)},
+                               organism_type))
     sir_map = normalize_sir_map({d: v for d, v in (sir_map or {}).items() if not is_aux_key(d)})
     # final_drugs is built from the RAW panel keys upstream, so it carries the
     # same OCR padding the map does. Trim here as well, or a drug whose name
@@ -195,7 +201,7 @@ def build_context(
     _is_pneumo_r2 = "pneumoniae" in _org_l_aa and "strep" in _org_l_aa
     _urine_lower = (_spec_cat_aa == "urine" and not _uti_upper)
     if _mech_prob in ("ampc", "ampc_plasmid"):
-        _invasive_tx = ("Cefepime إذا كانت النتيجة S (MIC ≤ 2)، وإلا Carbapenem "
+        _invasive_tx = ("Cefepime إذا MIC ≤ 8 (S، أو SDD بجرعة 2 g q8h)، وإلا Carbapenem "
                         "(IDSA 2026 — AmpC)")
         _invasive_why = ("AmpC: الـ 3rd-gen cephalosporins و Pip-Tazo غير مقترحة للعدوى الغازية "
                          "لخطر انتقاء طفرات مُفرِطة الإنتاج أثناء العلاج")
@@ -238,6 +244,7 @@ def build_context(
         possible_mrsa=_possible_mrsa,
         sex=sex,
         sir=sir_map,
+        sdd=_sdd,
         spec_cat=_spec_cat_aa,
         specimen=culture_type,
         unreadable=_unreadable,
