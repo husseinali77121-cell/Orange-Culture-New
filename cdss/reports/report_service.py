@@ -844,7 +844,8 @@ def _text_pathogenicity(*, L, patho_assessment, sep2):
         elif "MW_ADEQUATE" in flags:
             L.append("FLAG     : Murray-Washington -- Adequate Sputum Quality")
         if "SIRS_HIGH" in flags:
-            L.append("FLAG     : SIRS >=3 criteria -- Sepsis Probable")
+            L.append("FLAG     : SIRS >=3 -- marked systemic inflammatory response; "
+                     "assess organ dysfunction (Sepsis-3)")
         if interp:
             L.append(f"Interp   : {interp}")
         if recs:
@@ -1080,6 +1081,7 @@ def generate_report(
     age_months:            Optional[int] = None,
     case:                  Any = None,
     treatment_gate:        Optional[Dict[str, Any]] = None,
+    uti_note:              str = "",
 ) -> str:
     now  = datetime.now().strftime("%Y-%m-%d %H:%M")
     sep  = "=" * 60
@@ -1114,6 +1116,8 @@ def generate_report(
     _coll_t = getattr(case, "collection_label", "") if case is not None else ""
     L += ["\nCULTURE & MICROSCOPY", sep2,
           f"Specimen : {specimen}" + (f" / {_coll_t}" if _coll_t else "")]
+    if uti_note:
+        L.append(f"UTI      : {uti_note}")      # v7.3: a manual syndrome vs the symptoms
     if date_in:
         L.append(f"Date In  : {date_in}")
     L.append(f"Organism : {organism}")

@@ -384,7 +384,7 @@ def section_columns(
             "ABU_TREAT":     ("al-danger", "ABU -- TREAT (High-risk)"),
             "MW_REJECT":     ("al-danger", "Specimen REJECTED -- Repeat"),
             "MW_ADEQUATE":   ("al-info",   "Murray-Washington: Adequate"),
-            "SIRS_HIGH":     ("al-danger", "SIRS ≥3 -- Sepsis Probable"),
+            "SIRS_HIGH":     ("al-warn",   "SIRS ≥3 -- marked systemic inflammatory response; assess organ dysfunction (Sepsis-3)"),
             "PEDIATRIC_UTI": ("al-info",   "Pediatric threshold applied"),
             # Added 2026-08-01: an unread colony count used to contribute a
             # silent zero. It now contributes nothing AND says so, because a
