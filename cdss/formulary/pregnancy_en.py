@@ -148,6 +148,31 @@ PREG_NOTE_EN: Dict[str, str] = {
     "Cefiderocol": _NOVEL_LIMITED.format(name="Cefiderocol"),
     "Aztreonam + Avibactam": _NOVEL_LIMITED.format(name="Aztreonam-Avibactam"),
     "Sulbactam + Durlobactam": _NOVEL_LIMITED.format(name="Sulbactam-Durlobactam"),
+    # v6.9 (decision D5) -- from the product labels.
+    "Pivmecillinam": (
+        "✅ Pivmecillinam in pregnancy: two cohort studies (42,223 first-trimester exposures) "
+        "showed no increase in major malformations (FDA label 2024); a first-line cystitis agent "
+        "in the Nordic countries.\n"
+        "Near delivery it can cause a false-positive isovaleric acidaemia newborn screen.\n"
+        + _DECISION),
+    "Sulopenem": (
+        "⚠️ Pregnancy caution — Sulopenem: no human data; cleft palate in mice at ~23x the "
+        "clinical exposure. Probenecid: no specific risk identified over decades of use.\n"
+        "Use only when no better-established alternative exists.\n"
+        + _DECISION),
+    "Gepotidacin": (
+        "⚠️ Pregnancy caution — Gepotidacin: no human data; decreased fetal weight and late "
+        "resorptions in animals at exposures below the human dose (FDA label). A pregnancy "
+        "registry exists.\n"
+        + _DECISION),
+    "Cefepime + Enmetazobactam": (
+        "⚠️ Pregnancy caution — Cefepime-Enmetazobactam: no data for the combination; "
+        "cephalosporin (including cefepime) data are reassuring.\n"
+        + _DECISION),
+    "Fosfomycin IV": (
+        "⚠️ Pregnancy caution — Fosfomycin IV: crosses the placenta; no data for intravenous "
+        "use in pregnancy (SmPC) — avoid unless the benefit clearly outweighs the risk.\n"
+        + _DECISION),
     "Ceftaroline": (
         "⚠️ Pregnancy caution — Ceftaroline:\n"
         "Limited human data — use only when needed.\n"

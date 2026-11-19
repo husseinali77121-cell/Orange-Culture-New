@@ -174,6 +174,42 @@ DRUG_SPECIFIC_EFFECTS: Dict[Tuple[str, str], Tuple[str, str]] = {
     ("antacids", "cefuroxime"): (
         "مضادات الحموضة تقلّل امتصاص الـ Cefuroxime axetil — يؤخذ مع الأكل، وافصل ساعتين.",
         "Antacids reduce cefuroxime axetil absorption — take with food and separate by 2 h."),
+    # v6.9 (decision D5) -- from the product labels.
+    ("valproate", "pivmecillinam"): (
+        "الـ pivalate يستنزف الكارنيتين، والـ Valproate كذلك → نقص كارنيتين (هبوط سكر، ضعف عضلات، "
+        "تشوش) — تجنّب الجمع، وإن لزم راقب أعراض نقص الكارنيتين (Pivya label).",
+        "Pivalate and valproate both deplete carnitine (hypoglycaemia, myopathy, confusion) — "
+        "avoid the combination; if unavoidable, monitor for carnitine depletion (Pivya label)."),
+    ("methotrexate", "pivmecillinam"): (
+        "البنسلينات تقلّل إخراج الميثوتريكسات → سمية — فضّل بديلاً، وإلا راقب CBC والكلى ومستوى MTX.",
+        "Penicillins reduce methotrexate clearance (toxicity) — prefer an alternative; otherwise "
+        "monitor CBC, renal function and MTX levels."),
+    ("nsaids", "sulopenem"): (
+        "الـ Probenecid في Orlynvah: ممنوع مع Ketorolac، ولا يُنصح مع Ketoprofen، ويرفع مستوى "
+        "Indomethacin و Naproxen — اختر مسكناً آخر (Paracetamol).",
+        "The probenecid in Orlynvah: ketorolac is contraindicated, ketoprofen not recommended, "
+        "and indomethacin / naproxen levels rise — use another analgesic (paracetamol)."),
+    ("methotrexate", "sulopenem"): (
+        "الـ Probenecid يثبط OAT1/3 فيرفع الميثوتريكسات — راقب السمية عن قرب (Orlynvah label).",
+        "Probenecid inhibits OAT1/3 and raises methotrexate levels — monitor closely for "
+        "toxicity (Orlynvah label)."),
+    ("sulfonylurea", "sulopenem"): (
+        "الـ Probenecid يرفع مستوى السلفونيل يوريا → هبوط سكر — راقب السكر (Orlynvah label).",
+        "Probenecid raises sulfonylurea levels (hypoglycaemia) — monitor blood glucose "
+        "(Orlynvah label)."),
+    ("qt", "gepotidacin"): (
+        "إطالة QTc إضافية (Gepotidacin يطيل QTc بشكل معتمد على التركيز) — تجنّب الجمع (Blujepa "
+        "label)؛ إن تعذّر: صحّح K/Mg وراقب ECG.",
+        "Additive QTc prolongation (gepotidacin prolongs QTc in a concentration-dependent way) — "
+        "avoid the combination (Blujepa label); if unavoidable, correct K⁺/Mg²⁺ and monitor the ECG."),
+    ("digoxin", "gepotidacin"): (
+        "يرفع تعرّض الـ Digoxin — قِس مستوى الديجوكسين (Blujepa label).",
+        "Increases digoxin exposure — monitor serum digoxin (Blujepa label)."),
+    ("nmba", "gepotidacin"): (
+        "Gepotidacin يثبط acetylcholinesterase: يطيل مفعول الـ succinylcholine ويعاكس المرخيات غير "
+        "المزيلة للاستقطاب — راقب الوظيفة العصبية العضلية (Blujepa label).",
+        "Gepotidacin inhibits acetylcholinesterase: it prolongs succinylcholine and antagonises "
+        "non-depolarising blockers — monitor neuromuscular function (Blujepa label)."),
     ("antacids", "cefaclor"): (
         "مضادات الحموضة تقلّل امتصاص الـ Cefaclor — افصل ساعتين على الأقل.",
         "Antacids reduce cefaclor absorption — separate the doses by at least 2 h."),
