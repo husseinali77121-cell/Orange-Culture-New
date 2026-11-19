@@ -256,6 +256,8 @@ def test_daptomycin_not_offered_under_12_months():
 
 
 def test_reports_say_possible_xdr_and_print_the_dose_note():
+    # v7.0 (review 2026-11-19): the PHYSICIAN report prints MDR for a provisional
+    # XDR; "possible XDR" stays on the screen and in the internal QA sheet.
     from cdss.reports.report_service import generate_pdf_html_report, generate_report
     sir = {"Amoxicillin + Clavulanic acid": "R", "Cefuroxime": "R", "Ceftriaxone": "R",
            "Ceftazidime": "R", "Cefepime": "R", "Piperacillin + Tazobactam": "R",
@@ -269,7 +271,10 @@ def test_reports_say_possible_xdr_and_print_the_dose_note():
         banned=r["banned"], preg_warn_items=r["preg_warn"], organism="Klebsiella spp.",
         specimen="Blood", sir_map=sir, interactions=r["interactions"], mdr_result=r["mdr"],
         esbl_result=r["mechanism"], phenotypes=r["phenotypes"], return_html=True, lang="en") or ""
-    assert "possible XDR" in html and "Possible XDR" in html
+    from cdss.resistance.mdr import mdr_display_label, physician_mdr_level
+    assert r["mdr"]["provisional"] and "Possible XDR" in mdr_display_label(r["mdr"])
+    assert physician_mdr_level(r["mdr"]) == "MDR"
+    assert "possible XDR" not in html and "Possible XDR" not in html and "MDR" in html
     lis = {"Ampicillin": "S", "Penicillin": "S"}
     r = run_analysis(ADULT, "Listeria monocytogenes", "CSF", lis)
     txt = generate_report("T", 45, "Female", 70, 95, False, False, False, r["allowed"], r["warned"],
