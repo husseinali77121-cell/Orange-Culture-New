@@ -51,16 +51,15 @@ def sdd_drugs(panel: Optional[Mapping[str, Any]], organism: str = "") -> Set[str
     the SDD range under the old label, and is read as SDD (the QC panel asks
     the laboratory to correct it: phenotype_plausibility PL3).
     """
-    out = {str(d or "").strip() for d, v in (panel or {}).items()
-           if is_sdd(v) and str(d or "").strip()}
-    if organism:
-        from cdss.astqc.phenotype_plausibility import no_i_pair
-        for d, v in (panel or {}).items():
-            n = str(d or "").strip()
-            if (n and str(v or "").strip().upper() in ("I", "INTERMEDIATE")
-                    and no_i_pair(n, organism)):
-                out.add(n)
-    return out
+    # v7.1 (external review 2026-11-19): an "I" on such a pair is NO LONGER read
+    # as SDD. The breakpoint version behind it is unknown: under the pre-2014
+    # CLSI cefepime and pre-2022 pip-tazo criteria an "I" is R today, so
+    # SDD dosing on it could treat a resistant isolate. It stays I and carries
+    # the "no I category -- get the MIC" note (intermediate_note) plus the QC
+    # flag (phenotype_plausibility PL3). `organism` is kept for the callers.
+    del organism
+    return {str(d or "").strip() for d, v in (panel or {}).items()
+            if is_sdd(v) and str(d or "").strip()}
 
 
 def reported_sdd(panel: Optional[Mapping[str, Any]]) -> Set[str]:
@@ -133,6 +132,19 @@ def intermediate_note(name: str, cls: str, spec_cat: str, uti_upper: bool,
             "maximum dose and only if no S agent fits.")
     urine_lower = spec_cat == "urine" and not uti_upper
     fq = "fluoroquinolone" in (cls or "").lower()
+    if org:
+        from cdss.astqc.phenotype_plausibility import no_i_pair
+        if no_i_pair(name, organism):
+            # v7.1: CLSI M100 Ed36 has no I for this pair (S / SDD / R).
+            return (
+                f"CLSI M100 Ed36 لا يعرّف فئة I لـ {name} مع هذا الكائن (S / SDD / R فقط): الـ I "
+                "المطبوع جاء من إصدار breakpoints آخر — بمعايير CLSI الحالية قد يكون SDD أو R. "
+                "اطلب قيمة الـ MIC: جرعة SDD فقط إذا وقع الـ MIC في مدى SDD، وإلا عامله كـ R. "
+                "لا يُستخدم بالجرعة المعتادة.",
+                f"CLSI M100 Ed36 has no I category for {name} with this organism (S / SDD / R "
+                "only): the printed I comes from another breakpoint version - by current CLSI it "
+                "may be SDD or R. Obtain the MIC: SDD dosing only if the MIC falls in the SDD "
+                "range, otherwise treat it as R. Not at the standard dose.")
     if _is_beta_lactam(name, cls):
         if urine_lower:
             return (
@@ -145,11 +157,14 @@ def intermediate_note(name: str, cls: str, spec_cat: str, uti_upper: bool,
                 "at the maximum approved dose, and prefer an S agent.")
         return (
             "CLSI M100: النتيجة Intermediate (I) — في البيتا-لاكتام الفاعلية ممكنة فقط بجرعة "
-            "أعلى من المعتادة (الجرعة القصوى المعتمدة / تسريب ممتد). الأفضل دواء S؛ ولا يُستخدم "
-            "الـ I إلا إن لم يوجد بديل، وبنظام الجرعة العالية.",
+            "أعلى من المعتادة، وفقط حيث يوجد نظام جرعة عالية معتمد لهذا الدواء (ليست رخصة "
+            "عامة لكل بيتا-لاكتام): راجِع الـ MIC مقابل الـ breakpoint والنظام المعتمد. الأفضل "
+            "دواء S، ولا يُستخدم الـ I إلا إن لم يوجد بديل.",
             "CLSI M100: Intermediate (I) -- for a beta-lactam, efficacy is possible only at a "
-            "higher-than-normal dose (maximum approved dose / extended infusion). Prefer an S "
-            "agent; use the I agent only if none fits, at the high-dose regimen.")
+            "higher-than-normal dose, and only where an approved high-dose regimen exists for "
+            "THIS drug (not a general licence for every beta-lactam): check the MIC against the "
+            "breakpoint and the approved regimen. Prefer an S agent; use the I agent only if "
+            "none fits.")
     if fq and urine_lower:
         return (
             "CLSI M100: النتيجة Intermediate (I) — الفلوروكينولون يتركّز في البول: مقبول "

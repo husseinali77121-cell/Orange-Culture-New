@@ -69,6 +69,7 @@ class TherapyContext:
     unreadable: Any
     urine_lower: Any
     uti_upper: Any
+    weight_kg: Any = None      # v7.1: label weight floors (gepotidacin >= 40 kg)
     alerts: List[str] = field(default_factory=list)      # interaction / side alerts (appended by rules)
 
 
@@ -90,6 +91,7 @@ def build_context(
     carbapenemase_type: Optional[str] = None,
     uti_syndrome: Optional[str] = None,
     allergies: Optional[List[str]] = None,
+    weight_kg: Optional[float] = None,
 ) -> Tuple[TherapyContext, List[str]]:
     """Normalise the inputs and derive every case-level fact once.
 
@@ -140,6 +142,22 @@ def build_context(
     _is_carbapenemase = _mech_prob == "carbapenemase"
     _is_possible_carb = _mech_prob == "possible_carbapenemase"
     _carb_type = normalize_carbapenemase_type(carbapenemase_type)
+    # v7.1 (external review 2026-11-19): a carbapenemase CONFIRMED by the
+    # laboratory (PCR / immunochromatography, entered as its type) outranks the
+    # phenotype prediction. It used to be stored beside it and ignored by the
+    # rules that read `is_carbapenemase`, so a KPC with a carbapenem-susceptible
+    # panel left sulopenem, cefepime-enmetazobactam and pivmecillinam allowed.
+    # Enterobacterales only: the IDSA CRE algorithms are by enzyme; for P.
+    # aeruginosa each agent stays judged on its AST (the CRPA design above, with
+    # the enzyme still read by novel_agent_verdict), and a type entered for a
+    # Gram-positive or Acinetobacter is not a carbapenemase this rule knows.
+    from cdss.astqc.ast_reportability import ENTEROBACTERALES as _ENTB
+    _ol = (organism_type or "").lower()
+    _carb_confirmed = bool(_carb_type) and ("enterobacterales" in _ol
+                                            or any(t in _ol for t in _ENTB))
+    if _carb_confirmed:
+        _is_carbapenemase = True
+        _is_possible_carb = False
     _mech_label = ("Carbapenemase" if _is_carbapenemase
                    else "AmpC" if _mech_prob in ("ampc", "ampc_plasmid") else "ESBL")
     _allergy = _allergy_profile(allergies)
@@ -250,4 +268,5 @@ def build_context(
         unreadable=_unreadable,
         urine_lower=_urine_lower,
         uti_upper=_uti_upper,
+        weight_kg=weight_kg,
     ), final_drugs

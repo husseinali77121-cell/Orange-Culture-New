@@ -47,6 +47,7 @@ RULES: Tuple[Rule, ...] = (
     organism.rule_colistin,
     organism.rule_oral_fosfomycin,
     organism.rule_staph_penicillin_note,
+    organism.rule_saureus_bsi_tmp_smx,    # v7.1: not initial therapy for S. aureus BSI
     organism.rule_strep_tmp_smx,
     organism.rule_macrolide_cross_resistance,
     organism.rule_enterococci,
@@ -156,12 +157,14 @@ def analyze_antibiotics(
     carbapenemase_type: Optional[str] = None,
     uti_syndrome: Optional[str] = None,
     allergies: Optional[List[str]] = None,
+    weight_kg: Optional[float] = None,
 ) -> Tuple[List[Dict], List[Dict], List[Dict], List[Dict], List[str]]:
     """Sort the panel into (allowed, warned, banned, pregnancy cautions, alerts)."""
     cx, drugs = build_context(
         final_drugs, organism_type, culture_type, age, sex, is_renal, cl_cr, is_preg,
         is_hepatic, current_meds, sir_map, child_pugh, age_months,
         carbapenemase_type=carbapenemase_type, uti_syndrome=uti_syndrome, allergies=allergies,
+        weight_kg=weight_kg,
     )
     allowed: List[Dict] = []
     warned: List[Dict] = []

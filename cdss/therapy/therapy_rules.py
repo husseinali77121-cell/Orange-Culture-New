@@ -51,11 +51,17 @@ UTI_SYNDROME_OPTIONS = ("تلقائي (من الأعراض)", "التهاب مث
                         "التهاب حويضة / cUTI / إنتان بولي")
 
 
-def resolve_uti_syndrome(choice: Optional[str], symptoms: Optional[List[str]] = None) -> Optional[str]:
+def resolve_uti_syndrome(choice: Optional[str], symptoms: Optional[List[str]] = None,
+                         catheter: bool = False) -> Optional[str]:
     """'upper' | 'lower' | None from the UI choice and the symptom checklist.
 
     Auto mode infers 'upper' from fever or flank/loin pain (IDSA cUTI 2025
     defines cUTI/pyelonephritis by systemic or upper-tract signs).
+
+    v7.1: and from `catheter` -- an indwelling, suprapubic or intermittent
+    catheter or a nephrostomy makes the UTI complicated (IDSA cUTI 2025), and
+    bladder-only agents are "generally not appropriate" there. An explicit
+    choice ("cystitis") still wins.
     """
     c = str(choice or "")
     if "حويضة" in c or "upper" in c.lower() or "cuti" in c.lower():
@@ -64,6 +70,8 @@ def resolve_uti_syndrome(choice: Optional[str], symptoms: Optional[List[str]] = 
         return "lower"
     sym = " | ".join(str(x).lower() for x in (symptoms or []))
     if any(k in sym for k in ("fever", "flank", "loin", "حمى", "خاصرة", "rigors")):
+        return "upper"
+    if catheter:
         return "upper"
     return None
 
@@ -88,6 +96,13 @@ CLINICAL_NOTE_EN = {
                  "with renal monitoring, when no safer option exists."),
     "penicillinase_unconfirmed": ("Staphylococcus with penicillin-class 'S': exclude penicillinase "
                                   "(zone-edge / blaZ test) before relying on it."),
+    "eucast_only_breakpoint": ("Interpretation: CLSI M100 has no criteria for this agent; the "
+                               "result is read by EUCAST criteria (second source, used only where "
+                               "CLSI is silent) and is reported as such."),
+    "saureus_bsi_tmp_smx": ("TMP-SMX is not initial therapy for S. aureus bacteraemia: it did "
+                            "worse than vancomycin in severe MRSA infection and bacteraemia "
+                            "(Paul et al., BMJ 2015). Oral step-down only in selected uncomplicated "
+                            "cases, with infectious-diseases advice."),
     "no_breakpoint": ("No CLSI M100 breakpoint for this organism-agent pair: the result is "
                       "uncalibrated and is not a basis for treatment."),
     "fq_low_level": ("Split quinolone result (ofloxacin / norfloxacin S beside a non-susceptible "
@@ -178,7 +193,9 @@ def novel_agent_verdict(drug: str, organism: str, mech: Optional[Dict[str, Any]]
     """('allow' | 'warn' | 'ban', note) for one novel agent on one isolate."""
     o = (organism or "").lower()
     prob = (mech or {}).get("probability")
-    dtr = bool((mech or {}).get("dtr"))
+    # v7.1: a POSSIBLE DTR (incomplete panel, every tested first-line agent
+    # non-susceptible) is treated the same way until the rest are tested.
+    dtr = bool((mech or {}).get("dtr") or (mech or {}).get("dtr_possible"))
     carb_r = any((sir_map or {}).get(d) in ("R", "I")
                  for d in ("Meropenem", "Imipenem/Cilastatin"))
     # Every Gram-positive name the pick-list can produce -- including the
