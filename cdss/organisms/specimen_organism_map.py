@@ -66,7 +66,7 @@ for specimen_name in ("Urine", "Blood", "Wound Swab", "Pus"):
 # defaulting the isolate to index 0 (E. coli on Urine and Blood). They are
 # ordinary nosocomial isolates at every one of these sites.
 # NOT added to Stool: they are not enteric pathogens.
-_AMPC_GENERA = ("Enterobacter cloacae", "Serratia marcescens",
+_AMPC_GENERA = ("Enterobacter cloacae", "Klebsiella aerogenes", "Serratia marcescens",
                 "Citrobacter freundii", "Morganella morganii",
                 "Providencia spp.", "Hafnia alvei")
 for specimen_name in ("Urine", "Blood", "Sputum", "Wound Swab", "Pus", "CSF"):
