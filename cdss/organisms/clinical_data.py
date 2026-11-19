@@ -110,19 +110,18 @@ INTRINSIC_RESISTANCE = {
                          "Nitrofurantoin", "Colistin", "Polymyxin B",
                          "Gentamicin", "Tobramycin", "Oxacillin", "Penicillin"],
 
-    # Serratia: chromosomal AmpC + intrinsic polymyxin/nitrofurantoin
-    # EUCAST v3.3 Table 2 fn.5 -- "S. marcescens is intrinsically resistant to
-    # tetracycline and doxycycline but not to minocycline or tigecycline."
-    # Tigecycline was previously listed here (wrongly banning an active agent for
-    # MDR Serratia) while tetracycline and doxycycline were absent entirely.
-    "serratia marcescens": ["Tetracycline", "Doxycycline",
-                            "Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+    # Serratia: chromosomal AmpC + intrinsic polymyxin/nitrofurantoin (CLSI M100
+    # Appendix B1). v7.0 (EUCAST audit, decision D1): tetracycline/doxycycline
+    # LEFT this list. EUCAST v3.3 Table 1 fn.5 calls them intrinsic for
+    # S. marcescens; CLSI does not, so they are reported as tested and carry a
+    # treatment caution in the organism profile. Tigecycline/minocycline were
+    # never intrinsic.
+    "serratia marcescens": ["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
                             "Ampicillin/Sulbactam",
                             "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
                             "Cefuroxime", "Cefuroxime sodium", "Cefaclor", "Cefoxitin",
                             "Colistin", "Polymyxin B", "Nitrofurantoin", "Oxacillin", "Penicillin"],
-    "serratia spp.":       ["Tetracycline", "Doxycycline",
-                            "Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+    "serratia spp.":       ["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
                             "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
                           "Cefuroxime", "Cefuroxime sodium",
                             "Cefoxitin", "Colistin", "Polymyxin B", "Nitrofurantoin", "Oxacillin", "Penicillin"],
@@ -133,6 +132,14 @@ INTRINSIC_RESISTANCE = {
                              "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
                              "Cefuroxime", "Cefuroxime sodium", "Cefaclor", "Cefoxitin", "Oxacillin", "Penicillin"],
     "enterobacter aerogenes":["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
+                             "Ampicillin/Sulbactam",
+                             "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
+                             "Cefuroxime", "Cefuroxime sodium", "Cefaclor", "Cefoxitin", "Oxacillin", "Penicillin"],
+    # v6.9 (decision D2): the current name of Enterobacter aerogenes. It had no
+    # row: none of the keys above is a substring of "klebsiella aerogenes", so
+    # the isolate inherited NO intrinsic resistance (a cefoxitin S was offered).
+    # Same chromosomal AmpC, same CLSI Appendix B row as E. cloacae complex.
+    "klebsiella aerogenes":  ["Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
                              "Ampicillin/Sulbactam",
                              "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin",
                              "Cefuroxime", "Cefuroxime sodium", "Cefaclor", "Cefoxitin", "Oxacillin", "Penicillin"],
@@ -185,18 +192,23 @@ INTRINSIC_RESISTANCE = {
         "Azithromycin", "Erythromycin", "Clarithromycin", "Oxacillin", "Penicillin",
     ],
 
-    # Acinetobacter baumannii — NOTE: Ampicillin/Sulbactam is ACTIVE (excluded);
-    # tetracyclines (doxy/minocycline) can be active (excluded).
-    # EUCAST v3.3 Table 2 fn.2 -- "Acinetobacter is intrinsically resistant to
-    # tetracycline and doxycycline but not to minocycline and tigecycline."
-    # Doxycycline was previously ABSENT here and was being offered as an
-    # active option for Acinetobacter, which EUCAST says it is not.
-    "acinetobacter baumannii": ["Tetracycline", "Doxycycline",
-                                
+    # Acinetobacter baumannii — NOTE: Ampicillin/Sulbactam is ACTIVE (excluded).
+    # v6.9 (2026-11-14, decision D1 -- CLSI M100 Ed36 everywhere). CLSI Appendix B
+    # lists ampicillin, amoxicillin-clavulanate, aztreonam, ertapenem,
+    # trimethoprim, chloramphenicol and fosfomycin (plus, for every
+    # non-fermenter, the 1st/2nd-gen cephalosporins and cephamycins). Taken OUT:
+    #   * Cefotaxime / Ceftriaxone -- EUCAST calls them expected-resistant, but
+    #     CLSI Table 2B-2 gives Acinetobacter breakpoints for both: they are
+    #     reported as tested. Therapy keeps them as a caution (organism_profile).
+    #   * Tetracycline / Doxycycline -- not intrinsic in CLSI. CLSI M100 Ed36
+    #     REMOVED (archived) their Acinetobacter breakpoints, so they are now a
+    #     no-breakpoint pair (ast_reportability + therapy rule), not intrinsic.
+    #     Minocycline keeps its breakpoints and is the tetracycline to test.
+    "acinetobacter baumannii": [
         "Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
         "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefaclor",
         "Cefuroxime", "Cefuroxime sodium", "Cefoxitin",
-        "Cefotaxime", "Ceftriaxone", "Ertapenem", "Aztreonam", "Aztreonam + Avibactam",
+        "Ertapenem", "Aztreonam", "Aztreonam + Avibactam",
         "Trimethoprim", "Fosfomycin", "Nitrofurantoin", "Chloramphenicol", "Oxacillin", "Penicillin",
     ],
 
@@ -387,7 +399,8 @@ _ENTERIC_AND_NONFERMENTER = [
     "proteus mirabilis", "proteus spp.", "proteus vulgaris",
     "morganella morganii", "providencia spp.",
     "serratia marcescens", "serratia spp.",
-    "enterobacter cloacae", "enterobacter aerogenes", "enterobacter spp.",
+    "enterobacter cloacae", "enterobacter aerogenes", "klebsiella aerogenes",
+    "enterobacter spp.",
     "hafnia alvei",
     "citrobacter freundii", "citrobacter koseri", "citrobacter spp.",
     "pseudomonas aeruginosa", "acinetobacter baumannii",
@@ -474,7 +487,9 @@ del _k
 #   * Ceftaroline is the deliberate exception for staphylococci (it binds
 #     PBP2a) but has no Listeria activity, so it is listed for Listeria only.
 _NOVEL_CEPHALOSPORINS = ["Ceftazidime + Avibactam", "Ceftolozane + Tazobactam",
-                         "Cefiderocol"]
+                         "Cefiderocol",
+                         # v6.9 (decision D5): a cephalosporin -- same wrong target.
+                         "Cefepime + Enmetazobactam"]
 _NOVEL_CARBAPENEM_BLI = ["Meropenem + Vaborbactam", "Imipenem + Relebactam"]
 
 for _k in ("stenotrophomonas maltophilia",):
@@ -553,10 +568,22 @@ INTRINSIC_RESISTANCE["gram-negative bacilli (unidentified)"] = [
     d for d in _GRAM_POS_ONLY_CORE if d != "Penicillin"]
 INTRINSIC_RESISTANCE["non-fermenting gram-negative bacilli"] = list(dict.fromkeys(
     _GRAM_POS_ONLY_CORE + _GRAM_POS_ONLY_ENTERIC + [
-        # shared by P. aeruginosa, A. baumannii and S. maltophilia
+        # shared by P. aeruginosa, A. baumannii and S. maltophilia. Cefotaxime /
+        # ceftriaxone left this list in v6.9: CLSI gives Acinetobacter
+        # breakpoints for both (the therapy profile still avoids ceftriaxone
+        # for an unidentified non-fermenter -- P. aeruginosa is resistant).
         "Ampicillin", "Amoxicillin", "Amoxicillin + Clavulanic acid",
         "Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Cefaclor",
         "Cefuroxime", "Cefuroxime sodium", "Cefoxitin",
-        "Cefotaxime", "Ceftriaxone", "Ertapenem", "Nitrofurantoin"]))
+        "Ertapenem", "Nitrofurantoin"]))
 INTRINSIC_RESISTANCE["gram-positive cocci (unidentified)"] = list(_GRAM_NEG_ONLY_CORE)
 del _new, _ref
+
+# v6.9 (2026-11-14, decision D5): IV fosfomycin is the same molecule as the
+# oral agent -- intrinsic resistance is a property of the organism and the
+# drug, not of the route. Every row that lists "Fosfomycin" lists the IV agent
+# too, so no organism inherits a different answer through a different name.
+for _k, _row in INTRINSIC_RESISTANCE.items():
+    if "Fosfomycin" in _row and "Fosfomycin IV" not in _row:
+        _row.append("Fosfomycin IV")
+del _k, _row

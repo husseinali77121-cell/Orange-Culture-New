@@ -204,13 +204,17 @@ URINE_SYMPTOMS = [
     "Nocturnal enuresis", "Abdominal pain", "Nausea / Vomiting",
     "Asymptomatic",
 ]
+# v7.0 (review 2026-11-19): "Rods" -> "Bacilli", the wording the laboratory
+# report uses. A reviewer looking for "WBCs + Gram negative bacilli" under
+# E. coli / Klebsiella did not recognise "Gram Negative Rods" as that choice.
+# The old labels stay readable (GRAM_STAIN_LEGACY, _stain_type).
 GRAM_STAIN_OPTIONS = [
     "مش متعملة",
     "WBCs + Gram Positive Cocci",
-    "WBCs + Gram Negative Rods",
+    "WBCs + Gram Negative Bacilli",
     "WBCs + Gram Negative Cocci / Diplococci",
-    "WBCs + Gram Positive Rods",
-    "WBCs + Gram Variable Rods / Coccobacilli",
+    "WBCs + Gram Positive Bacilli",
+    "WBCs + Gram Variable Bacilli / Coccobacilli",
     "WBCs + Mixed flora (Polymicrobial)",
     "WBCs + Yeast cells",
     "Organisms بدون WBCs",
@@ -218,6 +222,25 @@ GRAM_STAIN_OPTIONS = [
     "WBCs بدون Organisms",
     "طبيعية (No organisms seen)",
 ]
+GRAM_STAIN_LEGACY = {
+    "WBCs + Gram Negative Rods": "WBCs + Gram Negative Bacilli",
+    "WBCs + Gram Positive Rods": "WBCs + Gram Positive Bacilli",
+    "WBCs + Gram Variable Rods / Coccobacilli": "WBCs + Gram Variable Bacilli / Coccobacilli",
+}
+
+
+def gram_choice_in(value, options: List[str]) -> Optional[str]:
+    """A remembered Gram-stain choice that is still offered, or None.
+
+    The choice list depends on the isolate. When the organism changes (or a
+    session carries a pre-v7.0 label) the remembered value may not be in the
+    new list; the form then starts from the first option instead of keeping a
+    stale answer the user can no longer see.
+    """
+    v = GRAM_STAIN_LEGACY.get(value, value)
+    return v if v in options else None
+
+
 WOUND_TYPES = [
     "مش محدد", "Surgical / Post-op", "Abscess (aspirated pus)",
     "Chronic / Diabetic", "Pressure ulcer / Bed sore", "Burn",
@@ -429,8 +452,8 @@ def _stain_type(gram_stain: str) -> Optional[str]:
     return None
 
 
-_GRAM_LABEL = {"pos_cocci": "Gram-positive cocci", "neg_rods": "Gram-negative rods",
-               "neg_cocci": "Gram-negative cocci", "pos_rods": "Gram-positive rods",
+_GRAM_LABEL = {"pos_cocci": "Gram-positive cocci", "neg_rods": "Gram-negative bacilli",
+               "neg_cocci": "Gram-negative cocci", "pos_rods": "Gram-positive bacilli",
                "neg_coccobacilli": "Gram-negative coccobacilli", "yeast": "yeast",
                "variable": "Gram-variable", "mixed": "mixed flora"}
 _GRAM_COMPATIBLE = {
@@ -573,12 +596,18 @@ def _site_urine(
     uro_procedure,
 ):
     """URINE: score this specimen's own evidence (moved from assess_pathogenicity)."""
-    references += ["IDSA Asymptomatic Bacteriuria 2019", "IDSA CA-UTI 2009",
-                   "IDSA cUTI 2025", "AAP UTI 2011 (reaffirmed 2016)"]
     coll_l = collection_method.lower()
     catheterised = (any(k in coll_l for k in ("indwelling", "foley", "intermittent",
                                               "suprapubic catheter", "nephrostomy", "conduit"))
                     or _hf(host_factors, "urinary catheter"))
+    # v7.0 (review 2026-11-19): cite what was actually applied -- the AAP
+    # paediatric guideline was listed for a 30-year-old woman, and the CA-UTI
+    # guideline for patients without a catheter.
+    references += ["IDSA Asymptomatic Bacteriuria 2019", "IDSA cUTI 2025"]
+    if catheterised:
+        references.append("IDSA CA-UTI 2009")
+    if age < 18 or "bag" in coll_l or "كيس" in coll_l:
+        references.append("AAP UTI 2011 (reaffirmed 2016)")
     infant = age < 2
     if infant:
         special_flags.append("PEDIATRIC_UTI")

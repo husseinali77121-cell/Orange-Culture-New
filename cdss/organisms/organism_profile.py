@@ -14,6 +14,18 @@ Enhancements in this revision:
 import re
 from typing import Any, Dict, Iterable, Optional
 
+# v6.9 (2026-11-14, decision D1 -- CLSI M100 Ed36 everywhere). EUCAST calls
+# cefotaxime/ceftriaxone expected-resistant in Acinetobacter; CLSI Table 2B-2
+# gives breakpoints (S <=8, I 16-32, R >=64), so an S is reported. It is still
+# not an IDSA agent for Acinetobacter, and the S breakpoint sits above what the
+# usual dose reliably covers -- hence a caution, ranked after every other S.
+_ACINETO_3GC_CAUTION = (
+    "Acinetobacter + Ceftriaxone/Cefotaxime: CLSI M100 Ed36 له breakpoints (S ≤ 8 µg/mL) "
+    "فالنتيجة S تُبلَّغ، لكنه ليس من خيارات IDSA لـ Acinetobacter ونقطة S أعلى مما تغطيه "
+    "الجرعة المعتادة بثقة. لا يُستخدم في عدوى غازية أو شديدة؛ المفضّل حسب الحساسية: "
+    "Ampicillin/Sulbactam (جرعة عالية) أو Cefepime/Ceftazidime أو Carbapenem.")
+
+
 ORGANISM_PROFILE = {
     "E. coli": {
         # 2026-11-10: amox-clav moved to second line -- IDSA cystitis guidance
@@ -73,7 +85,7 @@ ORGANISM_PROFILE = {
                   "Cephalexin","Cefadroxil","Cefaclor","Norfloxacin",
                   "Cefuroxime sodium","Ertapenem"],
         "urine_note": (
-            "Ertapenem: ممنوع لـ Pseudomonas — لا نشاط (EUCAST).\n"
+            "Ertapenem: ممنوع لـ Pseudomonas — لا نشاط (CLSI M100 Appendix B2).\n"
             "Ciprofloxacin و Levofloxacin (750mg) فعّالان ضد Pseudomonas؛ Norfloxacin لا يُستخدم.\n"
             "Gentamicin: ألغته CLSI 2023 لـ P. aeruginosa — Tobramycin هو البديل؛ Amikacin للبول فقط.\n"
             "الأمينوجليكوزيد منفرداً لعدوى البول فقط (CLSI 2023)."
@@ -101,8 +113,15 @@ ORGANISM_PROFILE = {
         "second_line": ["Meropenem","Imipenem/Cilastatin","Amikacin",
                         "Trimethoprim/Sulfamethoxazole","Minocycline"],
         "third_line":  ["Sulbactam + Durlobactam","Cefiderocol","Tigecycline","Colistin"],
-        "avoid": ["Ertapenem","Cephalexin","Cefuroxime","Ceftriaxone",
+        # v6.9 (decision D1, CLSI): Ceftriaxone left this list -- CLSI gives
+        # Acinetobacter breakpoints for ceftriaxone and cefotaxime, so an S is
+        # reported; it is a caution below, not an avoid.
+        "avoid": ["Ertapenem","Cephalexin","Cefuroxime",
                   "Azithromycin","Clarithromycin","Nitrofurantoin","Fosfomycin"],
+        "caution": {
+            "Ceftriaxone": _ACINETO_3GC_CAUTION,
+            "Cefotaxime":  _ACINETO_3GC_CAUTION,
+        },
         # Attached to the drug when it is offered; never demotes it.
         "agent_notes": {
             "Ampicillin/Sulbactam": ("Acinetobacter: جرعة عالية — 9 g sulbactam يومياً "
@@ -185,7 +204,7 @@ ORGANISM_PROFILE = {
             "Proteeae: نشاط Imipenem منخفض جوهرياً (MICs أعلى) — Meropenem أو Ertapenem "
             "هو الكاربابينيم المفضّل، و Imipenem R وحده ليس علامة CRE (CDC).")},
         "urine_note": (
-            "Nitrofurantoin: مقاوم طبيعياً لـ Proteus (intrinsic) — EUCAST.\n"
+            "Nitrofurantoin: مقاوم طبيعياً لـ Proteus (intrinsic) — CLSI M100 Appendix B1.\n"
             "Norfloxacin: فعال في UTI فقط."
         ),
         "specimen_context": {
@@ -205,7 +224,7 @@ ORGANISM_PROFILE = {
         "avoid": ["Cephalosporins (كل الجيل)","Trimethoprim/Sulfamethoxazole",
                   "Cefuroxime sodium","Ertapenem","Norfloxacin"],
         "urine_note": (
-            "Ertapenem وCefuroxime sodium: لا نشاط ضد Enterococcus (EUCAST).\n"
+            "Ertapenem وCefuroxime sodium: لا نشاط ضد Enterococcus (CLSI M100 Appendix B4 / Table 2D).\n"
             "جميع السيفالوسبورين مقاومة طبيعياً لـ Enterococcus."
         ),
         "specimen_context": {
@@ -468,11 +487,11 @@ _AMPC_DEREPRESSION_NOTE = (
     "⚠️ **AmpC كروموسومي قابل للتحفيز — خطر متوسط/مرتفع** (IDSA AMR 2026).\n"
     "السيفالوسبورينات من الجيل الثالث قد تظهر **حسّاسة** ثم تفشل: العلاج بها قد ينتقي "
     "طفرات مُفرِطة الإنتاج (stable derepression).\n"
-    "**العدوى الغازية:** ابدأ بـ Cefepime (ثابت أمام AmpC، إذا MIC ≤ 2)؛ Carbapenem إذا "
-    "كان Cefepime SDD/I. Ceftriaxone مقبول لالتهاب المثانة، ويُعقل الاستمرار فيه في عدوى "
+    "**العدوى الغازية:** ابدأ بـ Cefepime (ثابت أمام AmpC، إذا MIC ≤ 8 — والـ SDD بجرعة 2 g q8h)؛ "
+    "Carbapenem إذا Cefepime R أو ثبت جين ESBL. Ceftriaxone مقبول لالتهاب المثانة، ويُعقل الاستمرار فيه في عدوى "
     "غير شديدة تستجيب بالفعل.\n"
     "**التنزيل الفموي:** TMP-SMX أو Fluoroquinolone حسب الحساسية.\n"
-    "المصدر: IDSA AMR Guidance 2026 · EUCAST Expert Rules v3.1."
+    "المصدر: IDSA AMR Guidance 2026 · CLSI M100 Ed36 Appendix B1 · EUCAST Expert Rules v3.1."
 )
 _AMPC_LOW_RISK_NOTE = (
     "ℹ️ **AmpC كروموسومي منخفض الخطر** (IDSA AMR 2026): احتمال الانتقاء أثناء العلاج "
@@ -527,21 +546,54 @@ ORGANISM_PROFILE.update({
         "specimen_context": dict(_AMPC_SPECIMEN_CONTEXT),
         "note": "🦠 **Enterobacter cloacae complex.**\n" + _AMPC_DEREPRESSION_NOTE,
     },
+    # v6.9 (2026-11-14, decision D2): Klebsiella aerogenes (formerly
+    # Enterobacter aerogenes). IDSA AMR Guidance 2026 lists it with E. cloacae
+    # complex and C. freundii as the organisms at moderate-to-high risk of
+    # clinically significant AmpC production. Until v6.8 the OCR mapped it to
+    # E. cloacae and the dropdown did not offer it; a typed name found no profile.
+    "Klebsiella aerogenes": {
+        "first_line":  ["Cefepime", "Trimethoprim/Sulfamethoxazole", "Ciprofloxacin"],
+        "second_line": ["Piperacillin + Tazobactam", "Amikacin", "Levofloxacin"],
+        "third_line":  ["Meropenem", "Imipenem/Cilastatin"],
+        "avoid": [],
+        "caution": {**_AMPC_3GC_CAUTION, **_AMPC_PIPTAZO_CAUTION},
+        "urine_note": ("K. aerogenes في البول: في التهاب مثانة غير معقّد يمكن "
+                       "الاعتماد على Nitrofurantoin/Fosfomycin حسب الحساسية؛ "
+                       "في pyelonephritis عامله كعدوى غازية."),
+        "specimen_context": dict(_AMPC_SPECIMEN_CONTEXT),
+        "note": ("🦠 **Klebsiella aerogenes** (الاسم السابق Enterobacter aerogenes) — "
+                 "ليست K. pneumoniae: تحمل AmpC كروموسومي قابل للتحفيز.\n"
+                 + _AMPC_DEREPRESSION_NOTE),
+    },
     "Serratia marcescens": {
         "first_line":  ["Ceftriaxone", "Cefepime", "Ciprofloxacin",
                         "Trimethoprim/Sulfamethoxazole"],
         "second_line": ["Piperacillin + Tazobactam", "Amikacin", "Levofloxacin"],
         "third_line":  ["Meropenem", "Imipenem/Cilastatin"],
         "avoid": [],
-        "urine_note": ("⚠️ Serratia مقاومة جوهرياً لـ Nitrofurantoin و Colistin "
-                       "و Tetracycline/Doxycycline — لا تُطرح كخيار بولي. "
+        # v7.0 (EUCAST audit, D1): tetracycline / doxycycline are reported as
+        # tested (CLSI Appendix B1 does not list them) -- this caution carries
+        # the EUCAST fact instead of the old intrinsic ban.
+        "caution": {_d: ("Serratia marcescens + " + _d + ": CLSI M100 يُبلّغه كما اختُبر، لكن "
+                         "EUCAST (Intrinsic Resistance v3.3، Table 1 fn.5) يعتبر S. marcescens "
+                         "مقاومة جوهرياً للتتراسيكلين والدوكسيسيكلين — لا تعتمد عليه منفرداً؛ "
+                         "الأفضل Minocycline أو دواء من خارج الصنف.")
+                    for _d in ("Tetracycline", "Doxycycline")} | {
+            "Tigecycline": ("Serratia marcescens + Tigecycline: لا معايير CLSI للتيجيسيكلين؛ معايير "
+                            "FDA STIC للـ Enterobacterales تُطبَّق، لكن EUCAST (v16.1) يصف نشاطه ضد "
+                            "Serratia بأنه غير كافٍ — بديل أخير في توليفة فقط، وليس للدم أو البول "
+                            "منفرداً.")},
+        "urine_note": ("⚠️ Serratia مقاومة جوهرياً لـ Nitrofurantoin و Colistin (CLSI M100 "
+                       "Appendix B1) — لا تُطرح كخيار بولي. Tetracycline/Doxycycline: "
+                       "تُبلَّغ كما اختُبرت مع تحذير (EUCAST يعتبرها جوهرية). "
                        "(Minocycline و Tigecycline تعملان — عكس Proteae.)"),
         "specimen_context": dict(_AMPC_LOW_SPECIMEN_CONTEXT),
         "note": ("🦠 **Serratia marcescens.**\n" + _AMPC_LOW_RISK_NOTE +
-                 "\n\n📋 مقاومة جوهرية إضافية: Colistin · Nitrofurantoin · "
-                 "Tetracycline · Doxycycline. لكن **Minocycline و Tigecycline "
-                 "فعّالتان** — وهو ما يميّزها عن Proteus/Morganella/Providencia "
-                 "(EUCAST v3.3 Table 2, fn.5)."),
+                 "\n\n📋 مقاومة جوهرية إضافية (CLSI M100 Appendix B1): Colistin · "
+                 "Nitrofurantoin. Tetracycline و Doxycycline: جوهرية في EUCAST (v3.3 "
+                 "Table 1 fn.5) وليست في CLSI — تُبلَّغ كما اختُبرت مع تحذير. "
+                 "**Minocycline فعّال، و Tigecycline غير مقاوم جوهرياً** (FDA STIC؛ EUCAST يراه "
+                 "ضعيف النشاط — في توليفة فقط) — وهو ما يميّزها عن Proteus/Morganella/Providencia."),
     },
     "Citrobacter freundii": {
         "first_line":  ["Cefepime", "Ciprofloxacin", "Trimethoprim/Sulfamethoxazole"],
@@ -579,7 +631,7 @@ ORGANISM_PROFILE.update({
                  + _AMPC_LOW_RISK_NOTE +
                  "\n\n📋 مقاومة جوهرية إضافية: Colistin · Nitrofurantoin · "
                  "Tetracycline · Doxycycline · Minocycline · Tigecycline "
-                 "(EUCAST v3.3 Table 2, fn.3). شائعة في التهابات المسالك "
+                 "(CLSI M100 Appendix B1 · EUCAST v3.3 Table 1). شائعة في التهابات المسالك "
                  "المرتبطة بالقسطرة."),
     },
     "Providencia spp.": {
@@ -597,7 +649,7 @@ ORGANISM_PROFILE.update({
                  + _AMPC_LOW_RISK_NOTE +
                  "\n\n📋 مقاومة جوهرية إضافية: Gentamicin · Tobramycin · "
                  "Colistin · Nitrofurantoin · كل التتراسيكلينات و Tigecycline "
-                 "(EUCAST v3.3 Table 2). **Amikacin مستثنى** — قد يبقى فعّالاً."),
+                 "(CLSI M100 Appendix B1 · EUCAST v3.3 Table 1). **Amikacin مستثنى** — قد يبقى فعّالاً."),
     },
     "Hafnia alvei": {
         "first_line":  ["Cefepime", "Ciprofloxacin", "Trimethoprim/Sulfamethoxazole"],
@@ -657,7 +709,7 @@ ORGANISM_PROFILE.update({
                  "🤰 الفئات المعرّضة: الحوامل · حديثو الولادة · فوق 50 سنة · "
                  "نقص المناعة. المصدر الغذائي: الأجبان الطرية والألبان غير المبسترة.\n"
                  "📋 العلاج: Ampicillin جرعة عالية ± Gentamicin للتآزر. "
-                 "بديل الحساسية للبنسلين: TMP-SMX. (IDSA Meningitis · EUCAST v16.1)"),
+                 "بديل الحساسية للبنسلين: TMP-SMX. (IDSA Meningitis · CLSI M45)"),
     },
     "Streptococcus pyogenes (Group A)": {
         "first_line":  ["Penicillin", "Amoxicillin", "Ampicillin"],
@@ -815,7 +867,7 @@ ORGANISM_PROFILE.update({
         },
         "note": ("🦠 **Proteus vulgaris** (مجموعة Proteae) — cefuroximase كروموسومي (صنف A "
                  "قابل للتحفيز): مقاوم جوهرياً لـ Ampicillin و Amoxicillin والجيل الأول و "
-                 "Cefuroxime (EUCAST). الجيل الثالث والرابع فعّالان عادةً."),
+                 "Cefuroxime (CLSI M100 Appendix B1). الجيل الثالث والرابع فعّالان عادةً."),
     },
     "Staphylococcus saprophyticus": {
         "first_line":  ["Nitrofurantoin", "Trimethoprim/Sulfamethoxazole"],
@@ -823,7 +875,7 @@ ORGANISM_PROFILE.update({
         "third_line":  [],
         "avoid": [],
         "urine_note": ("S. saprophyticus ممرض بولي حقيقي في النساء الشابات (حتى بأعداد ≥10³–10⁴). "
-                       "⛔ مقاوم جوهرياً لـ Fosfomycin و Fusidic acid و Novobiocin (EUCAST). "
+                       "⛔ مقاوم جوهرياً لـ Fosfomycin و Fusidic acid و Novobiocin (CLSI M100 Appendix B3). "
                        "CLSI: اختبار الحساسية الروتيني غير ضروري لعزلات البول — يستجيب عادةً "
                        "للأدوية المعتادة للمسالك."),
         "specimen_context": {
@@ -1134,7 +1186,11 @@ ORGANISM_PROFILE.update({
         "second_line": ["Meropenem", "Ciprofloxacin", "Levofloxacin", "Amikacin",
                         "Trimethoprim/Sulfamethoxazole"],
         "third_line":  ["Colistin"],
-        "avoid": ["Ertapenem", "Nitrofurantoin", "Cephalexin", "Cefuroxime", "Ceftriaxone"],
+        # Cefotaxime added v6.9: it left the intrinsic intersection (CLSI gives
+        # Acinetobacter breakpoints for it), but an UNIDENTIFIED non-fermenter
+        # may be P. aeruginosa, which resists it -- avoided like ceftriaxone.
+        "avoid": ["Ertapenem", "Nitrofurantoin", "Cephalexin", "Cefuroxime", "Ceftriaxone",
+                  "Cefotaxime"],
         "urine_note": ("Non-fermenter غير محدد النوع: غالباً مكتسب من المستشفى أو مع قسطرة — "
                        "الاستعمار شائع، عالِج فقط مع أعراض."),
         "specimen_context": {
