@@ -107,6 +107,14 @@ def run_analysis(
     sir_map = canonical_panel({d: v for d, v in raw_panel.items() if not is_aux_key(d)})
     drugs = list(drugs if drugs is not None else sir_map.keys())
     k = patient.as_kwargs()
+    # v7.0: ONE record of the case facts (collection method, host factors).
+    case = build_case_context(specimen, list(getattr(patient, "host_factors", None) or []),
+                              getattr(patient, "collection_method", ""))
+    # v7.1 (IDSA cUTI 2025): a urinary catheter / nephrostomy makes the UTI
+    # complicated. With no explicit choice the engine now treats it as one --
+    # the same rule the UI applies (therapy_rules.resolve_uti_syndrome).
+    if uti_syndrome is None and case.cuti_device:
+        uti_syndrome = "upper"
 
     allowed, warned, banned, preg_warn, interactions = analyze_antibiotics(
         drugs, organism, specimen, k["age"], k["sex"], k["is_renal"],
@@ -114,6 +122,7 @@ def run_analysis(
         k["child_pugh"], k["age_months"],
         carbapenemase_type=carbapenemase_type, uti_syndrome=uti_syndrome,
         allergies=list(getattr(patient, "allergies", None) or []),
+        weight_kg=getattr(patient, "weight_kg", None),
     )
 
     gate_report: Dict[str, Any] = {}
@@ -143,9 +152,6 @@ def run_analysis(
                 _c["preg_warn"] = len(preg_warn)
                 _c["moved"] = len(gate_report["moves"])
 
-    # v7.0: ONE record of the case facts (collection method, host factors).
-    case = build_case_context(specimen, list(getattr(patient, "host_factors", None) or []),
-                              getattr(patient, "collection_method", ""))
     if case.low_muscle_mass and not k["is_renal"]:
         _add_tdm_notes(allowed + warned)
 
@@ -170,14 +176,17 @@ def run_analysis(
     severity = suggest_severity(specimen, k["age"], k["sex"], k["is_preg"],
                                 k["is_renal"], k["cl_cr"])
     _uti_cath = case.is_cath and case.is_urine
+    # v7.1: the device that names the syndrome for THIS specimen (urinary
+    # catheter / ventilator / central line) -- HAP/VAP and CRBSI were unreachable.
     syndrome = get_infection_syndrome(specimen, organism, k["age"], k["is_preg"],
-                                      is_cath=_uti_cath, sex=k["sex"],
+                                      is_cath=case.syndrome_device(), sex=k["sex"],
                                       uti_upper=str(uti_syndrome or "").lower() == "upper")
     _syn_key = duration_syndrome_key(syndrome, uti_syndrome, specimen)
     duration = get_treatment_duration(
         specimen, organism, _syn_key, k["age"], k["sex"], k["is_renal"],
         phenotypes, severity.get("suggested", "moderate"),
         is_cath=_uti_cath, primary=(ranked[0] if ranked else None),
+        is_preg=bool(k["is_preg"]),
     )
 
     # ── Which safety layers actually ran ────────────────────────────────────
@@ -242,7 +251,13 @@ def duration_syndrome_key(syndrome: Any, uti_syndrome: Optional[str], specimen: 
     fosfomycin removed by the engine and, in the panel below, the 5-day
     uncomplicated-cystitis course (nitrofurantoin 5 d | fosfomycin single dose).
     """
-    key = syndrome.get("syndrome", "") if isinstance(syndrome, dict) else str(syndrome or "")
+    if isinstance(syndrome, dict):
+        # v7.1: the sub-type too -- "HAP/VAP" is a sub-type of "Respiratory Tract
+        # Infection", and the duration engine never saw it.
+        key = " | ".join(x for x in (str(syndrome.get("syndrome") or ""),
+                                     str(syndrome.get("sub_type") or "")) if x)
+    else:
+        key = str(syndrome or "")
     if (str(uti_syndrome or "").lower() in ("upper", "pyelonephritis", "urosepsis")
             and classify_specimen(specimen) == "urine"):
         return "pyelonephritis"
