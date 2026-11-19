@@ -55,6 +55,10 @@ _URINARY_ONLY = {
     "Nitrofurantoin": "Nitrofurantoin reaches therapeutic concentrations only in urine.",
     "Fosfomycin":     "Oral fosfomycin is a urinary agent (IV fosfomycin is the systemic exception).",
     "Norfloxacin":    "Norfloxacin reaches adequate concentrations only in the urinary and GI tracts.",
+    # v6.9 (decision D5): licensed and studied for uncomplicated cystitis only.
+    "Pivmecillinam":  "Pivmecillinam (tested as mecillinam) is licensed for uncomplicated cystitis only.",
+    "Gepotidacin":    "Gepotidacin is licensed for uncomplicated cystitis (and urogenital gonorrhoea) only.",
+    "Sulopenem":      "Oral sulopenem is licensed for uncomplicated cystitis only.",
 }
 
 # Non-Enterobacterales Gram-negatives NOT covered by the intrinsic-Enterobacterales
@@ -77,7 +81,7 @@ def _pass_specimen_fit(specimen: str, sir_map: Dict[str, str]) -> List[Dict[str,
                             f"tested on a {specimen} isolate. {why} It is not clinically actionable "
                             f"for a non-urinary (systemic) infection."),
                 "fix": (f"Suppress {drug} from the {specimen} report; it is a urinary-tract agent only.  \n"
-                        f"📖 EUCAST Breakpoint Tables v16.1 — agent site-of-infection notes"),
+                        f"📖 CLSI M100 Ed36 / product labels — site of infection"),
             })
     return out
 
@@ -95,7 +99,7 @@ def _pass_non_entero_gram_pos(org_lower: str, sir_map: Dict[str, str]) -> List[D
                             f"Gram-negative organism, but {drug} has no activity and no breakpoint "
                             f"against Gram-negative bacteria."),
                 "fix": (f"Remove {drug}; it must never be tested or reported for a Gram-negative isolate.  \n"
-                        f"📖 EUCAST Intrinsic Resistance v3.3"),
+                        f"📖 CLSI M100 Ed36 Appendix B · EUCAST Intrinsic Resistance v3.3"),
             })
     return out
 
@@ -122,7 +126,7 @@ AST_QC_RULES = [
         "message": "⚠️ A carbapenem is Susceptible while Colistin is Resistant amid broad resistance. "
                    "This unusual pattern warrants confirmation of the organism identification.",
         "fix": "Verify the isolate identification; this susceptibility pattern is atypical.  \n"
-               "📖 EUCAST Expert Rules",
+               "📖 EUCAST Expert Rules (unusual phenotype — no CLSI counterpart)",
     },
     {
         "id": "QC004",
@@ -140,7 +144,7 @@ AST_QC_RULES = [
         "message": "⚠️ A carbapenem is Resistant while a cephalosporin is Susceptible. This pattern is "
                    "uncommon (it may reflect an OXA-48-like carbapenemase or porin loss) and should be confirmed.",
         "fix": "Confirm with a carbapenemase assay (e.g., mCIM / PCR) before reporting.  \n"
-               "📖 EUCAST Guidance on detection of resistance mechanisms",
+               "📖 CLSI M100 Ed36 Tables 3B / 3C (mCIM / eCIM) · EUCAST detection guidance",
     },
     {
         "id": "QC004b",
@@ -156,7 +160,7 @@ AST_QC_RULES = [
         "message": "⚠️ Imipenem is Resistant while a cephalosporin is Susceptible. This pattern is "
                    "uncommon (it may reflect a carbapenemase or porin loss) and should be confirmed.",
         "fix": "Confirm with a carbapenemase assay (e.g., mCIM / PCR) before reporting.  \n"
-               "📖 EUCAST Guidance on detection of resistance mechanisms",
+               "📖 CLSI M100 Ed36 Tables 3B / 3C (mCIM / eCIM) · EUCAST detection guidance",
     },
     {
         "id": "QC005",
@@ -184,19 +188,20 @@ AST_QC_RULES = [
         "message": "⚠️ **Pattern worth noting** — {r_drug} = R with a lower-generation cephalosporin "
                    "({drugs}) = S, a pattern often seen with ESBL production. First check for a "
                    "third-generation cephalosporin discrepancy (see any panel-discrepancy alerts above).",
-        "fix": "LABORATORY REPORTING: report susceptibilities exactly as tested. Per EUCAST Breakpoint "
-               "Tables v16.1, the current cephalosporin breakpoints already detect the clinically "
+        "fix": "LABORATORY REPORTING: report susceptibilities exactly as tested. Per CLSI M100 Ed36 Table 3A (and EUCAST Breakpoint "
+               "Tables v16.1), the current cephalosporin breakpoints already detect the clinically "
                "important mechanisms, and the presence or absence of an ESBL does not by itself change "
                "the category -- do NOT edit a Susceptible cephalosporin to Resistant (that pre-2017 "
                "practice was withdrawn). ESBL detection is for infection control and surveillance only.  \n"
                "TREATMENT (separate, physician-level decision): a carbapenem is preferred over "
                "cephalosporins / piperacillin-tazobactam for ESBL bacteraemia even when they test "
                "Susceptible (IDSA AMR guidance; MERINO trial, JAMA 2018).  \n"
-               "📖 EUCAST Breakpoint Tables v16.1 -- Enterobacterales, note on cephalosporin breakpoints and ESBL",
+               "📖 CLSI M100 Ed36 Table 3A · EUCAST Breakpoint Tables v16.1 -- Enterobacterales cephalosporin note",
     },
 ]
 
-def run_ast_qc(organism: str, sir_map: Dict[str, str], specimen: str = "") -> List[Dict[str, Any]]:
+def run_ast_qc(organism: str, sir_map: Dict[str, str], specimen: str = "",
+               sdd=None) -> List[Dict[str, Any]]:
     """Internal AST consistency / reportability audit (English, informational only).
 
     INFORMATIONAL ONLY -- never consulted when building the antibiotic
@@ -236,6 +241,17 @@ def run_ast_qc(organism: str, sir_map: Dict[str, str], specimen: str = "") -> Li
                 })
         except Exception as _e:
             logger.warning("consistency pass failed: %s", _e, exc_info=True)
+
+    # ── Pass 2b: phenotype plausibility (v7.0) ───────────────────────────────
+    try:
+        from cdss.astqc.phenotype_plausibility import check_plausibility, format_finding
+        for _f in check_plausibility(organism, sir_map, sdd):
+            _r = format_finding(_f, lang="en")
+            issues.append({"id": _f["id"], "severity": _f["severity"],
+                           "message": _r["message"],
+                           "fix": _r["fix"].replace("✏️ ", "", 1) + "\n" + _r["reference"]})
+    except Exception as _e:
+        logger.warning("plausibility pass failed: %s", _e, exc_info=True)
 
     # ── Pass 3: specimen appropriateness + non-Enterobacterales GN guard ─────
     issues.extend(_pass_specimen_fit(specimen, sir_map))

@@ -153,7 +153,7 @@ EQUIVALENCE_RULES: List[Dict[str, Any]] = [
         "fix_en": ("Repeat both disks from the same inoculum. Check: inoculum "
                    "density (0.5 McFarland), disk potency and storage, zone edge "
                    "reading, colony purity. Do not report until resolved."),
-        "reference": "EUCAST Breakpoint Tables v16.1 — Enterobacterales · CLSI M100 Ed36 Table 2A",
+        "reference": "CLSI M100 Ed36 Table 2A (identical criteria) · EUCAST Breakpoint Tables v16.1",
     },
     {
         "id": "equiv_amc_sam",
@@ -176,7 +176,7 @@ EQUIVALENCE_RULES: List[Dict[str, Any]] = [
                    "وقراءة الـ zone قبل الإبلاغ."),
         "fix_en": ("Repeat both combinations from the same inoculum; verify disk "
                    "potency and zone reading before reporting."),
-        "reference": "EUCAST Expert Rules v3.1 (2016) · Breakpoint Tables v16.1 — Enterobacterales",
+        "reference": "EUCAST Expert Rules v3.1 (2016) — laboratory-consistency check (no CLSI counterpart, none contradicts it)",
     },
 ]
 
@@ -197,7 +197,7 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
                       "inhibitor cannot reduce activity."),
         "fix_ar": "أعِد اختبار القرصين. غالباً خطأ قراءة أو قرص تالف.",
         "fix_en": "Repeat both disks. Usually a reading error or a degraded disk.",
-        "reference": "EUCAST Expert Rules v3.1 (2016) — beta-lactam hierarchy",
+        "reference": "EUCAST Expert Rules v3.1 (2016) — beta-lactam hierarchy (logic; no CLSI counterpart needed)",
     },
     {
         "id": "hier_pip_vs_tzp",
@@ -211,7 +211,7 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
                       "activity."),
         "fix_ar": "أعِد اختبار القرصين.",
         "fix_en": "Repeat both disks.",
-        "reference": "EUCAST Expert Rules v3.1 (2016) — beta-lactam hierarchy",
+        "reference": "EUCAST Expert Rules v3.1 (2016) — beta-lactam hierarchy (logic; no CLSI counterpart needed)",
     },
     {
         "id": "hier_mem_vs_etp",
@@ -228,7 +228,7 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
                       "= OXA-48 or porin loss, which is normal)."),
         "fix_ar": "أعِد اختبار الكاربابينيمات وأكّد بـ MIC.",
         "fix_en": "Repeat the carbapenems and confirm with an MIC method.",
-        "reference": "EUCAST Guidance on detection of resistance mechanisms · CLSI M100 Ed36",
+        "reference": "CLSI M100 Ed36 Tables 3B / 3C · EUCAST Guidance on detection of resistance mechanisms",
     },
     {
         "id": "hier_tet_vs_doxy",
@@ -264,7 +264,7 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
                       "teicoplanin-susceptible. The reverse does not occur."),
         "fix_ar": "أعِد اختبار الجليكوببتيدات بـ MIC على مستعمرة نقية وأكّد التعريف.",
         "fix_en": "Repeat both glycopeptides by an MIC method on a pure colony and confirm the identification.",
-        "reference": "EUCAST Expert Rules v3.2 — glycopeptides in enterococci · CLSI M100 Ed36",
+        "reference": "EUCAST Expert Rules v3.2 — glycopeptides in enterococci (mechanism logic) · CLSI M100 Ed36 Table 2D",
     },
     {
         "id": "hier_pen_vs_cro_pneumococcus",
@@ -273,16 +273,16 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
         "worse": "ceftriaxone", "worse_needle_extra": "",
         "reason_ar": ("Penicillin حسّاس بينما Ceftriaxone مقاوم في S. pneumoniae — "
                       "المكورة الرئوية الحسّاسة للبنسلين تُعتبر حسّاسة للسيفالوسبورينات "
-                      "الممتدة والكاربابينيمات (قاعدة EUCAST التنبّؤية)."),
+                      "الممتدة والكاربابينيمات (CLSI M100 Ed36 Table 2G)."),
         "reason_en": ("Penicillin susceptible with ceftriaxone resistant in "
                       "S. pneumoniae: a penicillin-susceptible pneumococcus is "
                       "susceptible to the extended-spectrum cephalosporins and "
-                      "carbapenems (EUCAST predictive rule)."),
+                      "carbapenems (CLSI M100 Ed36 Table 2G predictive rule)."),
         "fix_ar": ("أعِد الاختبار بـ MIC (لا يُعتمد على القرص للبيتا-لاكتام في المكورة "
                    "الرئوية) وتأكّد من نقطة القطع المستخدمة (سحايا أم غير سحايا)."),
         "fix_en": ("Repeat by MIC (disk diffusion is not used for beta-lactams in "
                    "pneumococci) and check which breakpoint was applied (meningitis or not)."),
-        "reference": "EUCAST Clinical Breakpoint Tables v16.1 — S. pneumoniae, beta-lactams",
+        "reference": "CLSI M100 Ed36 Table 2G · EUCAST Clinical Breakpoint Tables v16.1 — S. pneumoniae",
     },
     {
         "id": "hier_pen_vs_ctx_pneumococcus",
@@ -295,7 +295,7 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
                       "S. pneumoniae contradicts the same predictive rule."),
         "fix_ar": "أعِد الاختبار بـ MIC وتأكّد من نقطة القطع المستخدمة.",
         "fix_en": "Repeat by MIC and check which breakpoint was applied.",
-        "reference": "EUCAST Clinical Breakpoint Tables v16.1 — S. pneumoniae, beta-lactams",
+        "reference": "CLSI M100 Ed36 Table 2G · EUCAST Clinical Breakpoint Tables v16.1 — S. pneumoniae",
     },
 ]
 
@@ -414,7 +414,7 @@ EXCEPTIONAL_PHENOTYPES: List[Dict[str, Any]] = [
                       "prolonged therapy."),
         "fix_ar": "أكِّد بـ MIC وراجع تاريخ علاج المريض باللينيزوليد.",
         "fix_en": "Confirm by MIC and review prior linezolid exposure.",
-        "reference": "EUCAST Breakpoint Tables v16.1 (2026)",
+        "reference": "CLSI M100 Ed36 Table 2A (tetracycline predicts doxycycline / minocycline)",
     },
     {
         "id": "rare_colistin_disc",
@@ -438,7 +438,7 @@ EXCEPTIONAL_PHENOTYPES: List[Dict[str, Any]] = [
                    "احذف النتيجة من التقرير نهائياً."),
         "fix_en": ("Confirm by BMD. If the panel measured colistin by disk, "
                    "remove the result from the report entirely."),
-        "reference": "EUCAST-CLSI Polymyxin Breakpoints Working Group (2016)",
+        "reference": "CLSI M100 Ed36 Tables 2A / 2B (colistin: BMD only) · EUCAST-CLSI Polymyxin Breakpoints Working Group (2016)",
     },
 ]
 

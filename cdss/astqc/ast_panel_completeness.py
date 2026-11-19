@@ -414,6 +414,7 @@ ORGANISM_NAMES: Dict[str, Optional[str]] = {
     "Coagulase-negative Staphylococci": "panel_staphylococcus",
     "E. coli": "panel_enterobacterales",
     "Enterobacter cloacae": "panel_enterobacterales",
+    "Klebsiella aerogenes": "panel_enterobacterales",
     "Enterobacterales (unspeciated)": "panel_enterobacterales",
     "Enterococcus faecalis": "panel_enterococcus",
     "Enterococcus faecium": "panel_enterococcus",
@@ -475,6 +476,10 @@ class PanelCompletenessResult:
     missing_primary: List[str] = field(default_factory=list)
     missing_supplemental: List[str] = field(default_factory=list)
     issues: List[Dict[str, Any]] = field(default_factory=list)  # ready for QAIssue conversion
+    # v7.0: untested agents another result makes urgent (phenotype_plausibility
+    # reflex tests -- e.g. meropenem after ertapenem I). They are also listed in
+    # missing_primary, so every renderer of that list shows them.
+    reflex_missing: Dict[str, str] = field(default_factory=dict)
 
 
 def check_panel_completeness(
@@ -514,11 +519,36 @@ def check_panel_completeness(
     missing_primary = [d for d in primary if _nk(d) not in tested_norm]
     missing_supplemental = [d for d in supplemental if _nk(d) not in tested_norm]
 
+    # v7.0 (review 2026-11-19): a result can make an untested agent urgent --
+    # ertapenem I makes meropenem critical, a quinolone discordance makes
+    # ciprofloxacin / levofloxacin critical. They move to the primary list.
+    reflex_missing: Dict[str, str] = {}
+    try:
+        from cdss.astqc.phenotype_plausibility import reflex_tests
+        for _d, _why in reflex_tests(organism, sir_map).items():
+            if _nk(_d) in tested_norm or _d in _banned:
+                continue
+            reflex_missing[_d] = _why
+            if _d in missing_supplemental:
+                missing_supplemental.remove(_d)
+            if _d not in missing_primary:
+                missing_primary.append(_d)
+    except Exception:          # pragma: no cover - module missing
+        reflex_missing = {}
+
     expected_total = len(primary) + len(supplemental)
     tested_count = expected_total - len(missing_primary) - len(missing_supplemental)
 
     ref = group.get("reference", "")
     issues: List[Dict[str, Any]] = []
+    for d, why in reflex_missing.items():
+        issues.append({
+            "severity": "CRITICAL",
+            "drug": d,
+            "message": f"Reflex test required: {d}",
+            "detail": f"{d} is needed to read this panel safely: {why}.",
+            "reference": "CLSI M100 Ed36 · IDSA AMR Guidance 2026",
+        })
 
     for d in missing_primary:
         issues.append({
@@ -579,6 +609,7 @@ def check_panel_completeness(
         missing_primary=missing_primary,
         missing_supplemental=missing_supplemental,
         issues=issues,
+        reflex_missing=reflex_missing,
     )
 
 

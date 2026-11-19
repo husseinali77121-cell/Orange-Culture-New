@@ -132,7 +132,7 @@ def _check_intrinsic_resistance(organism: str, sir: Dict[str, str]) -> List[QAIs
                     f"Do NOT treat based on this result."
                 ),
                 drug=drug,
-                reference="EUCAST Intrinsic Resistance v3.3 · CLSI M100 Ed36 Appendix B",
+                reference="CLSI M100 Ed36 Appendix B · EUCAST Intrinsic Resistance v3.3",
             ))
     return issues
 
@@ -167,7 +167,7 @@ def _check_phenotype_consistency(
                     "Likely AST technical error or incorrect organism. Repeat testing required."
                 ),
                 drug="Oxacillin, Cefazolin",
-                reference="CLSI M100 Ed36, EUCAST Breakpoint Tables v16.1",
+                reference="CLSI M100 Ed36 Table 2C",
             ))
 
         # Cefoxitin R but Oxacillin S → flag (Cefoxitin is the surrogate marker)
@@ -183,7 +183,7 @@ def _check_phenotype_consistency(
                     "Consider reporting as MRSA and verify with PBP2a/mecA PCR."
                 ),
                 drug="Cefoxitin, Oxacillin",
-                reference="CLSI M100 Ed36 Table 2B · EUCAST Breakpoint Tables v16.1",
+                reference="CLSI M100 Ed36 Table 2C (cefoxitin surrogate)",
             ))
 
     # ── ESBL / AmpC phenotype note (Gram-negatives) ──
@@ -207,7 +207,7 @@ def _check_phenotype_consistency(
                     message=f"{_mech} predicted with {drug}=S — report as tested",
                     detail=(
                         f"{_mech} was predicted from the phenotype and {drug} tested S. "
-                        f"Report the result AS TESTED (EUCAST v16.1 — do NOT edit S to R; "
+                        f"Report the result AS TESTED (CLSI M100 Ed36 Table 3A — do NOT edit S to R; "
                         f"editing susceptible cephalosporins to R on mechanism detection is the "
                         f"pre-2017 practice, withdrawn). The {_mech} call is for infection "
                         f"control and surveillance. Separately — a prescribing decision, not a "
@@ -216,7 +216,7 @@ def _check_phenotype_consistency(
                         f"tests S (IDSA AMR 2024 / MERINO 2018)."
                     ),
                     drug=drug,
-                    reference="EUCAST Breakpoint Tables v16.1 — Enterobacterales note; IDSA AMR 2024",
+                    reference="CLSI M100 Ed36 Table 3A (report as tested) · IDSA AMR Guidance 2026",
                 ))
 
     # ── CRE phenotype check ──
@@ -233,7 +233,7 @@ def _check_phenotype_consistency(
                         f"Verify carbapenem AST and organism identification."
                     ),
                     drug=carb,
-                    reference="EUCAST Breakpoint Tables v16.1 · Magiorakos et al. 2012",
+                    reference="CLSI M100 Ed36 Appendix A (confirm unusual phenotypes) · Magiorakos et al. 2012",
                 ))
 
     # ── VRE consistency ──
@@ -249,7 +249,7 @@ def _check_phenotype_consistency(
                     "Review organism identification or AST result."
                 ),
                 drug="Vancomycin",
-                reference="EUCAST Breakpoint Tables v16.1",
+                reference="CLSI M100 Ed36 Table 2D · Appendix A",
             ))
 
     return issues
@@ -276,7 +276,7 @@ def _check_cross_resistance(sir: Dict[str, str]) -> List[QAIssue]:
                         f"confirm with D-test and macrolide susceptibility pattern."
                     ),
                     drug=f"Erythromycin, {mac}",
-                    reference="CLSI M100 Ed36 · EUCAST Breakpoint Tables v16.1",
+                    reference="CLSI M100 Ed36 Table 2C (erythromycin predicts azithromycin / clarithromycin)",
                 ))
 
     # Fluoroquinolones: Ciprofloxacin R → Levofloxacin usually R
@@ -291,7 +291,7 @@ def _check_cross_resistance(sir: Dict[str, str]) -> List[QAIssue]:
                 "Possible for some organisms with step-wise mutation patterns but warrants review."
             ),
             drug="Ciprofloxacin, Levofloxacin",
-            reference="EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Table 2A",
         ))
 
     # Quinolones: Levofloxacin R with Ciprofloxacin S.
@@ -313,7 +313,7 @@ def _check_cross_resistance(sir: Dict[str, str]) -> List[QAIssue]:
                 "avoid ciprofloxacin monotherapy for invasive infection until confirmed."
             ),
             drug="Levofloxacin, Ciprofloxacin",
-            reference="EUCAST Breakpoint Tables v16.1 · CLSI M100 Ed36",
+            reference="CLSI M100 Ed36 Table 2A",
         ))
 
     # Clindamycin + Erythromycin (D-test relevance flagged)
@@ -332,7 +332,7 @@ def _check_cross_resistance(sir: Dict[str, str]) -> List[QAIssue]:
                     + ("" if not d_test else f" Current D-test: {d_test}.")
                 ),
                 drug="Erythromycin, Clindamycin",
-                reference="CLSI M100 Ed36 · EUCAST Breakpoint Tables v16.1 — Inducible Clindamycin Resistance",
+                reference="CLSI M100 Ed36 Table 2C / Table 3H (inducible clindamycin resistance)",
             ))
 
     return issues
@@ -356,7 +356,7 @@ def _check_betalactam_patterns(sir: Dict[str, str]) -> List[QAIssue]:
                 "Ampicillin=R with Amoxicillin=S is biologically implausible."
             ),
             drug="Ampicillin, Amoxicillin",
-            reference="EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Table 2A (ampicillin predicts amoxicillin)",
         ))
 
     # Cefotaxime R + Ceftriaxone S → inconsistent (same class, same MIC pattern)
@@ -387,7 +387,7 @@ def _check_betalactam_patterns(sir: Dict[str, str]) -> List[QAIssue]:
                 "However, Cefepime=R with Ceftriaxone=S warrants careful review."
             ),
             drug="Cefepime, Ceftriaxone",
-            reference="EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Table 2A",
         ))
 
     # Piperacillin/Tazobactam R + Ceftriaxone S in Gram-negatives
@@ -403,7 +403,7 @@ def _check_betalactam_patterns(sir: Dict[str, str]) -> List[QAIssue]:
                 "Consider confirming with ESBL testing."
             ),
             drug="Piperacillin + Tazobactam, Ceftriaxone",
-            reference="EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Table 2A",
         ))
 
     return issues
@@ -448,7 +448,7 @@ def _check_carbapenem_patterns(sir: Dict[str, str], organism: str = "") -> List[
                     "Report Meropenem/Ertapenem for therapy; imipenem is not a reliable agent here."
                 ),
                 drug="Imipenem/Cilastatin, Meropenem",
-                reference="EUCAST Expected Resistant Phenotypes v1.2 · CDC CRE definition",
+                reference="CLSI M100 Ed36 Table 2A (imipenem: Proteus, Providencia, Morganella) · CDC CRE definition",
             ))
         else:
             issues.append(QAIssue(
@@ -462,7 +462,7 @@ def _check_carbapenem_patterns(sir: Dict[str, str], organism: str = "") -> List[
                     "Perform carbapenemase testing (CarbaNP / mCIM) to clarify."
                 ),
                 drug="Imipenem/Cilastatin, Meropenem",
-                reference="EUCAST Breakpoint Tables v16.1 · CLSI M100 Ed36",
+                reference="CLSI M100 Ed36 Table 2A · Tables 3B / 3C (carbapenemase tests)",
             ))
 
     # Meropenem R + Imipenem S → strong alert
@@ -477,7 +477,7 @@ def _check_carbapenem_patterns(sir: Dict[str, str], organism: str = "") -> List[
                 "requires carbapenemase testing and repeat AST to confirm."
             ),
             drug="Meropenem, Imipenem/Cilastatin",
-            reference="EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Table 2A · Tables 3B / 3C (carbapenemase tests)",
         ))
 
     # Ertapenem R + Imipenem S → early CRE warning (Enterobacterales only)
@@ -494,7 +494,7 @@ def _check_carbapenem_patterns(sir: Dict[str, str], organism: str = "") -> List[
                 "Do not dismiss — may progress to full carbapenem resistance."
             ),
             drug="Ertapenem, Imipenem/Cilastatin",
-            reference="EUCAST Breakpoint Tables v16.1 · IDSA AMR Guidance 2026",
+            reference="CLSI M100 Ed36 Tables 3B / 3C (mCIM / eCIM) · IDSA AMR Guidance 2026",
         ))
 
     return issues
@@ -538,7 +538,7 @@ def _check_aminoglycoside_patterns(sir: Dict[str, str]) -> List[QAIssue]:
                 "against organism-specific AME patterns."
             ),
             drug="Gentamicin, Tobramycin",
-            reference="EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Table 2B-1",
         ))
 
     return issues
@@ -566,7 +566,7 @@ def _check_glycopeptide_patterns(sir: Dict[str, str]) -> List[QAIssue]:
                 "Treatment options are extremely limited (Daptomycin if susceptible)."
             ),
             drug="Vancomycin, Linezolid",
-            reference="CLSI M100 Ed36 · EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Appendix A (linezolid-resistant: confirm ID and AST)",
         ))
 
     # Vancomycin R but Teicoplanin S — vanB pattern (flag)
@@ -581,7 +581,7 @@ def _check_glycopeptide_patterns(sir: Dict[str, str]) -> List[QAIssue]:
                 "Clinically important — confirm genotype by PCR."
             ),
             drug="Vancomycin, Teicoplanin",
-            reference="EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Table 2D",
         ))
 
     return issues
@@ -645,7 +645,7 @@ def _check_organism_plausibility(organism: str, sir: Dict[str, str]) -> List[QAI
                     f"identification or the AST result. Do not use for clinical decisions."
                 ),
                 drug=drug,
-                reference="EUCAST Intrinsic Resistance v3.3 · CLSI M100 Ed36 Appendix B",
+                reference="CLSI M100 Ed36 Appendix B · EUCAST Intrinsic Resistance v3.3",
             ))
     return issues
 
@@ -783,7 +783,7 @@ def _check_biological_plausibility(organism: str, sir: Dict[str, str]) -> List[Q
                 "Critical error in AST or organism identification."
             ),
             drug="Vancomycin",
-            reference="EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Appendix B (Gram-negative bacteria: glycopeptides)",
         ))
 
     # Gram-negative reporting Linezolid=S
@@ -797,7 +797,7 @@ def _check_biological_plausibility(organism: str, sir: Dict[str, str]) -> List[Q
                 "Linezolid=S for any Gram-negative is a critical AST error."
             ),
             drug="Linezolid",
-            reference="EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Appendix B (Gram-negative bacteria: oxazolidinones)",
         ))
 
     # Gram-positive reporting Aztreonam=S
@@ -811,7 +811,7 @@ def _check_biological_plausibility(organism: str, sir: Dict[str, str]) -> List[Q
                 "Aztreonam=S for any Gram-positive is a critical AST error."
             ),
             drug="Aztreonam",
-            reference="EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Appendix B (Gram-positive bacteria: aztreonam)",
         ))
 
     # Gram-positive reporting Colistin=S
@@ -826,7 +826,7 @@ def _check_biological_plausibility(organism: str, sir: Dict[str, str]) -> List[Q
                 "is a critical reporting error."
             ),
             drug="Colistin",
-            reference="EUCAST Breakpoint Tables v16.1",
+            reference="CLSI M100 Ed36 Appendix B (Gram-positive bacteria: polymyxins)",
         ))
 
     return issues
@@ -858,7 +858,7 @@ def _check_ast_completeness(organism: str, sir: Dict[str, str]) -> List[QAIssue]
                     "Testing both Oxacillin and Cefoxitin is recommended for complete MRSA detection."
                 ),
                 drug="Cefoxitin",
-                reference="CLSI M100 Ed36 Table 2B · EUCAST Breakpoint Tables v16.1",
+                reference="CLSI M100 Ed36 Table 2C (cefoxitin surrogate)",
             ))
 
         if has_clinda and has_ery and not has_dtest:
@@ -919,7 +919,7 @@ def _check_clinical_context(
                 "agent (including a single aminoglycoside dose or a novel beta-lactam) exists."
             ),
             drug="Colistin",
-            reference="IDSA AMR Guidance 2026 / EUCAST Breakpoint Tables v16.1",
+            reference="IDSA AMR Guidance 2026 · CLSI M100 Ed36 (colistin)",
         ))
 
     # Nitrofurantoin in Blood/Sputum/CSF — not systemic
@@ -934,7 +934,7 @@ def _check_clinical_context(
                 f"clinically meaningful information and should be suppressed from the report."
             ),
             drug="Nitrofurantoin",
-            reference="BNF 2025 / EUCAST Breakpoint Tables v16.1",
+            reference="BNF 2025 · CLSI M100 Ed36 Table 1 (urinary-only agents)",
         ))
 
     # Fusidic acid as only anti-Staph agent without combination
@@ -954,7 +954,7 @@ def _check_clinical_context(
                     "showing susceptibility is required. Review AST panel completeness."
                 ),
                 drug="Fusidic acid",
-                reference="BNF 2025 / EUCAST Breakpoint Tables v16.1",
+                reference="BNF 2025 · EUCAST Breakpoint Tables v16.1 (fusidic acid: CLSI has no criteria)",
             ))
 
     return issues
@@ -998,6 +998,32 @@ def _check_panel_completeness(organism: str, specimen: str, sir: Dict[str, str])
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN ENGINE ENTRY POINT
 # ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# LEVEL 6b — Phenotype plausibility (v7.0, cdss.astqc.phenotype_plausibility)
+# ══════════════════════════════════════════════════════════════════════════════
+def _check_phenotype_plausibility(organism: str, sir: Dict[str, str],
+                                  sdd=None) -> List[QAIssue]:
+    """Combinations no single mechanism explains, and the reflex tests they need."""
+    try:
+        from cdss.astqc.phenotype_plausibility import check_plausibility
+    except Exception:          # pragma: no cover
+        return []
+    _sev = {"error": "HIGH", "warning": "MEDIUM", "info": "LOW"}
+    out: List[QAIssue] = []
+    for f in check_plausibility(organism, sir, sdd):
+        reflex = f.get("reflex") or []
+        out.append(QAIssue(
+            level=6, severity=_sev.get(f["severity"], "MEDIUM"),
+            category="Phenotype Plausibility",
+            message=f["title_en"],
+            detail=f["detail_en"] + " " + f["action_en"]
+                   + (f" Add: {', '.join(reflex)}." if reflex else ""),
+            drug=", ".join(f.get("drugs") or []),
+            reference=f.get("reference", ""),
+        ))
+    return out
+
+
 def run_ast_qa_engine(
     organism: str,
     specimen: str,
@@ -1005,6 +1031,7 @@ def run_ast_qa_engine(
     esbl_result: Optional[Dict] = None,
     mdr_result: Optional[Dict] = None,
     skip_categories: Optional[set] = None,
+    sdd=None,
 ) -> List[QAIssue]:
     """
     Run all QA checks and return issues sorted by severity then level.
@@ -1015,6 +1042,8 @@ def run_ast_qa_engine(
         sir_map:      Dict of {drug_name: "S"|"I"|"R"}
         esbl_result:  Output from predict_esbl() — optional
         mdr_result:   Output from classify_mdr() — optional
+        sdd:          Drugs the laboratory reported as CLSI SDD (v7.0) -- tells a
+                      genuine "I" on a no-I pair from an SDD folded into I.
         skip_categories: Categories to drop from the result. The host app passes
                       {"Intrinsic Resistance", "Clinical Context"} when the
                       ast_reportability module is loaded, because that module
@@ -1037,6 +1066,7 @@ def run_ast_qa_engine(
     issues += _check_aminoglycoside_patterns(sir_map)
     issues += _check_glycopeptide_patterns(sir_map)
     issues += _check_organism_plausibility(organism, sir_map)
+    issues += _check_phenotype_plausibility(organism, sir_map, sdd)
     issues += _check_sample_consistency(organism, specimen)
     issues += _check_qc_rules(sir_map)
     issues += _check_biological_plausibility(organism, sir_map)

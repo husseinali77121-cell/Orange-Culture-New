@@ -37,7 +37,7 @@ Primary sources (verify against the current editions before clinical use):
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 # ── Organism families ────────────────────────────────────────────────────────
 # Substring-matched against the reported organism name, lowercased.
@@ -132,7 +132,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "EUCAST or CLSI publishes breakpoints for any of these "
                       "against anaerobes — an S/I/R printed here is "
                       "uninterpretable."),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 5 · CLSI M11-Ed9 (2018, R2025)",
+        "reference": "CLSI M11-Ed9 (2018, R2025) · EUCAST Intrinsic Resistance v3.3, Table 5 (polymyxins)",
     },
     {
         # Added 2026-08-01. H. influenzae was selectable in the UI but had no
@@ -157,7 +157,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "cannot cross the outer membrane. (Macrolides are "
                       "deliberately excluded -- azithromycin is an indicated "
                       "agent.)"),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 3 · CLSI M100 App. B",
+        "reference": "CLSI M100 Ed36 Table 2E (no criteria) · EUCAST Intrinsic Resistance v3.3, Table 3",
     },
     {
         # Added 2026-08-01. The identification says vancomycin-RESISTANT
@@ -200,7 +200,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "(macrolides, lincosamides, glycopeptides, oxazolidinones, "
                       "daptomycin, fusidic acid, rifampicin) — the outer membrane "
                       "excludes them."),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 2 · CLSI M100 App. B",
+        "reference": "CLSI M100 Ed36 Appendix B1 · EUCAST Intrinsic Resistance v3.3, Table 1",
     },
     {
         # Found by the expanded scenario matrix (INV-9): clinical_data lists
@@ -228,7 +228,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "Inhibitor combinations (amox-clav, pip-tazo) remain active "
                       "because the inhibitor works on class A, unlike the AmpC of "
                       "C. freundii."),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 2",
+        "reference": "CLSI M100 Ed36 Appendix B1 · EUCAST Intrinsic Resistance v3.3, Table 1",
     },
     {
         "id": "intr_klebsiella_ampicillin",
@@ -243,7 +243,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
         "reason_en": ("Klebsiella spp. carry chromosomal SHV-1 — intrinsic "
                       "aminopenicillin resistance. (Inhibitor combinations are not "
                       "intrinsically resistant.)"),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 2",
+        "reference": "CLSI M100 Ed36 Appendix B1 · EUCAST Intrinsic Resistance v3.3, Table 1",
     },
     {
         "id": "intr_proteus_mirabilis",
@@ -261,7 +261,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
         "reason_en": ("Proteus mirabilis is intrinsically resistant to the tetracyclines "
                       "(including doxycycline and minocycline), tigecycline, polymyxins "
                       "and nitrofurantoin."),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 2",
+        "reference": "CLSI M100 Ed36 Appendix B1 · EUCAST Intrinsic Resistance v3.3, Table 1",
     },
     {
         "id": "intr_morganella_providencia_proteus_vulgaris",
@@ -284,7 +284,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
         "reason_en": ("Intrinsic (chromosomal AmpC plus species traits) — "
                       "aminopenicillins (amoxicillin-clavulanate included), 1st/2nd-gen "
                       "cephalosporins, tetracyclines, colistin, nitrofurantoin."),
-        "reference": "CLSI M100 Appendix B · EUCAST Expected Resistant Phenotypes, Table 1",
+        "reference": "CLSI M100 Ed36 Appendix B1 · EUCAST Expected Resistant Phenotypes, Table 1",
     },
     {
         "id": "intr_proteus_vulgaris_penneri",
@@ -304,7 +304,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "cefuroximase) — ampicillin/amoxicillin, 1st-gen cephalosporins, "
                       "cefuroxime, tetracyclines, colistin, nitrofurantoin. "
                       "Amoxicillin-clavulanate and cefoxitin are NOT intrinsic."),
-        "reference": "CLSI M100 Appendix B · EUCAST Expected Resistant Phenotypes, Table 1",
+        "reference": "CLSI M100 Ed36 Appendix B1 · EUCAST Expected Resistant Phenotypes, Table 1",
     },
     {
         "id": "intr_serratia",
@@ -312,11 +312,10 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
         "drugs": ["ampicillin", "amoxicillin", "cephalexin", "cefadroxil",
                   "cephradine", "cefaclor", "cefazolin", "cephalothin",
                   "cefuroxime", "cefoxitin", "colistin", "polymyxin",
-                  "nitrofurantoin",
-                  # EUCAST v3.3 Table 2 fn.5 -- tetracycline and doxycycline ARE
-                  # intrinsic for S. marcescens; minocycline and tigecycline are
-                  # NOT, and are excluded below so they stay reportable.
-                  "tetracycline", "doxycycline"],
+                  "nitrofurantoin"],
+        # v7.0 (EUCAST audit, D1): tetracycline / doxycycline are intrinsic in
+        # EUCAST v3.3 Table 1 fn.5 but NOT in CLSI M100 Appendix B1 -- they are
+        # reported as tested; the treatment engine adds a caution instead.
         "exclude": ["tazobactam", "avibactam", "minocycline", "tigecycline"],
         "reason_ar": ("Serratia marcescens: AmpC كروموسومي — مقاومة جوهرية "
                       "للأمينوبنسلينات وسيفالوسبورين ١/٢ والسيفاميسين، "
@@ -324,7 +323,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
         "reason_en": ("Serratia marcescens: chromosomal AmpC — intrinsic to "
                       "aminopenicillins, 1st/2nd-gen cephalosporins, cephamycins, "
                       "colistin and nitrofurantoin."),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 2",
+        "reference": "CLSI M100 Ed36 Appendix B1 · EUCAST Intrinsic Resistance v3.3, Table 1",
     },
     {
         "id": "intr_enterobacter_citrobacter_ampc",
@@ -343,7 +342,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "وسيفالوسبورين الجيل الأول والسيفاميسين."),
         "reason_en": ("Inducible chromosomal AmpC — intrinsic to aminopenicillins, "
                       "1st-gen cephalosporins and cephamycins."),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 2",
+        "reference": "CLSI M100 Ed36 Appendix B1 · EUCAST Intrinsic Resistance v3.3, Table 1",
     },
     {
         # Added 2026-11-10 (round 2) with the clinical_data correction.
@@ -353,24 +352,26 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
         "exclude": [],
         "reason_ar": "Hafnia alvei مقاومة جوهرياً للبوليميكسينات (Colistin / Polymyxin B).",
         "reason_en": "Hafnia alvei is intrinsically resistant to the polymyxins.",
-        "reference": "EUCAST Expected Resistant Phenotypes, Table 1 · Jayol et al., AAC 2017",
+        "reference": "CLSI M100 Ed36 Appendix B1 · EUCAST Expected Resistant Phenotypes, Table 1 · Jayol et al., AAC 2017",
     },
     {
         # Added 2026-11-10 with the genus-level organisms: only the agents that
         # P. aeruginosa, A. baumannii AND S. maltophilia all resist.
         "id": "intr_nonfermenter_unspeciated",
         "organisms": ["non-fermenting"],
+        # v6.9: cefotaxime / ceftriaxone left the intersection -- CLSI gives
+        # Acinetobacter breakpoints for both (Table 2B-2).
         "drugs": ["ampicillin", "amoxicillin", "cephalexin", "cefadroxil", "cephradine",
-                  "cefazolin", "cefaclor", "cefuroxime", "cefoxitin", "cefotaxime",
-                  "ceftriaxone", "ertapenem", "nitrofurantoin"],
+                  "cefazolin", "cefaclor", "cefuroxime", "cefoxitin",
+                  "ertapenem", "nitrofurantoin"],
         "exclude": ["sulbactam", "avibactam"],
         "reason_ar": ("Non-fermenter غير محدد النوع: مقاومة جوهرية مشتركة بين Pseudomonas و "
                       "Acinetobacter و Stenotrophomonas — أمينوبنسلينات، سيفالوسبورين ١/٢، "
-                      "Cefotaxime/Ceftriaxone، Ertapenem، Nitrofurantoin."),
+                      "Ertapenem، Nitrofurantoin."),
         "reason_en": ("Unspeciated non-fermenter: intrinsic resistance shared by P. aeruginosa, "
                       "A. baumannii and S. maltophilia — aminopenicillins, 1st/2nd-gen "
-                      "cephalosporins, cefotaxime/ceftriaxone, ertapenem, nitrofurantoin."),
-        "reference": "EUCAST Expected Resistant Phenotypes, Table 2 (intersection)",
+                      "cephalosporins, ertapenem, nitrofurantoin."),
+        "reference": "CLSI M100 Ed36 Appendix B (intersection) · EUCAST Expected Resistant Phenotypes",
     },
     {
         "id": "intr_pseudomonas",
@@ -386,23 +387,23 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
         "reason_en": ("P. aeruginosa is intrinsically resistant — do not report these "
                       "even if they test susceptible. (Only ceftazidime and cefepime "
                       "among the cephalosporins are active.)"),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 3",
+        "reference": "CLSI M100 Ed36 Appendix B2 · EUCAST Intrinsic Resistance v3.3, Table 2",
     },
     {
         "id": "intr_acinetobacter",
         "organisms": ["acinetobacter"],
-        # EUCAST v3.3 Table 2 fn.2 -- "Acinetobacter is intrinsically resistant to
-        # tetracycline and doxycycline but not to minocycline and tigecycline."
-        # Minocycline/tigecycline are excluded below so they stay reportable; they
-        # are the tetracyclines that actually work here and IDSA v4.0 lists
-        # minocycline among CRAB options.
+        # CLSI M100 Ed36 Appendix B (v6.9, decision D1). Tetracycline and
+        # doxycycline are no longer here: CLSI does not call them intrinsic, and
+        # Ed36 removed their Acinetobacter breakpoints -- see
+        # nobp_tetracycline_doxycycline_acinetobacter. Minocycline / tigecycline
+        # are excluded so they stay reportable (IDSA 2026 lists minocycline
+        # among the CRAB options).
         "drugs": ["ampicillin", "amoxicillin", "aztreonam", "ertapenem",
-                  "trimethoprim", "fosfomycin", "chloramphenicol",
-                  "tetracycline", "doxycycline"],
+                  "trimethoprim", "fosfomycin", "chloramphenicol"],
         # BUG FIXED: "clav" used to sit in this exclude list, which exempted
         # amoxicillin-clavulanate from the rule. That is backwards. Clavulanate
         # has NO useful activity against Acinetobacter, so amox-clav IS
-        # intrinsically resistant and EUCAST lists it explicitly. Sulbactam is
+        # intrinsically resistant and CLSI Appendix B lists it explicitly. Sulbactam is
         # the exception -- it has intrinsic anti-Acinetobacter activity of its
         # own -- so only "sulbactam" belongs here. Leaving "clav" in made this
         # module contradict clinical_data.INTRINSIC_RESISTANCE, which correctly
@@ -410,21 +411,15 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
         # panel stayed silent about a Susceptible result for it.
         "exclude": ["sulbactam", "sulfamethoxazole", "sulphamethoxazol",
                     "minocycline", "tigecycline"],
-        "reason_ar": ("Acinetobacter مقاوم جوهرياً — بما في ذلك "
-                      "Amoxicillin/Clavulanate (الـ clavulanate بلا فاعلية هنا) و "
-                      "Tetracycline/Doxycycline (EUCAST)، و CLSI M100 Ed36 (2026) ألغى "
-                      "breakpoints الـ Doxycycline/Tetracycline لـ Acinetobacter — "
-                      "Minocycline هو التتراسيكلين المعتمد. "
+        "reason_ar": ("Acinetobacter مقاوم جوهرياً (CLSI M100 Ed36، Appendix B) — بما في ذلك "
+                      "Amoxicillin/Clavulanate (الـ clavulanate بلا فاعلية هنا). "
                       "(ملاحظة: Ampicillin/Sulbactam استثناء — الـ sulbactam نفسه "
                       "فعّال ضد Acinetobacter.)"),
-        "reason_en": ("Acinetobacter is intrinsically resistant — "
+        "reason_en": ("Acinetobacter is intrinsically resistant (CLSI M100 Ed36, Appendix B) — "
                       "amoxicillin-clavulanate included (clavulanate adds nothing "
-                      "here), and tetracycline/doxycycline (EUCAST); CLSI M100 Ed36 "
-                      "(2026) removed the Acinetobacter doxycycline/tetracycline "
-                      "breakpoints, leaving minocycline as the reportable tetracycline. "
-                      "(Note: ampicillin-sulbactam is an exception — sulbactam itself "
+                      "here). (Note: ampicillin-sulbactam is an exception — sulbactam itself "
                       "has intrinsic activity against Acinetobacter.)"),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 3 · CLSI M100 Ed36",
+        "reference": "CLSI M100 Ed36 Appendix B · EUCAST Expected Resistant Phenotypes",
     },
     {
         "id": "intr_nonfermenter_narrow_spectrum",
@@ -448,7 +443,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "lipoglycopeptides, fusidic acid, macrolides, lincosamides, "
                       "rifampicin and oxazolidinones. A Susceptible result here is "
                       "a laboratory error."),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 3 (header)",
+        "reference": "CLSI M100 Ed36 Appendix B2 · EUCAST Intrinsic Resistance v3.3, Table 2 (header)",
     },
     {
         "id": "intr_stenotrophomonas",
@@ -472,7 +467,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "(carbapenems included — L1 metallo-beta-lactamase) and to "
                       "aminoglycosides. The established option is "
                       "trimethoprim-sulfamethoxazole."),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 3",
+        "reference": "CLSI M100 Ed36 Appendix B2 · EUCAST Intrinsic Resistance v3.3, Table 2",
     },
     {
         # clinical_data now bans all beta-lactams for MRSA, but this module had no
@@ -510,7 +505,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "A Susceptible result for any conventional penicillin, "
                       "cephalosporin or carbapenem is a laboratory error and must "
                       "not be reported."),
-        "reference": "EUCAST Expert Rules -- staphylococci; CLSI M100 Ed36 Table 2C",
+        "reference": "CLSI M100 Ed36 Table 2C · EUCAST Expert Rules -- staphylococci",
     },
     {
         "id": "intr_mycoplasma_cellwall_agents",
@@ -532,7 +527,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "so every cell-wall-active agent (beta-lactams, "
                       "glycopeptides, fosfomycin) is intrinsically inactive. "
                       "Treat with a macrolide, tetracycline or fluoroquinolone."),
-        "reference": "EUCAST Intrinsic Resistance v3.3 -- organisms without a cell wall",
+        "reference": "CLSI M43 · EUCAST Intrinsic Resistance v3.3 -- organisms without a cell wall",
     },
     {
         "id": "intr_staph_gram_neg_agents",
@@ -542,7 +537,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
         "exclude": [],
         "reason_ar": "المكوّرات العنقودية مقاومة جوهرياً لمضادات سالبة الجرام هذه.",
         "reason_en": "Staphylococci are intrinsically resistant to these Gram-negative agents.",
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 4",
+        "reference": "CLSI M100 Ed36 Appendix B3 · EUCAST Intrinsic Resistance v3.3, Table 4 (temocillin: EUCAST only)",
     },
     {
         "id": "intr_enterococcus_cephalosporins",
@@ -555,7 +550,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "و clindamycin و aztreonam — لا تُبلَّغ أبداً كحسّاسة."),
         "reason_en": ("Enterococci are intrinsically resistant to ALL cephalosporins, "
                       "clindamycin and aztreonam — never report as susceptible."),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 4 · CLSI M100 App. B",
+        "reference": "CLSI M100 Ed36 Appendix B4 · Table 2D · EUCAST Intrinsic Resistance v3.3, Table 4",
     },
     {
         # Found by the scenario matrix (INV-9): clinical_data bans aminoglycosides
@@ -598,8 +593,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
                       "bactericidal, but that is predicted ONLY by a high-content "
                       "HLAR screen (gentamicin 120 ug, streptomycin 300 ug). "
                       "Amikacin and tobramycin have no HLAR screen at all."),
-        "reference": ("EUCAST Expert Rules / Intrinsic Resistance v3.3, Table 4 · "
-                      "CLSI M100 Ed36 Table 2D (HLAR screen)"),
+        "reference": "CLSI M100 Ed36 Table 2D (HLAR screen) · EUCAST Expert Rules / Intrinsic Resistance v3.3, Table 4",
     },
     {
         "id": "intr_enterococcus_sxt_invivo",
@@ -613,7 +607,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
         "reason_en": ("Enterococci test susceptible to TMP-SMX in vitro but it is "
                       "NOT clinically effective — they take up exogenous folate and "
                       "bypass the blocked pathway. Do not report."),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 4 · CLSI M100 App. B",
+        "reference": "CLSI M100 Ed36 Table 2D / Appendix B4 · EUCAST Intrinsic Resistance v3.3, Table 4",
     },
     {
         "id": "intr_listeria_cephalosporins",
@@ -627,7 +621,7 @@ INTRINSIC_RULES: List[Dict[str, Any]] = [
         "reason_en": ("Listeria monocytogenes is intrinsically resistant to ALL "
                       "cephalosporins — a known cause of meningitis treatment "
                       "failure. The option is ampicillin."),
-        "reference": "EUCAST Intrinsic Resistance v3.3, Table 4",
+        "reference": "CLSI M45 Ed3 (Listeria) · EUCAST Intrinsic Resistance v3.3, Table 4",
     },
 ]
 
@@ -663,7 +657,7 @@ NO_BREAKPOINT_RULES: List[Dict[str, Any]] = [
                       "Stenotrophomonas, Burkholderia). Any S/I/R printed here was "
                       "read against a table that does not cover the pairing — it "
                       "is uncalibrated and must not guide therapy."),
-        "reference": "EUCAST Breakpoint Tables v16.1 · CLSI M100 Ed36 Table 2B-2 / 2B-3",
+        "reference": "CLSI M100 Ed36 Tables 2B-2 / 2B-3 / 2B-4 (no criteria) · EUCAST Breakpoint Tables v16.1",
     },
     {
         "id": "nobp_azithromycin_enterobacterales",
@@ -685,40 +679,41 @@ NO_BREAKPOINT_RULES: List[Dict[str, Any]] = [
                       "isolate (non-typhoidal Salmonella included) there is no "
                       "interpretive table — confirm the serovar before relying on "
                       "this result."),
-        "reference": "EUCAST Breakpoint Tables v16.1 — Enterobacterales, azithromycin note",
+        "reference": "CLSI M100 Ed36 Table 2A (azithromycin: S. Typhi / Shigella only) · EUCAST v16.1",
     },
     {
+        # v7.0 (2026-11-19, EUCAST audit, decision D1): narrowed to the sulbactam
+        # COMBINATION, which has no breakpoints anywhere. Cefoperazone ALONE keeps a
+        # CLSI criterion for Enterobacterales (S <= 16, I 32, R >= 64 mg/L; not
+        # archived) and is read by it; for every other organism it is the next row.
         "id": "nobp_cefoperazone",
         "organisms": [],
         "not_organisms": [],
-        "drugs": ["cefoperazone"],
+        "drugs": ["cefoperazone sulbactam"],
         "exclude": [],
-        # 2026-11-10 (round 2): "CLSI withdrew the cefoperazone breakpoints" was
-        # too broad. CLSI's archived-drugs table archives cefoperazone for
-        # P. aeruginosa (after M100-S20) and staphylococci; a legacy criterion
-        # for cefoperazone ALONE survives for Enterobacterales only.
-        "reason_ar": ("Cefoperazone-sulbactam: لا توجد breakpoints للتركيبة في CLSI ولا في "
-                      "EUCAST. Cefoperazone منفرداً: لا شيء في EUCAST، و CLSI أرشفت معاييره "
-                      "لـ P. aeruginosa والمكورات العنقودية وأبقت معياراً قديماً "
-                      "للـ Enterobacterales فقط. شائع في مصر لكن النتيجة غير مُعايَرة."),
-        "reason_en": ("Cefoperazone-sulbactam has no breakpoints in CLSI or EUCAST. "
-                      "Cefoperazone alone: none in EUCAST; CLSI archived its criteria for "
-                      "P. aeruginosa and staphylococci and keeps only a legacy "
-                      "Enterobacterales criterion. Widely used in Egypt, but the result "
-                      "is uncalibrated."),
-        "reference": "EUCAST Breakpoint Tables v16.1 · CLSI M100 Ed36",
+        "reason_ar": ("Cefoperazone-sulbactam: لا توجد breakpoints للتركيبة في CLSI M100 ولا في "
+                      "EUCAST لأي كائن — النتيجة لا تُفسَّر. شائع في مصر (Sulperazon) لكنه غير مُعايَر؛ "
+                      "اطلب Cefoperazone منفرداً (له معيار CLSI للـ Enterobacterales) أو دواءً حالياً."),
+        "reason_en": ("Cefoperazone-sulbactam has no breakpoints in CLSI M100 or EUCAST for any "
+                      "organism: the result is uninterpretable. Widely used in Egypt (Sulperazon) "
+                      "but uncalibrated; test cefoperazone alone (CLSI keeps an Enterobacterales "
+                      "criterion) or a current agent."),
+        "reference": "CLSI M100 Ed36 (absent) · CLSI archived-drugs table · EUCAST v16.1",
     },
     {
-        "id": "nobp_nitrofurantoin_non_ecoli",
-        "organisms": ENTEROBACTERALES,
-        "not_organisms": ["escherichia", "e. coli", "e.coli"],
-        "drugs": ["nitrofurantoin"],
-        "exclude": [],
-        "reason_ar": ("breakpoints النيتروفورانتوين في EUCAST مُحدَّدة لـ E. coli "
-                      "فقط (عدوى مسالك بولية غير معقّدة). لا تُستقرأ لأنواع أخرى."),
-        "reason_en": ("EUCAST nitrofurantoin breakpoints are for E. coli only "
-                      "(uncomplicated UTI). They do not extrapolate to other species."),
-        "reference": "EUCAST Breakpoint Tables v16.1 — Enterobacterales",
+        "id": "nobp_cefoperazone_non_enterobacterales",
+        "organisms": [],
+        "not_organisms": ENTEROBACTERALES,
+        "drugs": ["cefoperazone"],
+        "exclude": ["sulbactam"],
+        "reason_ar": ("Cefoperazone منفرداً: CLSI أرشفت معاييره لـ P. aeruginosa (بعد M100-S20) "
+                      "والمكورات العنقودية ولا يوجد في EUCAST — مع هذا الكائن النتيجة بلا معيار. "
+                      "(للـ Enterobacterales فقط يبقى معيار CLSI.)"),
+        "reason_en": ("Cefoperazone alone: CLSI archived its criteria for P. aeruginosa (after "
+                      "M100-S20) and staphylococci and EUCAST has none -- with this organism the "
+                      "result has no interpretive criterion. (Only Enterobacterales keep a CLSI "
+                      "criterion.)"),
+        "reference": "CLSI archived-drugs table · CLSI M100 Ed36",
     },
     {
         "id": "nobp_fosfomycin_oral_non_ecoli",
@@ -733,7 +728,7 @@ NO_BREAKPOINT_RULES: List[Dict[str, Any]] = [
                       "E. coli only. (EUCAST restricted them to E. coli in 2020, "
                       "having previously covered all Enterobacterales.) Extrapolation "
                       "is unsupported."),
-        "reference": "EUCAST Breakpoint Tables v16.1 · CLSI M100 Ed36",
+        "reference": "CLSI M100 Ed36 Table 2A (fosfomycin: E. coli, urinary) · EUCAST v16.1",
     },
     {
         # CLSI M100 Ed33 (2023) removed the gentamicin breakpoints for
@@ -753,6 +748,26 @@ NO_BREAKPOINT_RULES: List[Dict[str, Any]] = [
                       "P. aeruginosa -- suppress it. Tobramycin is the reportable "
                       "aminoglycoside; amikacin is for urinary isolates only."),
         "reference": "CLSI M100 Ed33 (2023) Table 2B-1",
+    },
+    {
+        # v6.9 (decision D1). CLSI M100 Ed36 removed and archived the
+        # tetracycline and doxycycline breakpoints for Acinetobacter (pulled
+        # temporarily in Ed35). Until v6.8 the pair sat in intr_acinetobacter
+        # as EUCAST "intrinsic"; under CLSI it is a result with no
+        # interpretive criteria. Minocycline keeps its breakpoints.
+        "id": "nobp_tetracycline_doxycycline_acinetobacter",
+        "organisms": ["acinetobacter"],
+        "not_organisms": [],
+        "drugs": ["tetracycline", "doxycycline"],
+        "exclude": ["minocycline", "tigecycline"],
+        "reason_ar": ("CLSI M100 Ed36 (2026) ألغى breakpoints الـ Tetracycline و Doxycycline لـ "
+                      "Acinetobacter (أُرشِفت) — النتيجة بلا معيار تفسير: لا تُبلَّغ. "
+                      "اختبر Minocycline (له breakpoints، و IDSA 2026 تدرجه ضمن خيارات CRAB)."),
+        "reason_en": ("CLSI M100 Ed36 (2026) removed (archived) the tetracycline and "
+                      "doxycycline breakpoints for Acinetobacter -- the result has no "
+                      "interpretive criteria: do not report it. Test minocycline (it keeps "
+                      "its breakpoints, and IDSA 2026 lists it among the CRAB options)."),
+        "reference": "CLSI M100 Ed36 (2026) Table 2B-2 · CLSI archived-breakpoints table",
     },
     {
         "id": "nobp_sulbactam_durlobactam_non_acinetobacter",
@@ -781,30 +796,16 @@ NO_BREAKPOINT_RULES: List[Dict[str, Any]] = [
         "reference": "CLSI M100 Ed36 · EUCAST v16.1",
     },
     {
-        "id": "nobp_imipenem_proteae",
-        "organisms": ["proteus", "morganella", "providencia"],
-        "not_organisms": [],
-        "drugs": ["imipenem"],
-        "exclude": ["relebactam"],
-        "reason_ar": ("EUCAST v16.1 (ملاحظة Enterobacterales رقم 2): نشاط "
-                      "الإيميبينيم ضد Proteus و Morganella و Providencia منخفض "
-                      "جوهرياً — MICs أعلى من باقي الـ Enterobacterales حتى بدون "
-                      "أي آلية مقاومة مكتسبة. لا تعتمد على نتيجة S هنا؛ "
-                      "الميروبينيم هو الكاربابينيم المفضّل لهذه الأنواع."),
-        "reason_en": ("EUCAST v16.1 Enterobacterales note 2: imipenem has "
-                      "intrinsically LOW activity against Proteus spp., "
-                      "Morganella morganii and Providencia spp. -- MICs run higher "
-                      "than for other Enterobacterales even with no acquired "
-                      "mechanism. Do not rely on a Susceptible imipenem result "
-                      "here; meropenem is the preferred carbapenem."),
-        "reference": "EUCAST Breakpoint Tables v16.1 -- Enterobacterales note 2",
-    },
-    {
         # EUCAST v16.1 note 3/A verbatim: "the activity of tigecycline varies from
         # INSUFFICIENT in Serratia spp., Proteus spp., Morganella morganii and
         # Providencia spp. to variable in other species." Serratia was missing.
         "id": "nobp_tigecycline_proteae",
-        "organisms": ["proteus", "morganella", "providencia", "serratia"],
+        # v7.0 (EUCAST audit, D1): Serratia left this rule. CLSI M100 has no
+        # tigecycline criteria for anyone; the FDA STIC Enterobacterales criteria
+        # cover Serratia, and EUCAST's "insufficient activity" remark survives as
+        # a treatment caution in the Serratia profile. The Proteeae stay: the FDA
+        # label itself states their decreased activity.
+        "organisms": ["proteus", "morganella", "providencia"],
         "not_organisms": [],
         "drugs": ["tigecycline"],
         "exclude": [],
@@ -812,7 +813,8 @@ NO_BREAKPOINT_RULES: List[Dict[str, Any]] = [
                       "غير كافٍ — لا breakpoints."),
         "reason_en": ("Tigecycline activity against Proteus, Morganella and "
                       "Providencia is insufficient — no breakpoints."),
-        "reference": "EUCAST Breakpoint Tables v16.1 — Enterobacterales, tigecycline note",
+        "reference": ("CLSI M100 Ed36 (no tigecycline criteria) · FDA label (decreased activity: "
+                      "Morganella, Proteus, Providencia) · EUCAST v16.1 tigecycline note"),
     },
 ]
 
@@ -927,7 +929,8 @@ def _check_wrong_spectrum(organism: str, sir_map: Dict[str, str]) -> List[Dict[s
                           f"البكتيريا {side_ar} — يجب ألا يظهر على لوحة كائن {side_ar}."),
             "reason_en": (f"{drug} is a {klass} with no activity and no breakpoint against "
                           f"{side_en} bacteria — it must not appear on a {side_en} panel."),
-            "reference": "EUCAST Intrinsic Resistance v3.3 · Breakpoint Tables v16.1",
+            "reference": ("CLSI M100 Ed36 Appendix B (Gram-negative / Gram-positive headers) · "
+                          "EUCAST Intrinsic Resistance v3.3"),
         })
     return out
 
@@ -1002,6 +1005,20 @@ def check_reportability(organism: str, sir_map: Dict[str, str]) -> List[Dict[str
                 iss["severity"] = "error"
                 iss["misreported"] = True
     return issues
+
+
+def no_breakpoint_issue(organism: str, drug: str, result: str = "S") -> Optional[Dict[str, Any]]:
+    """The QC no-breakpoint finding for ONE agent, or None.
+
+    v7.0: the treatment engine asks this so that an agent the QC panel calls
+    "no breakpoint -- do not base a treatment decision on it" is never, on the
+    same screen, a recommended option (review finding: the flags did not
+    propagate from QC to the advisory).
+    """
+    if not organism or not drug:
+        return None
+    hits = _check(NO_BREAKPOINT_RULES, organism, {drug: result}, "no_breakpoint", "warning")
+    return hits[0] if hits else None
 
 
 def format_issue(issue: Dict[str, Any], lang: str = "ar") -> Dict[str, str]:
