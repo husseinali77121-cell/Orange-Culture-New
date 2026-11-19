@@ -281,8 +281,10 @@ ORGANISM_OCR_ALIASES: Dict[str, str] = {
     # on the organisms it matters most for. The profiles now exist.
     "enterobacter cloacae": "Enterobacter cloacae", "enterobacter": "Enterobacter cloacae",
     "e. cloacae": "Enterobacter cloacae",
-    "klebsiella aerogenes": "Enterobacter cloacae",     # renamed from E. aerogenes
-    "enterobacter aerogenes": "Enterobacter cloacae",
+    # v6.9 (decision D2): its own profile now (IDSA 2026 names it with the
+    # moderate-risk AmpC organisms); the old name maps to the new one.
+    "klebsiella aerogenes": "Klebsiella aerogenes", "k. aerogenes": "Klebsiella aerogenes",
+    "enterobacter aerogenes": "Klebsiella aerogenes", "e. aerogenes": "Klebsiella aerogenes",
     "serratia": "Serratia marcescens", "s. marcescens": "Serratia marcescens",
     "serratia marcescens": "Serratia marcescens",
     "citrobacter freundii": "Citrobacter freundii", "c. freundii": "Citrobacter freundii",
@@ -590,7 +592,9 @@ _VERDICT_RX = re.compile(
     r"|(?P<i>\b(?:intermediate|inter)\b|متوسطة|متوسط)"
     r"|(?P<ns2>\bns\b)"
     r"|(?P<letter>(?<![A-Za-z0-9.+/])[SIR](?![A-Za-z0-9+])(?!\.\s*[A-Za-z]))", re.I)
-_VERDICT_VALUE = {"ns": "R", "ns2": "R", "sdd": "I", "s": "S", "r": "R", "i": "I"}
+# v6.9 (decision D4): SDD is kept as SDD -- the panel shows it and the engine
+# names its regimen; normalize_sir_value() still reads it as I everywhere else.
+_VERDICT_VALUE = {"ns": "R", "ns2": "R", "sdd": "SDD", "s": "S", "r": "R", "i": "I"}
 _LIST_SEP = re.compile(r"[,،;&]|\band\b|\bو\b", re.I)
 
 
@@ -700,3 +704,28 @@ def match_antibiotic_from_text(snippet: str) -> Optional[str]:
                 best_score = score
                 best_match = abx_name
     return best_match if best_score >= 82 else None
+
+
+# v7.0 (review 2026-11-19): drug names some laboratory templates print wrongly.
+# The result is read as the drug the disk really is; the operator is told, so
+# the template can be corrected at the source.
+_MISNAMED_DRUGS = (
+    (("sulphamethazone", "sulfamethazone", "sulfamethazine", "sulphamethazine"),
+     "Trimethoprim/Sulfamethoxazole",
+     ("التقرير مكتوب فيه «Sulphamethazone» — ده قريب من sulfamethazine، سلفوناميد مختلف (بيطري). "
+      "قرص الحساسية هو Sulfamethoxazole-Trimethoprim (SXT) واتقرا كده. صحّح اسم الدواء في قالب "
+      "تقرير المعمل."),
+     ("The report prints 'Sulphamethazone' -- close to sulfamethazine, a different (veterinary) "
+      "sulfonamide. The disk is sulfamethoxazole-trimethoprim (SXT) and was read as such. Correct "
+      "the drug name in the laboratory report template.")),
+)
+
+
+def ocr_name_warnings(full_text: str, lang: str = "ar") -> List[str]:
+    """Warnings for misnamed drugs found in the report text."""
+    t = normalize_abx_key(full_text or "")
+    out: List[str] = []
+    for spellings, _real, ar, en in _MISNAMED_DRUGS:
+        if any(normalize_abx_key(sp) in t for sp in spellings):
+            out.append(ar if (lang or "ar").startswith("ar") else en)
+    return out
