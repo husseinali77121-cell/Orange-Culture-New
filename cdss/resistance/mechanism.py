@@ -183,36 +183,58 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
                        "Ciprofloxacin", "Levofloxacin"]
         _dtr_tested = [d for d in _DTR_AGENTS if d in sir_map]
         _dtr_ns     = [d for d in _dtr_tested if sir_map.get(d) in ("R", "I")]
-        # DTR requires the whole first-line set to be non-susceptible. A panel
-        # that tested only two of them cannot establish it, so demand >=5.
-        _is_dtr = bool(_dtr_tested) and len(_dtr_ns) == len(_dtr_tested) and len(_dtr_tested) >= 5
+        _dtr_untested = [d for d in _DTR_AGENTS if d not in sir_map]
+        # DTR requires the whole first-line set to be non-susceptible. v7.1
+        # (external review 2026-11-19): an untested agent is not a resistant one,
+        # so DTR is CONFIRMED only when all eight were tested and are
+        # non-susceptible. Five to seven tested, every one non-susceptible, is
+        # "possible DTR -- incomplete panel": the same caution in practice (no
+        # tested first-line agent is active), but it names the agents to test.
+        _all_ns = bool(_dtr_tested) and len(_dtr_ns) == len(_dtr_tested)
+        _is_dtr = _all_ns and not _dtr_untested
+        _is_dtr_possible = _all_ns and bool(_dtr_untested) and len(_dtr_tested) >= 5
         # Traditional anti-pseudomonal beta-lactams still reported Susceptible.
         _active_bl = [d for d in ["Piperacillin + Tazobactam", "Ceftazidime",
                                   "Cefepime", "Cefoperazone", "Cefoperazone + Sulbactam",
                                   "Aztreonam"]
                       if sir_map.get(d) == "S"]
-        if _is_dtr:
+        if _is_dtr or _is_dtr_possible:
+            _miss = ", ".join(_dtr_untested)
             return {
-                "probability": "crpa", "dtr": True, "confidence": 80,
+                "probability": "crpa", "dtr": _is_dtr, "dtr_possible": _is_dtr_possible,
+                "dtr_untested": list(_dtr_untested),
+                "confidence": 80 if _is_dtr else 60,
                 "active_betalactams": [],
-                "mechanism": "DTR P. aeruginosa — difficult-to-treat resistance (mechanism not determined)",
+                "mechanism": ("DTR P. aeruginosa — difficult-to-treat resistance (mechanism not determined)"
+                              if _is_dtr else
+                              f"POSSIBLE DTR P. aeruginosa — incomplete panel ({len(_dtr_tested)}/8 "
+                              f"first-line agents tested, all non-susceptible): test {_miss}"),
                 "markers_R": _dtr_ns,
                 "detail": (
-                    "غير حسّاس لكل الخط الأول (بيتا-لاكتام + فلوروكينولون): "
-                    f"{', '.join(_dtr_ns)} — تعريف DTR في إرشادات IDSA. "
+                    ("" if _is_dtr else
+                     f"⚠️ لوحة ناقصة: {len(_dtr_tested)} من 8 أدوية الخط الأول مُختبرة وكلها غير "
+                     f"حسّاسة — غير المُختبر ({_miss}) ليس مقاوماً بالضرورة؛ اختبره لتأكيد DTR أو "
+                     "نفيه. ")
+                    + "غير حسّاس لكل الخط الأول المُختبر (بيتا-لاكتام + فلوروكينولون): "
+                    f"{', '.join(_dtr_ns)} — تعريف DTR في إرشادات IDSA (الثمانية كلها). "
                     "الآلية غير محددة من اللوحة: قد تكون فقد بورين OprD + مضخات "
                     "الطرد + AmpC مُحدَث، أو إنزيم كاربابينيميز مكتسب (MBL شائع في "
                     "الشرق الأوسط). الاثنان يبدوان متطابقين على أقراص البيتا-لاكتام."
                 ),
                 "detail_en": (
-                    "Non-susceptible to the whole first line (beta-lactams + fluoroquinolones): "
-                    f"{', '.join(_dtr_ns)} — the IDSA definition of DTR. The panel cannot tell the "
+                    ("" if _is_dtr else
+                     f"Incomplete panel: {len(_dtr_tested)} of the 8 first-line agents were tested "
+                     f"and all are non-susceptible; the untested ones ({_miss}) are not resistant "
+                     "by default - test them to confirm or exclude DTR. ")
+                    + "Non-susceptible to the whole tested first line (beta-lactams + fluoroquinolones): "
+                    f"{', '.join(_dtr_ns)} — the IDSA definition of DTR (all eight). The panel cannot tell the "
                     "mechanism: OprD porin loss + efflux + derepressed AmpC, or an acquired "
                     "carbapenemase (MBLs are common in the Middle East). Both look identical on "
                     "beta-lactam disks."
                 ),
                 "action": (
-                    "الخيارات المفضّلة (IDSA AMR Guidance 2026): Ceftolozane-Tazobactam · "
+                    ("" if _is_dtr else f"اختبر {_miss} أولاً — إن كان أيها حسّاساً فليست DTR. ")
+                    + "الخيارات المفضّلة (IDSA AMR Guidance 2026): Ceftolozane-Tazobactam · "
                     "Ceftazidime-Avibactam · Imipenem-Relebactam · Cefiderocol — "
                     "اطلب حساسية لها تحديداً. لا تعتمد على Colistin كخط أول. "
                     "أكّد وجود كاربابينيميز (mCIM / PCR للـ MBL) فقط إذا كان "
@@ -376,7 +398,7 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
         return {
             "probability": "high",
             "confidence": 88,
-            "mechanism": "ESBL (Extended-Spectrum β-Lactamase) — Predicted",
+            "mechanism": "ESBL phenotype HIGHLY SUGGESTIVE — predicted from the panel, not molecularly confirmed",
             "markers_R": primary_R + second_R,
             "detail": f"مقاومة لـ {', '.join(primary_R)} -- احتمال ESBL مرتفع.",
             "detail_en": f"Resistant to {', '.join(primary_R)} — high probability of ESBL.",
@@ -410,7 +432,9 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
                                        or (carbS and not _thin_panel)) else "moderate"),
             "confidence": (max(_base_conf, 70)
                            if primary_R[0] in ("Ceftriaxone", "Cefotaxime") else _base_conf),
-            "mechanism": "Probable ESBL — Predicted",
+            # v7.1 (external review): three named levels -- suspected / highly
+            # suggestive (phenotype) / molecularly confirmed (not an input here).
+            "mechanism": "ESBL phenotype SUSPECTED — predicted from the panel, not confirmed",
             "markers_R": primary_R + med_R,
             "detail": _detail,
             "detail_en": _detail_en,

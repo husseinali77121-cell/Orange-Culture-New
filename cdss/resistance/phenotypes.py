@@ -256,24 +256,39 @@ def detect_resistance_phenotypes(
         # present makes the rule unreachable; requiring a mere majority
         # over-calls it. So: every listed agent that WAS tested must match, and
         # `require_any` becomes a floor on how many had to be tested at all.
+        _incomplete = []
         if rule.get("require_all_tested"):
             tested = [(d, e) for d, e in markers if sir_map.get(d) is not None]
             if len(tested) < req_any:
                 continue
-            if any(sir_map.get(d) != e for d, e in tested):
+            # v7.1: DTR is NON-susceptibility -- an I counts with the R.
+            if any(sir_map.get(d) not in ("R", "I") for d, e in tested):
                 continue
             matched = len(tested)
+            # v7.1 (external review 2026-11-19): untested agents are named and
+            # the label says "possible" until all eight were tested.
+            _incomplete = [d for d, e in markers if sir_map.get(d) is None]
 
         if matched >= req_any and matched > 0:
+            _lbl, _det, _act = rule["label"], rule["detail"], rule["action"]
+            if _incomplete:
+                _lbl = (f"POSSIBLE {_lbl} — incomplete panel ({matched}/{len(markers)} tested): "
+                        f"test {', '.join(_incomplete)}")
+                _det = (f"لوحة ناقصة: {matched} من {len(markers)} مُختبرة وكلها غير حسّاسة — "
+                        f"غير المُختبر ({', '.join(_incomplete)}) ليس مقاوماً بالضرورة. " + _det)
+                _act = f"اختبر {', '.join(_incomplete)} لتأكيد أو نفي DTR. " + _act
             detected.append({
                 "phenotype": ph_name,
                 "icon":      rule["icon"],
-                "label":     rule["label"],
-                "detail":    rule["detail"],
-                "action":    rule["action"],
+                "label":     _lbl,
+                "detail":    _det,
+                "action":    _act,
+                "incomplete_panel": list(_incomplete),
                 "isolation": rule.get("isolation", False),
                 "matched_markers": [
-                    drug for drug, exp in markers if sir_map.get(drug) == exp
+                    drug for drug, exp in markers
+                    if sir_map.get(drug) == exp
+                    or (rule.get("require_all_tested") and sir_map.get(drug) == "I")
                 ],
             })
 
