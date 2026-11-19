@@ -8,7 +8,7 @@ Every rule has the same shape:  rule(cx, dg, out) -> None
     out  Outcome         where the rule records a ban / caution / note
 """
 from cdss.therapy.intrinsic import build_banned_item
-from cdss.therapy.tables import CHILD_BAN_REASONS
+from cdss.therapy.tables import CHILD_BAN_REASONS, CHILD_FQ_CAUTION, PAEDIATRIC_FQ
 from cdss.therapy.tables import NEONATAL_RESTRICTIONS
 
 
@@ -18,8 +18,20 @@ def rule_child(cx, dg, out):
     # ABSOLUTE CONTRAINDICATIONS -- checked BEFORE pregnancy caution
     # (child age + renal threshold are hard bans; pregnancy is discretionary)
     # ══════════════════════════════════════════════════════════════════
-    if cx.age < 18 and not dg.info.get("child_safe", True):
+    # `child_min_age` (v6.9): an agent licensed from a younger age than 18 --
+    # gepotidacin, FDA: females from 12 years and 40 kg.
+    if cx.age < dg.info.get("child_min_age", 18) and not dg.info.get("child_safe", True):
         if "fluoroquinolone" in dg.cls:
+            # v6.9 (2026-11-14, decision D3 -- AAP 2016, Pediatrics
+            # 138:e20162706): not a ban. Ciprofloxacin / levofloxacin are
+            # acceptable in a child when no safe and effective alternative
+            # exists (MDR Gram-negative UTI incl. P. aeruginosa, oral step-down
+            # instead of IV). They become a caution, ranked after every agent
+            # without one. The other quinolones have no paediatric data and
+            # stay out.
+            if dg.name in PAEDIATRIC_FQ:
+                out.note(dg.name, "warn", CHILD_FQ_CAUTION, "child_fq")
+                return
             out.ban(build_banned_item(
                 dg.name, "child", "غير مناسب < 18 سنة.", CHILD_BAN_REASONS["fluoroquinolone"]
             ))

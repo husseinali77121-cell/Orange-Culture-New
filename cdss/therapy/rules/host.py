@@ -10,6 +10,7 @@ this for five named reasons; here it holds for every reason).
 
 Every rule has the same shape:  rule(cx, dg, out) -> None
 """
+from cdss.therapy.clsi_categories import intermediate_fields
 from cdss.therapy.intrinsic import build_banned_item
 from cdss.therapy.tables import HEPATIC_DOSING
 
@@ -84,15 +85,23 @@ def rule_renal_adjustment(cx, dg, out):
 
 
 def rule_intermediate(cx, dg, out):
-    """Culture result I (EUCAST: susceptible, increased exposure) is never 'allowed' as-is.
+    """Culture result I (CLSI M100 Intermediate) or SDD is never 'allowed' as-is.
 
-    When the drug already carries another caution the I is not lost: every
-    warned item gets `culture_intermediate` (postprocess.flag_intermediate).
+    What the I is worth depends on the class and the site (CLSI: efficacy where
+    the drug is concentrated, e.g. beta-lactams and quinolones in urine, or at a
+    higher dose, e.g. beta-lactams); an SDD names its own regimen. The note says
+    which (cdss.therapy.clsi_categories). When the drug already carries another
+    caution the I is not lost: every warned item gets `culture_intermediate`
+    (postprocess.flag_intermediate).
     """
     if dg.result != "I":
         return
+    fields = intermediate_fields(dg.name, dg.info, cx.spec_cat, cx.uti_upper, cx.sdd,
+                                 cx.organism)
     if out.preg_item is not None:
-        out.preg_extra.append("🟡 Culture result I (susceptible, increased exposure) — "
-                              "only at the high-dose regimen, and only if no S alternative exists.")
+        out.preg_item.update(fields)
+        out.preg_extra.append("🟡 Culture result " + ("SDD" if fields["culture_sdd"] else "I")
+                              + " — " + fields["intermediate_note_en"])
     elif out.primary is None:
-        out.caution({"name": dg.name, **dg.info, "warning_reason": "intermediate_culture"})
+        out.caution({"name": dg.name, **dg.info, "warning_reason": "intermediate_culture",
+                     **fields})
