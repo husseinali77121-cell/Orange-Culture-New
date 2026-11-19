@@ -7,6 +7,13 @@ from typing import List
 from typing import Optional
 
 from cdss.common.aux_tests import is_aux_key
+from cdss.common.case_context import (
+    LOW_MUSCLE_CRCL_NOTE_AR,
+    LOW_MUSCLE_CRCL_NOTE_EN,
+    TDM_AGENTS,
+    build_case_context,
+)
+from cdss.therapy.clsi_categories import canonical_panel
 from cdss.common.specimen import (
     classify_specimen,
 )
@@ -94,7 +101,10 @@ def run_analysis(
     # therapy engine reads them from the panel as entered; every other step
     # (gate, MDR, mechanism, phenotypes, ranking) gets the S/I/R rows only.
     raw_panel = dict(sir_map or {})
-    sir_map = {d: v for d, v in raw_panel.items() if not is_aux_key(d)}
+    # CLSI SDD (v6.9, decision D4): the therapy engine reads it from the raw
+    # panel (it names the SDD regimen); every other step sees it as the I it is
+    # interpreted as -- none of them knows the word.
+    sir_map = canonical_panel({d: v for d, v in raw_panel.items() if not is_aux_key(d)})
     drugs = list(drugs if drugs is not None else sir_map.keys())
     k = patient.as_kwargs()
 
@@ -133,6 +143,12 @@ def run_analysis(
                 _c["preg_warn"] = len(preg_warn)
                 _c["moved"] = len(gate_report["moves"])
 
+    # v7.0: ONE record of the case facts (collection method, host factors).
+    case = build_case_context(specimen, list(getattr(patient, "host_factors", None) or []),
+                              getattr(patient, "collection_method", ""))
+    if case.low_muscle_mass and not k["is_renal"]:
+        _add_tdm_notes(allowed + warned)
+
     phenotypes = detect_resistance_phenotypes(organism, sir_map)
     mechanism = predict_esbl(organism, sir_map)
     mdr = classify_mdr(organism, sir_map)
@@ -153,12 +169,15 @@ def run_analysis(
     # layer.
     severity = suggest_severity(specimen, k["age"], k["sex"], k["is_preg"],
                                 k["is_renal"], k["cl_cr"])
+    _uti_cath = case.is_cath and case.is_urine
     syndrome = get_infection_syndrome(specimen, organism, k["age"], k["is_preg"],
-                                      sex=k["sex"])
+                                      is_cath=_uti_cath, sex=k["sex"],
+                                      uti_upper=str(uti_syndrome or "").lower() == "upper")
     _syn_key = duration_syndrome_key(syndrome, uti_syndrome, specimen)
     duration = get_treatment_duration(
         specimen, organism, _syn_key, k["age"], k["sex"], k["is_renal"],
         phenotypes, severity.get("suggested", "moderate"),
+        is_cath=_uti_cath, primary=(ranked[0] if ranked else None),
     )
 
     # ── Which safety layers actually ran ────────────────────────────────────
@@ -190,13 +209,27 @@ def run_analysis(
         "gate_report": gate_report, "phenotypes": phenotypes,
         "mechanism": mechanism, "mdr": mdr, "ranked": ranked,
         "combinations": combinations, "severity": severity,
-        "syndrome": syndrome, "duration": duration,
+        "syndrome": syndrome, "duration": duration, "case": case,
         "patient_warnings": patient.validate(),
         # Empty on a healthy run. Non-empty means a safety layer did not run and
         # the result must not be reported as if it had.
         "degraded": degraded,
         "gate_applied": bool(apply_gate and SAFETY_GATE_AVAILABLE),
     }
+
+def _add_tdm_notes(items: List[Dict[str, Any]]) -> None:
+    """Low muscle mass: creatinine overestimates GFR -> levels, not CrCl (v7.0)."""
+    for it in items:
+        if not isinstance(it, dict) or it.get("name") not in TDM_AGENTS:
+            continue
+        for key, txt in (("clinical_note", LOW_MUSCLE_CRCL_NOTE_AR),
+                         ("clinical_note_en", LOW_MUSCLE_CRCL_NOTE_EN)):
+            old = str(it.get(key) or "").strip()
+            if txt not in old:
+                it[key] = f"{old}  \n{txt}" if old else txt
+        it["tdm_note"] = LOW_MUSCLE_CRCL_NOTE_AR
+        it["tdm_note_en"] = LOW_MUSCLE_CRCL_NOTE_EN
+
 
 def duration_syndrome_key(syndrome: Any, uti_syndrome: Optional[str], specimen: str) -> str:
     """The syndrome string the duration engine dispatches on.
