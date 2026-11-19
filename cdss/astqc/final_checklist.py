@@ -214,6 +214,9 @@ def build_final_checklist(
         verdict = str(patho_result.get("verdict", ""))
         if cat == "INSUFFICIENT_DATA":
             add("pathogenicity", "تقييم الـ Pathogenicity", WARN, "بيانات غير كافية للتقييم.")
+        elif cat == "LRTI_POSSIBLE":
+            add("pathogenicity", "تقييم الـ Pathogenicity", WARN,
+                verdict + " — يحتاج أشعة صدر قبل اعتبارها pneumonia.")
         elif "GRAM_DISCORDANT" in flags:
             add("pathogenicity", "تقييم الـ Pathogenicity", WARN, verdict + " — مع تعارض صبغة/مزرعة.")
         elif cat in ("ASB_NO_TREAT", "COLONISATION", "CONTAMINANT_OR_COLONISER",

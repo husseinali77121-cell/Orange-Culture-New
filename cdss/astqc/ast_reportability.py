@@ -103,6 +103,33 @@ def _drug_matches(drug: str, needles: List[str], excludes: List[str]) -> bool:
 # condemn amox-clav and be wrong in the direction that removes a working drug.
 INTRINSIC_RULES: List[Dict[str, Any]] = [
     {
+        # v7.1 (review 2026-11-19): metronidazole / tinidazole are activated only
+        # by anaerobic reduction of the nitro group; aerobic and facultative
+        # bacteria are never a target. Same organism set as clinical_data
+        # (_NITROIMIDAZOLES block) so the two tables agree.
+        "id": "intr_aerobes_nitroimidazoles",
+        "organisms": ["escherichia", "e. coli", "klebsiella", "proteus", "morganella",
+                      "providencia", "serratia", "enterobacter", "hafnia", "citrobacter",
+                      "pseudomonas aeruginosa", "acinetobacter baumannii", "stenotrophomonas",
+                      "salmonella", "shigella", "haemophilus influenzae", "h. influenzae",
+                      "enterococcus faecalis", "enterococcus faecium", "enterococcus spp", "vre",
+                      "staphylococcus", "mrsa", "streptococcus pneumoniae",
+                      "streptococcus pyogenes", "streptococcus agalactiae", "listeria",
+                      "enterobacterales", "gram-negative bacilli", "non-fermenting gram-negative",
+                      "pseudomonas spp", "acinetobacter spp", "coagulase-negative",
+                      "streptococcus spp", "gram-positive cocci", "legionella", "mycoplasma"],
+        "drugs": ["metronidazole", "tinidazole"],
+        "exclude": [],
+        "reason_ar": ("Metronidazole / Tinidazole يُنشَّطان فقط بالاختزال اللاهوائي — لا نشاط لهما "
+                      "ضد البكتيريا الهوائية أو اللاهوائية الاختيارية. أي S مطبوع هنا غير قابل "
+                      "للتفسير ولا يُبنى عليه علاج."),
+        "reason_en": ("Metronidazole / tinidazole are activated only by anaerobic reduction: "
+                      "aerobic and facultative bacteria are not a target. An S printed here is "
+                      "uninterpretable and is not a basis for treatment."),
+        "reference": "Mechanism (nitroimidazole activation) · CLSI M100 Ed36 / EUCAST: no "
+                     "criteria for aerobic organisms",
+    },
+    {
         # Added 2026-08-01 with the taxonomic-inheritance fix in clinical_data.
         # Anaerobes had NO row in clinical_data at all, so nothing anywhere
         # objected to "Gentamicin S" or "Colistin S" on an anaerobic isolate and
