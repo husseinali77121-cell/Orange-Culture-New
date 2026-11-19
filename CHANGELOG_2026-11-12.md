@@ -422,3 +422,164 @@ Salmonella + aminoglycoside، Morganella + imipenem، van S / tei R ...).
 اللي لسه مستني. جمل أثر التداخلات (9.2) وملاحظات الحمل الإنجليزية (9.3) محتوى إكلينيكي جديد
 مكتوب من نفس المراجع — **محتاجة مراجعة وتوقيع د. طارق** زي قواعد الـ QC في 8.4. + كل البنود
 المفتوحة في 8.
+
+## 10. نسخة الـ EXE: نفس خطوط النسخة الـ online — v6.8 (2026-11-14)
+
+**المشكلة (من التجربة على Windows):** الكلام في صورة الـ decision tree صغير جداً ما يتقريش، وخط
+الـ PDF مختلف عن الـ online.
+
+**السبب:** كل مسارات الخطوط في الكود كانت مسارات Linux (`/usr/share/fonts/...`) — اللي Streamlit
+Cloud بيسطّبها من `packages.txt`. على Windows:
+- **الصورة:** ما لقتش ولا خط، فنزلت لخط Pillow الافتراضي: **10 بكسل ثابت** مهما كان المطلوب، على
+  صورة مرسومة بضعف الحجم (العناوين مطلوبة 28–52 بكسل). اتأكدت منها هنا: لما خبّيت خطوط النظام
+  الخط بقى 10 بدل 28 — نفس اللي شفته.
+- **الـ PDF:** الـ CSS بيطلب Noto Serif / Noto Sans / Amiri / DejaVu Sans، ولا واحد منهم موجود على
+  Windows، وخطوة الـ build كانت بتنزّل خطين عربي بس ومحدش بيسجّلهم لـ WeasyPrint — فكان بيستخدم
+  بدائل Windows (Times New Roman / Segoe UI).
+
+**الحل:**
+- مجلد `fonts/` جوه البرنامج نفسه فيه **نفس ملفات الخطوط بالظبط** (Noto Serif ×4، Noto Sans ×2،
+  Amiri ×2، Noto Naskh Arabic ×2، DejaVu Sans ×2 + التراخيص — كلها مسموح توزيعها). من غير تحميل وقت
+  الـ build.
+- `cdss/reports/fonts.py` بيلاقي المجلد (جنب الكود أو جوه الـ EXE) ويسجّل الخطوط لـ WeasyPrint
+  بنفس أسماء العائلات اللي الـ CSS بيطلبها — في التلات تقارير (الأساسي، الـ pathogenicity، الـ QA).
+  والـ online كمان بقى بيستخدم نفس الملفات، فالنسختين مستحيل يختلفوا.
+- الصورة بتقرا DejaVu Sans من المجلد الأول؛ ولو مش موجود: Segoe UI / Arial / Tahoma من Windows؛
+  وآخر حل خط قابل للتكبير بالحجم المطلوب — عمره ما يرجع للـ 10 بكسل.
+- إيموجي العناوين اللي مفيش خط بيرسمه (🔬 📋 ✅ 🚫 🛡) كان بيطلع مربعات فاضية في الصورة —
+  online و offline. دلوقتي بيتحوّل لرموز (◆ ▣ ✓ ⊘) زي الـ PDF بالظبط.
+- تقرير الـ QA كان بخط Segoe UI؛ بقى Noto Sans زي تقرير الـ pathogenicity.
+
+**الإثبات:** مع إخفاء كل خطوط النظام، صورة الـ decision tree طالعة **مطابقة بايت ببايت** للنسخة
+الـ online (`tests/test_fonts.py`، 11 اختبار). و `tools/check_report_fonts.py` بيرسم PDF بنفس CSS
+التقرير ويقرا أسماء الخطوط **من جوه ملف الـ PDF نفسه**: الـ build على Windows بيفشل لو Noto Serif
+أو Noto Sans أو Amiri أو DejaVu Sans مش مدفونين فيه، والـ EXE بيعمل نفس الفحص على نفسه في
+`--selftest`. يعني لو الـ EXE اتبنى أخضر، الخطوط مضمونة.
+
+## 11. قرارات CLSI / IDSA — v6.9 (2026-11-14 → 2026-11-19)
+
+**القرار:** "خذ بتوصيات CLSI & IDSA في كل حاجة" — على ملف القرارات `Orange-CDSS-decisions-v6.8.pdf`.
+السجل الكامل لكل قرار ومصدره في `DECISIONS_2026-11-14.md`.
+
+### 11.1 D1 — CLSI M100 Ed36 هو المرجع لقراءة النتيجة
+- **معنى الـ I:** كان تعريف EUCAST ("حساس بزيادة الجرعة" في أي مكان). بقى تعريف CLSI: فعّال حيث يتركّز
+  الدواء (البيتا-لاكتام والفلوروكينولون في البول) أو بجرعة أعلى (البيتا-لاكتام)، وإلا منطقة فاصلة غير
+  مؤكدة. الملاحظة بتتكتب **حسب الصنف والموقع** (`cdss/therapy/clsi_categories.py`): بيتا-لاكتام في
+  مثانة = مقبول لو مفيش S؛ بيتا-لاكتام في الدم = جرعة قصوى فقط؛ FQ في المثانة = مقبول؛ غير كده = اختر S.
+  الحكم نفسه ما اتغيّرش: الـ I لسه "caution" بعد كل الـ S — الشرح بس اللي اتصلّح. تعارض "I مع خفض
+  الجرعة الكلوي" اتكتب بلغة CLSI في الشاشة والنص والـ PDF.
+- **Acinetobacter:** Tetracycline/Doxycycline خرجوا من "المقاومة الجوهرية" (CLSI مش بيعتبرهم جوهري)
+  ودخلوا "بلا breakpoint" لأن **CLSI M100 Ed36 ألغى breakpoints بتوعهم لـ Acinetobacter** — لسه مش
+  بيتعرضوا كعلاج، والـ Minocycline هو التتراسيكلين المعتمد. Cefotaxime/Ceftriaxone خرجوا من الجوهري
+  (CLSI عنده breakpoints S ≤8): **بيتبلّغوا كما هم**، وفي العلاج تحذير (مش من خيارات IDSA، ونقطة S
+  أعلى من اللي الجرعة المعتادة بتغطيه). نفس الشيء في جدول الـ non-fermenter غير المحدد (والعلاج لسه
+  بيتجنّبهم لأنه ممكن يكون Pseudomonas).
+- **قواعد QC اتشالت لأنها EUCAST بس:** Nitrofurantoin "بلا breakpoint" لغير E. coli (CLSI عنده
+  breakpoints لكل الـ Enterobacterales في البول)، و Imipenem "بلا breakpoint" للـ Proteeae (CLSI
+  بيبلّغه كما هو؛ ملاحظة إن ارتفاع الـ MIC مش carbapenemase لسه موجودة في العلاج وفي فحص الـ QA).
+- **أثر على MDR:** Cefotaxime/Ceftriaxone/Tetracycline/Doxycycline بقوا بيتحسبوا في فئات Magiorakos
+  لـ Acinetobacter (مش جوهريين تحت CLSI) — 34 حالة من الـ snapshot بقت MDR بدل لا شيء.
+- **المراجع:** CLSI M100 Ed36 أولاً في الشاشة والـ PDF والنص وصورة الـ decision tree وتقرير الـ QA.
+
+### 11.2 D4 — فئة SDD
+- القائمة في محرّر اللوحة بقت **S · SDD · I · R**، والـ OCR بيحتفظ بـ "SDD" بدل ما يحوّلها I.
+- كل اللوحات والحسابات بتقرا SDD كـ I (مفيش حد يقراها "S" من أول حرف — اتقفل في البوابة وجدول المدة).
+- محرك العلاج بياخد اللوحة الأصلية ويكتب **نظام الجرعة اللي اتعمل عليه الـ breakpoint**: Cefepime
+  (2 g q8h)، Pip-Tazo (4.5 g q6h بتسريب 3 ساعات)، Ceftaroline (600 mg q8h)، Daptomycin (8–12 mg/kg).
+  SDD على دواء/كائن CLSI ما عرّفش له SDD → ملاحظة "راجِع القراءة".
+- الوسم [SDD] بيظهر في الشاشة والتقرير النصي.
+
+### 11.3 D2 — Klebsiella aerogenes
+كان الـ OCR بيحوّله E. cloacae، والاسم المكتوب ما لهوش profile ولا صف مقاومة جوهرية (Cefoxitin S كان
+بيتعرض!). بقى كائن مستقل في القائمة، AmpC متوسط الخطر حسب IDSA 2026 (الجيل الثالث تحذير في العدوى
+الغازية، Cefepime الأول)، والاسم القديم Enterobacter aerogenes بيتحوّل له.
+
+### 11.4 D3 — الفلوروكينولون للأطفال (AAP 2016)
+Ciprofloxacin و Levofloxacin تحت 18 سنة بقوا **تحذير** بدل منع: مقبول لو مفيش بديل آمن وفعّال (UTI
+بكائن مقاوم متعدد منها Pseudomonas، أو تحويل فموي)، مع ملاحظة AAP. باقي الكينولونات (مفيش بيانات
+أطفال) لسه ممنوعة. واتصلّح عيب أكبر في الطريق: لما دواء عليه تحذيرين (مثلاً كلوي + أطفال)، التحذير
+التاني كان بيختفي من الشاشة والـ PDF والتقرير الإنجليزي — دلوقتي كل التحذيرات بتظهر.
+
+### 11.5 D5 — خمس أدوية IDSA 2026
+Pivmecillinam · Sulopenem · Gepotidacin · Cefepime-enmetazobactam · Fosfomycin IV — بجرعاتها من
+النشرات (FDA / SmPC) ومكانها في IDSA 2026:
+- **التهاب مثانة ESBL:** Pivmecillinam و Gepotidacin و Sulopenem في المجموعة المفضّلة.
+- **pyelonephritis / cUTI:** Pivmecillinam و Gepotidacin ممنوعين (للمثانة فقط)؛ Sulopenem تنزيل فموي بعد
+  التحسن فقط؛ Cefepime-enmetazobactam مفضّل مع الكاربابينيم لو TMP-SMX و FQ متعذرين.
+- **الكاربابينيميز:** Sulopenem و Cefepime-enmetazobactam ممنوعين؛ Pivmecillinam ممنوع مع KPC
+  وتحذير مع غيره؛ Gepotidacin تحذير (بيانات محدودة).
+- **معايير التفسير:** Mecillinam = CLSI (E. coli)؛ الباقي FDA STIC — كائن خارج النطاق = "بلا breakpoint".
+- **Fosfomycin IV:** خارج البول في توليفة فقط (IDSA)، وبيورث كل صفوف المقاومة الجوهرية بتاعة الفموي.
+- Gepotidacin مسموح من 12 سنة (نشرة FDA)، ممنوع تحت eGFR 30 وفي Child-Pugh C؛ Sulopenem ممنوع تحت CrCl 15.
+- **AWaRe (D6 — بدون تغيير للموجود):** Pivmecillinam Access، Gepotidacin Watch، Fosfomycin IV Reserve
+  (قائمة WHO 2025)؛ Sulopenem و Cefepime-enmetazobactam مش مصنّفين بعد → اتعاملوا Reserve.
+
+### 11.5b لقيته في المراجعة بعد التطبيق: تغيير في IDSA 2026 نفسها (AmpC + Cefepime SDD)
+البرنامج كان ماشي على نص 2024: AmpC + Cefepime SDD/I ← "احتمال ESBL مرافق ← Carbapenem". نص IDSA 2026
+(Q2.3) اتغيّر: Cefepime **يظل المفضّل طالما MIC ≤ 8 (S أو SDD)** ما لم يُكتشف جين ESBL، و"الأدلة لا تربط
+SDD بإنتاج ESBL". اتعدّل في قاعدة العلاج، وملاحظة الـ AmpC في الكائنات، وكارت التوليفات، وكارت الـ
+phenotype، والبديل المكتوب في أسباب المنع. لسه **تحذير** (مش "مسموح") لأن الـ SDD محتاج الجرعة العالية
+2 g q8h — والملاحظة بتقول كده صراحة.
+
+### 11.6 الحوكمة
+- صف `intr_acinetobacter` اتغيّر مضمونه، فتوقيع د. طارق القديم **اتسحب** واتسجّل كتاريخ، والصف رجع
+  طابور التوقيع (`signature_withdrawn`). نفس الشيء لكل الصفوف الجديدة: معتمدة بقرار المالك وليست توقيع طبيب.
+- جرعات الأدوية الخمسة: `dose_owner_approved` من النشرات — تنتظر توقيع د. طارق.
+- البنود اللي ما زالت تنتظر توقيع الطبيب: T1–T3 من ملف القرارات + الصفوف أعلاه.
+
+### 11.7 الإثبات
+- اختبارات جديدة: `tests/test_v6_9_clsi_idsa.py` (25 اختبار، قرار قرار) + اختبار صفحة لـ SDD في `tests/test_ui_page.py`.
+- كل الـ 2,133 حالة في الـ snapshot اتراجعت فرق فرق قبل التحديث: كل التغييرات من القرارات أعلاه
+  (Acinetobacter، القواعد المشالة، K. aerogenes جديد). مخرجات التقارير (450 مخرج) اتقارنت بالنص
+  الكامل بين v6.8 و v6.9: بعد فصل تغيير سطر المراجع، الفروق كلها من D1/D3 والتحذير التاني الظاهر.
+- فحص عشوائي 7,500 حالة (كل الأدوية الـ 67، SDD، أطفال، حمل، كلى، أنواع الكاربابينيميز): صفر مخالفات
+  لـ 13 قاعدة أمان (R لا يُقترح، I/SDD لا يكون "مسموح"، أدوية المثانة خارج المثانة، الكينولون للأطفال،
+  الكاربابينيميز، حدود الكلى، الحمل، ملاحظات إنجليزية بلا عربي ...).
+
+## 12. مراجعة حالة الـ CA-UTI + مراجعة قواعد EUCAST + تقارير صفحة واحدة — v7.0 (2026-11-19)
+
+الحالة: Klebsiella spp. · بول من Foley · سيدة 30 سنة quadriplegic · حرارة + spasticity · Cephalosporins
+R/I · Aztreonam S · Pip-Tazo S · Ertapenem I · Cefepime «I» · Gentamicin S · Amikacin I · Ofloxacin S ·
+Norfloxacin I · Nitrofurantoin R · TMP-SMX R. اتشغّلت على الصفحة نفسها (fake Streamlit) قبل وبعد كل إصلاح.
+
+### 12.1 مراجعة قواعد EUCAST
+`EUCAST_AUDIT_2026-11-19.md` و `cdss/guidelines/eucast_audit.py`: 42 صف — 32 CLSI بيقول نفس الكلام
+(الاستشهاد بقى CLSI أولاً)، 7 مالهاش مقابل في CLSI ومفيش تعارض (فضلت بسببها)، 3 اتحولوا لـ CLSI
+(Serratia tetracyclines، Cefoperazone، Serratia tigecycline). أرقام جداول EUCAST v3.3 اتصلّحت في 10 صفوف.
+
+### 12.2 Gram stain
+«WBCs + Gram Negative Rods» بقت **«WBCs + Gram Negative Bacilli»** (نفس كلمة تقرير المعمل)، والاسم القديم
+لسه بيتقري. الاختيار المحفوظ من كائن تاني أو بالاسم القديم بيتحوّل أو بيتمسح بدل ما يفضل مستخبي.
+
+### 12.3 التناقضات
+| # | المشكلة | الإصلاح |
+|---|---|---|
+| 1 | Gentamicin IV/IM أول اختيار والمدة «IV:0d · PO:7d»؛ صندوق «Preferred oral options» | المدة من طريق الدواء المختار فعلاً (`primary`) → IV 7 · PO 0 + جملة السبب؛ صف CA-UTI جديد؛ العنوان «Ranked for this site · route shown» وكل دواء معاه [A · IV]؛ بدائل IDSA (aminoglycosides / Fosfomycin IV / Pip-Tazo لـ ESBL في الحويضة) ترتيبها بعد المفضّل وقبل الباقي |
+| 2 | Foley في الـ Pathogenicity و Mid-Stream في الصورة | سجل واحد للحالة `cdss/common/case_context.py` (طريقة الجمع + عوامل المريض) بيقراه الـ Patient والصورة والتقرير النصي وكارت الـ syndrome والمدة |
+| 3 | نمط غريب و «Errors: 0» | موديول `cdss/astqc/phenotype_plausibility.py` (PL1–PL4) على محرك الـ QA ولوحة الـ QC وتقرير الجودة؛ Meropenem و Cipro/Levo بقوا «ناقص حرج» |
+| 4 | Cefepime «I» في Enterobacterales | PL3: CLSI مالوش I هنا → بيتقرا SDD وبيطلب تصحيح التقرير (Cefepime / Pip-Tazo / Ceftaroline / Daptomycin) |
+| 5 | Pip-Tazo مع ESBL؛ Ofloxacin S + Norfloxacin I | Pip-Tazo تحذير «بديل» (زي ما هو)؛ Ofloxacin بقى **تحذير** «مقاومة منخفضة المستوى — اختبر Cipro/Levo» (PL4) |
+| 6 | «possible XDR» في تقرير الطبيب | تقرير الطبيب (PDF / نص / صورة) بيكتب **MDR**، والفئة اللي فيها دواء شغال بتتكتب «Aminoglycosides (Gentamicin S)»؛ «possible XDR» فضل على الشاشة وفي تقرير الجودة |
+| 7 | Gentamicin + quadriplegia و «Renal: Normal» | ملاحظة TDM على الـ aminoglycosides / vancomycin لما الكتلة العضلية قليلة، و «Cr normal*» بدل «Normal» |
+| 8 | QC يقول «بلا breakpoint» والـ Advisory يقترحه أو يكتب R | قاعدة علاج جديدة بتقرا نفس جدول الـ QC (S/I → ممنوع «no breakpoint»، R → «لا تُفسَّر» بدل «MIC أعلى من الحد»)؛ مرجع AAP بيظهر للأطفال بس و CA-UTI مع القسطرة بس |
+| — | كارت الـ syndrome قال «Uncomplicated UTI» والخط الأول Nitrofurantoin | بيتبع القسطرة والـ upper UTI؛ الخط الأول والـ escalation حسب النوع |
+| — | First-line في التقرير النصي فيه أدوية R | بيتفلتر بالـ AST |
+| — | صورة: Aztreonam «Intrinsic R» و Norfloxacin «Avoid» | «(ESBL)» و «(Cystitis only)»، وكل دواء في عمود الحذر معاه السبب؛ صندوق CLINICAL STRATEGY بيكتب الخطوة (البديل، الاختبارات المطلوبة، تغيير القسطرة، TDM) |
+
+### 12.4 تقني
+- الصورة: فلتر تغطية الخط (`_coverage_guard`) — بيشيل أي حرف الخط ما يعرفش يرسمه (bidi isolates، ZWJ، رموز ناقصة) بدل المربع «▯».
+- تقرير الجودة: الجمل العربي اللي جواها إنجليزي بتتعزل بـ LRI/PDI (`bidi_isolate`).
+- «القموي»: مش موجودة في كود البرنامج — غالباً في قالب تقرير المعمل.
+- «Sulphamethazone»: بتتقري TMP-SMX وبيظهر تنبيه يصلّح اسم الدواء في قالب المعمل (sulfamethazine سلفوناميد تاني).
+
+### 12.5 تقرير الـ Pathogenicity وتقرير الـ AST QC في ورقة واحدة
+تخطيط مضغوط (عمودين) + `cdss/reports/fit_page.py`: بيرندر بالحجم العادي، ولو عدّى صفحة بيصغّر الخط
+على درجات (1.0 → 0.70) لحد ما يدخل صفحة واحدة، ومن غير ما يقص أي نص. حالة المراجعة: الاتنين صفحة واحدة
+بالحجم العادي؛ لوحة مزدحمة جداً (31 دواء): صفحة واحدة عند 0.93.
+
+### 12.6 الإثبات
+- `tests/test_v7_0_review.py` (22 اختبار) + تحديث اختبارات قديمة اتغيّر سلوكها عن قصد (fosfomycin لغير E. coli
+  بقى ممنوع زي ما الـ QC بيقول؛ possible XDR في تقرير الطبيب؛ مسارات الخطوط).
+- الـ snapshot (2,133 حالة) اتراجع: التغييرات Cefoperazone-sulbactam (بلا breakpoint)، Fosfomycin لغير E. coli،
+  Serratia tetracyclines (تحذير بدل منع)، Gentamicin لـ P. aeruginosa، Azithromycin لـ Salmonella غير محددة
+  (تحذير)، وأكواد PL2 في الـ QC. مخرجات التقارير (450) اتقارنت نص بنص مع v6.9.

@@ -13,19 +13,21 @@ MDR/XDR/PDR، ويُخرج قائمة أدوية مفلترة حسب الكائ�
 
 | | |
 |---|---|
-| **المقاومة الجوهرية** | 57 صف، مصدر واحد للحقيقة في `clinical_data.py` |
+| **المقاومة الجوهرية** | 58 صف، مصدر واحد للحقيقة في `clinical_data.py` |
+| **قراءة النتيجة** | CLSI M100 Ed36: الـ I حسب الصنف والموقع · فئة SDD مستقلة مع نظام جرعتها (v6.9) |
 | **استنتاج الآلية** | ESBL · AmpC · carbapenemase · DTR · MRSA · VRE |
 | **التصنيف** | MDR/XDR/PDR بجداول Magiorakos منفصلة لكل مجموعة كائنات |
 | **بوابات الأمان** | حمل · أطفال · حديثو ولادة (بالشهور) · كلوي · كبدي (Child-Pugh) |
 | **QC اللوحة** | تناقضات · تسلسل · فئات مكافئة · أنماط ظاهرية استثنائية · قابلية التبليغ |
-| **التتبّع** | 71 قاعدة مربوطة بمصادر مؤرَّخة في `guideline_registry.py` (60 موقَّعة من الطبيب + 7 أُضيفت في مراجعة 2026-11-10 واعتُمدت بتعليمات مالك المعمل بعد مراجعة المصدر — ليست توقيع طبيب + 4 أُضيفت في المراجعة النهائية 2026-11-13 وتنتظر توقيع الطبيب) |
+| **التتبّع** | 71 قاعدة مربوطة بمصادر مؤرَّخة في `guideline_registry.py` (56 موقَّعة من الطبيب + 15 معتمدة بقرار/تعليمات مالك المعمل بعد مراجعة المصدر — ليست توقيع طبيب، وكلها في طابور توقيع د. طارق)؛ كل قاعدة أصلها EUCAST ليها قرار مراجعة في `eucast_audit.py` |
 | **أنواع الكاربابينيميز** | KPC · OXA-48 · MBL — تحدد العامل الحديث المناسب (IDSA AMR 2026) |
 
 ## المصادر
 
-EUCAST Breakpoint Tables v16.1 · EUCAST Intrinsic Resistance v3.3 ·
-EUCAST Expert Rules v3.1 · CLSI M100 Ed36 · CLSI M39 ·
-IDSA AMR Guidance 2026 (doi:10.1093/cid/ciag481) · IDSA cUTI 2025 ·
+**CLSI M100 Ed36 (المرجع الأول لقراءة النتيجة — قرار v6.9)** · CLSI M39 ·
+IDSA AMR Guidance 2026 (doi:10.1093/cid/ciag481) · IDSA cUTI 2025 · AAP 2016 (Fluoroquinolones) ·
+FDA STIC (Sulopenem · Gepotidacin · Cefepime-enmetazobactam · Fosfomycin IV) ·
+EUCAST Intrinsic Resistance v3.3 / Expected Resistant Phenotypes · EUCAST Expert Rules v3.1 ·
 ATS/IDSA HAP/VAP 2016 · BALANCE (NEJM 2025) · ACOG CO 717/797 · AAP Red Book 2024 ·
 WHO AWaRe 2025 ·
 Magiorakos et al., *Clin Microbiol Infect* 2012;18:268-281
@@ -99,7 +101,8 @@ cdss/                       المحرك السريري — لا يستورد st
     context.py              TherapyContext: الحالة مرة واحدة، مجمَّدة (frozen)
     outcome.py              Outcome: المنع نهائي، التحذير لا يوقف المسار
     rules/                  القواعد العلاجية، كل واحدة دالة صغيرة:
-      panel.py allergy.py organism.py mechanism.py age.py specific.py pregnancy.py host.py
+      panel.py allergy.py organism.py new_agents.py mechanism.py age.py specific.py pregnancy.py host.py
+    clsi_categories.py      معنى I و SDD حسب CLSI M100 Ed36 (الصنف · الموقع · نظام جرعة الـ SDD)
     postprocess.py          خطوات اللوحة كلها: upper UTI، الملاحظات، الترتيب، فلتر العيّنة
     safety_gate.py          بوابة الأمان النهائية (طبقة مستقلة)
     clinical_matrix.py      خريطة القيود التي تقرأها البوابة
@@ -127,4 +130,4 @@ tools/differential/         أداة مقارنة النسخة القديمة ب
 
 ---
 
-_الأرقام أعلاه محدَّثة بتاريخ 2026-11-10 مقابل الكود نفسه: **62 دواء · 46 كائن قابل للاختيار (منها 12 غير محدد النوع) · 57 صف مقاومة جوهرية · 71 قاعدة (60 موقَّعة + 7 معتمدة بتعليمات المالك + 4 تنتظر التوقيع) · 2,068 حالة في الـ snapshot**. `test_clinical_facts.py` بيفشل لو أي رقم منهم اتغيّر من غير تحديث. تفاصيل مراجعة 2026-11-10 في `CHANGELOG_2026-11-10.md`._
+_الأرقام أعلاه محدَّثة بتاريخ 2026-11-19 (v7.0) مقابل الكود نفسه: **67 دواء · 47 كائن قابل للاختيار (منها 12 غير محدد النوع) · 58 صف مقاومة جوهرية · 71 قاعدة (56 موقَّعة + 15 معتمدة بقرار/تعليمات المالك وتنتظر توقيع د. طارق) · 2,133 حالة في الـ snapshot**. `test_clinical_facts.py` بيفشل لو أي رقم منهم اتغيّر من غير تحديث. تفاصيل v7.0 (مراجعة حالة الـ CA-UTI، مراجعة قواعد EUCAST، phenotype-plausibility، تقارير صفحة واحدة) في `CHANGELOG_2026-11-12.md` §12 و `EUCAST_AUDIT_2026-11-19.md`؛ v6.9 في §11 و `DECISIONS_2026-11-14.md`._

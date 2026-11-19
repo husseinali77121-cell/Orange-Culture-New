@@ -40,6 +40,30 @@ build_context(...)  ──►  TherapyContext      الحالة مرة واحد�
 خطوات اللوحة كلها (postprocess.py): upper UTI ← الملاحظات ← علامة I ← الترتيب ← فلتر العيّنة
 ```
 
+### قراءة النتيجة: CLSI M100 Ed36 (v6.9)
+
+اللوحة الخام ممكن تحمل `SDD`. `pipeline.run_analysis()` يعطي كل الخطوات نسخة S/I/R
+(`clsi_categories.canonical_panel` — SDD تُقرأ I)، ومحرك العلاج وحده يأخذ اللوحة الخام ليعرف
+أي دواء SDD (`TherapyContext.sdd`). معنى الـ I / SDD لكل دواء في موقعه يُكتب في
+`clsi_categories.intermediate_note()` ويُعلَّق على الدواء (`intermediate_note` / `_en`،
+`culture_sdd`). الأدوية الخمسة الجديدة في IDSA 2026 تُحكَم في `rules/new_agents.py`
+(نطاق معايير التفسير، الآلية، الموقع) وتضبط `skip_mech` مثل الـ novel BL/BLI، فلا تطبّق
+عليها قواعد «بيتا-لاكتام أمام ESBL» القديمة.
+
+### v7.0 — سجل واحد للحالة، وفحص منطقية النمط
+
+- **`cdss/common/case_context.py`** — سجل واحد لحقائق الحالة (طريقة جمع العينة + عوامل المريض)، بيتبني مرة
+  واحدة من مدخلات الـ Pathogenicity ويقراه الـ Patient والـ pipeline وكارت الـ syndrome والمدة والصورة والتقرير
+  النصي. أي موديول محتاج «القسطرة» أو «الكتلة العضلية» يقرا من هنا، مش من نص ثابت.
+- **`cdss/astqc/phenotype_plausibility.py`** — أنماط مش مستحيلة لكن مفيش آلية واحدة تفسّرها، والاختبارات
+  اللي تحسمها (PL1–PL4). بيتقرا من محرك الـ QA ولوحة الـ QC وتقرير الجودة، والـ reflex tests بتترقّى في
+  `ast_panel_completeness` لـ «ناقص حرج».
+- **`organism.rule_qc_no_breakpoint`** — قاعدة العلاج بتقرا نفس جدول `NO_BREAKPOINT_RULES` بتاع الـ QC، فمستحيل
+  الـ QC يقول «لا تُفسَّر» والـ Advisory يقترح نفس الدواء.
+- **`cdss/guidelines/eucast_audit.py`** — قرار مكتوب لكل قاعدة أصلها EUCAST؛ `citation_line` بيستشهد بـ CLSI أولاً.
+- **`cdss/reports/fit_page.py`** — تقرير الـ Pathogenicity وتقرير الجودة بيتعملوا `build(scale)` ويترندروا بأكبر
+  حجم خط يدخل صفحة A4 واحدة.
+
 ### الضمانات (وكل واحد عليه اختبار)
 
 | الضمان | كيف | الاختبار |
