@@ -89,13 +89,13 @@ def rule_possible_mrsa(cx, dg, out):
             _note_en = (
                 "⚠️ Methicillin screen invalid — methicillin resistance is NOT excluded. "
                 f"{' and '.join(_screen_i)} = I, and this test has no Intermediate category in "
-                "staphylococci (EUCAST v16 / CLSI M100): the result is S or R.\n"
+                "staphylococci (CLSI M100 Ed36 / EUCAST v16): the result is S or R.\n"
                 "Before relying on any beta-lactam: repeat the cefoxitin disk or request PCR "
                 "(mecA/mecC). In bacteraemia start vancomycin empirically until it is resolved.")
             _note = (
                 "⚠️ **فحص الميثيسيلين غير صالح — مقاومة الميثيسيلين غير مستبعدة.** "
                 f"{' و '.join(_screen_i)} = I، ولا توجد فئة Intermediate لهذا الاختبار في "
-                "المكورات العنقودية (EUCAST v16 / CLSI M100): النتيجة إما S أو R.\n"
+                "المكورات العنقودية (CLSI M100 Ed36 / EUCAST v16): النتيجة إما S أو R.\n"
                 "**قبل الاعتماد على أي بيتا-لاكتام:** أعِد Cefoxitin disk أو اطلب PCR "
                 "(mecA/mecC). في تجرثم الدم ابدأ بـ Vancomycin تجريبياً حتى تُحسم النتيجة.")
         elif _screen_s:
@@ -197,6 +197,93 @@ def rule_surrogate_and_no_breakpoint(cx, dg, out):
             "CLSI M45 و EUCAST لا يضعان breakpoints لـ Vancomycin مع Listeria monocytogenes، "
             "وفشل العلاج به في التهاب السحايا موثّق. الخيار: Ampicillin أو Penicillin G بجرعة "
             "عالية (± Gentamicin)؛ البديل: TMP-SMX (IDSA bacterial meningitis)."))
+        return
+    # v6.9 (decision D1, CLSI M100 Ed36): tetracycline / doxycycline for
+    # Acinetobacter. Until v6.8 they were EUCAST-intrinsic; CLSI does not call
+    # them intrinsic but Ed36 REMOVED their breakpoints, so an S has no
+    # interpretive criteria. Minocycline keeps its breakpoints.
+    if (dg.name in ("Tetracycline", "Doxycycline") and "acinetobacter" in cx.org_l
+            and dg.result in ("S", "I")):
+        out.ban(build_banned_item(
+            dg.name, "no_breakpoint",
+            "Acinetobacter: لا توجد breakpoints لـ Tetracycline / Doxycycline في CLSI M100 Ed36 — "
+            "النتيجة لا تُفسَّر.",
+            "CLSI M100 Ed36 (2026) ألغى breakpoints الـ Tetracycline و Doxycycline لـ "
+            "Acinetobacter (أُرشِفت)، فالنتيجة S بلا معيار تفسير ولا يُبنى عليها علاج. اختبر "
+            "Minocycline (له breakpoints، و IDSA 2026 تدرجه ضمن خيارات CRAB في توليفة)."))
+
+
+# Pairs a treatment guideline names although no breakpoint exists: the QC
+# flag stays, the agent becomes a caution instead of a ban.
+_NAMED_DESPITE_NO_BREAKPOINT = {
+    # IDSA AMR Guidance 2026: aztreonam-avibactam for S. maltophilia.
+    "nobp_aztreonam_avibactam_non_enterobacterales": ("stenotrophomonas",),
+    # Azithromycin is a typhoid treatment (WHO / IDSA); CLSI criteria are for
+    # S. Typhi (and Shigella). An UNSPECIATED "Salmonella spp." stays a caution
+    # -- confirm the serotype -- rather than losing the agent.
+    "nobp_azithromycin_enterobacterales": ("salmonella",),
+}
+
+
+def _is_enterobacterales(cx) -> bool:
+    from cdss.astqc.ast_reportability import ENTEROBACTERALES
+    return any(t in cx.org_l for t in ENTEROBACTERALES)
+
+
+def rule_qc_no_breakpoint(cx, dg, out):
+    """An agent the QC panel calls uninterpretable is not a treatment option (v7.0)."""
+    # ── Review finding (2026-11-19): flags did not propagate ──────────────
+    # The QC panel said "no breakpoint -- do not base a treatment decision on
+    # it" while the advisory listed the same agent as an option. Both now read
+    # ast_reportability.NO_BREAKPOINT_RULES.
+    if dg.result not in ("S", "I"):
+        return
+    # Cefoperazone ALONE in Enterobacterales: CLSI keeps a criterion (EUCAST
+    # audit, D1) -- interpretable, with a caution about its age.
+    if dg.name == "Cefoperazone" and _is_enterobacterales(cx):
+        out.note(dg.name, "warn", (
+            "Cefoperazone: معيار CLSI M100 للـ Enterobacterales (S ≤ 16 / R ≥ 64 mg/L) قديم "
+            "وُضع على الجرعات الأصلية ولم يُراجَع — النتيجة مقبولة، لكن الأفضل دواء حديث "
+            "المعايير (Ceftriaxone / Cefepime) إن كان حساساً."), "legacy_breakpoint")
+        return
+    try:
+        from cdss.astqc.ast_reportability import no_breakpoint_issue
+        iss = no_breakpoint_issue(cx.organism, dg.name, dg.result)
+    except Exception:
+        iss = None
+    if not iss:
+        return
+    rid = str(iss.get("id", "")).split(":", 1)[0]
+    if any(t in cx.org_l for t in _NAMED_DESPITE_NO_BREAKPOINT.get(rid, ())):
+        _why = iss.get("reason_ar", "")
+        if rid == "nobp_azithromycin_enterobacterales":
+            _why += (" — Salmonella غير محددة النوع: أكّد Typhi/Paratyphi قبل الاعتماد على "
+                     "Azithromycin (معيار CLSI لـ S. Typhi).")
+        out.note(dg.name, "warn", _why, "no_breakpoint")
+        return
+    out.ban(build_banned_item(
+        dg.name, "no_breakpoint",
+        "لا breakpoint لهذا الدواء مع هذا الكائن — النتيجة لا تُفسَّر ولا يُبنى عليها علاج.",
+        f"{iss.get('reason_ar', '')} (QC: {iss.get('reference', '')})"))
+
+
+def rule_fq_discordance(cx, dg, out):
+    """Ofloxacin / norfloxacin S beside a non-susceptible quinolone (v7.0, CLSI Ed29 revision)."""
+    # Review 2026-11-19: "Ofloxacin S + Norfloxacin I" was the top oral option.
+    # CLSI revised ciprofloxacin / levofloxacin breakpoints in 2019; ofloxacin
+    # and norfloxacin were not, and read S over a first-step gyrA mutation.
+    if dg.name not in ("Ofloxacin", "Norfloxacin") or dg.result != "S":
+        return
+    from cdss.astqc.phenotype_plausibility import fq_discordant
+    if not fq_discordant(cx.sir):
+        return
+    _ns = [d for d in ("Ofloxacin", "Norfloxacin", "Ciprofloxacin", "Levofloxacin")
+           if cx.sir.get(d) in ("I", "R")]
+    out.note(dg.name, "warn", (
+        f"{dg.name} = S بينما {', '.join(_ns)} غير حساس: مقاومة فلوروكينولون منخفضة المستوى (طفرة "
+        "gyrA أولى). معايير Ofloxacin / Norfloxacin في CLSI لم تُعدَّل في 2019 (بخلاف Ciprofloxacin / "
+        "Levofloxacin) فقد تُقرأ S رغم الطفرة — اختبر Ciprofloxacin و Levofloxacin (MIC) قبل "
+        "الاعتماد عليه."), "fq_low_level")
 
 
 def rule_organism_cautions(cx, dg, out):

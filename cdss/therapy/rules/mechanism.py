@@ -18,7 +18,7 @@ from cdss.therapy.therapy_rules import carb_tx_text as _carb_tx_text
 def rule_esbl_not_excluded(cx, dg, out):
     """ESBL 'moderate' (not excluded): say so on the beta-lactams outside cystitis."""
     # ── ESBL "moderate" = not excluded: say so on the beta-lactams ───────
-    if (cx.mech_prob == "moderate" and dg.result in ("S", "I")
+    if (not out.skip_mech and cx.mech_prob == "moderate" and dg.result in ("S", "I")
             and not (cx.spec_cat == "urine" and not cx.uti_upper)
             and dg.name not in NOVEL_BL_AGENTS and "carbapenem" not in dg.cls
             and ("cephalosporin" in dg.cls
@@ -31,23 +31,30 @@ def rule_esbl_not_excluded(cx, dg, out):
 
 
 def rule_ampc_cefepime(cx, dg, out):
-    """AmpC + cefepime (IDSA AMR Guidance): S is the suggested agent, SDD/I raises co-ESBL."""
+    """AmpC + cefepime (IDSA AMR Guidance 2026): preferred while the MIC is <=8 (S or SDD)."""
     # ── AmpC + Cefepime (IDSA AMR Guidance 2024 / 2026) ───────────────────
     # FIX 2026-11-10: AmpC was routed through the ESBL branch below and
     # cefepime was demoted with an "ESBL ... avoid in bacteraemia" note.
     # IDSA suggests cefepime for moderate/high-risk AmpC organisms when the
-    # isolate is susceptible; an SDD/I result raises the possibility of a
-    # co-produced ESBL, and then a carbapenem is preferred.
+    # isolate is susceptible -- and, from the 2026 update, also when it is SDD
+    # (see the SDD branch below).
     if (not out.skip_mech and cx.mech_prob in ("ampc", "ampc_plasmid")
             and dg.name == "Cefepime" and dg.result in ("S", "I")):
         if dg.result == "S":
             out.note(dg.name, "allow", (
                 "AmpC: Cefepime ثابت أمام AmpC وهو الخيار المقترح للعدوى الغازية "
-                "(IDSA 2026) طالما النتيجة S (MIC ≤ 2)."), "ampc_cefepime")
+                "(IDSA 2026) طالما MIC ≤ 8 (S، أو SDD بالجرعة العالية)."), "ampc_cefepime")
         else:
+            # v6.9: IDSA 2026 (Q2.3) changed this. Cefepime is preferred while
+            # the MIC is <=8 (S or SDD) unless an ESBL gene has been identified
+            # -- "available evidence does not suggest an association between
+            # cefepime SDD MICs and ESBL production". The 2024 text (SDD ->
+            # suspect co-ESBL -> carbapenem) is retired. It stays a caution: an
+            # SDD needs the high-exposure regimen (CLSI M100).
             out.note(dg.name, "warn", (
-                "AmpC مع Cefepime SDD/I: احتمال ESBL مرافق — فضّل الكاربابينيم في "
-                "العدوى الغازية (IDSA 2026)."), "ampc_sdd")
+                "AmpC مع Cefepime SDD (MIC 4–8): IDSA 2026 — يظل Cefepime هو المفضّل طالما MIC ≤ 8 "
+                "ولم يُكتشف جين ESBL (الأدلة لا تربط SDD بإنتاج ESBL)، لكن **بنظام الجرعة العالية "
+                "2 g q8h** (CLSI SDD). إذا ثبت ESBL: Carbapenem."), "ampc_sdd")
         out.skip_mech = True
 
 
@@ -94,13 +101,13 @@ def rule_possible_carbapenemase_betalactam(cx, dg, out):
             "⚠️ يوجد اشتباه في كاربابينيميز (كاربابينيم واحد فقط R أو "
             "Meropenem I) — والاشتباه **ليس** تأكيداً؛ النمط قد يكون فقد "
             "بورين مع ESBL/AmpC. هذا الدواء حسّاس معملياً ويُبلَّغ كما هو "
-            "(EUCAST v16). أكّد بـ mCIM أو PCR قبل التصعيد، وفي العدوى "
+            "(CLSI M100 Ed36 Table 3A). أكّد بـ mCIM أو PCR قبل التصعيد، وفي العدوى "
             "الشديدة فضّل الكاربابينيم أو استشر الأمراض المعدية."
         )
         _w["esbl_note_en"] = (
             "Carbapenemase is SUSPECTED (a single carbapenem R, or meropenem I) - a "
             "suspicion, not a confirmation; porin loss with ESBL/AmpC gives the same "
-            "pattern. This agent tests susceptible and is reported as such (EUCAST v16). "
+            "pattern. This agent tests susceptible and is reported as such (CLSI M100 Ed36 Table 3A). "
             "Confirm with mCIM or PCR before escalating; in severe infection prefer a "
             "carbapenem or seek infectious-diseases advice."
         )
@@ -117,13 +124,13 @@ def rule_esbl_or_carbapenemase_betalactam(cx, dg, out):
             _w["warning_reason"] = "esbl_bli_uti_only"
             _w["esbl_note"] = (
                 f"كائن {cx.mech_label}: هذا البيتا-لاكتام حسّاس معملياً -- يُبلَّغ **كما هو** "
-                "(EUCAST v16؛ لا تُحوّل الحساس إلى R). خيار ممكن لالتهاب المثانة البسيط فقط "
+                "(CLSI M100 Ed36 Table 3A؛ لا تُحوّل الحساس إلى R). خيار ممكن لالتهاب المثانة البسيط فقط "
                 "(المفضّل: Nitrofurantoin أو TMP-SMX؛ Fosfomycin لـ E. coli). تجنّبه في "
                 f"التهاب الحويضة وتجرثم الدم -- {cx.invasive_tx}."
             )
             _w["esbl_note_en"] = (
                 f"{cx.mech_label} organism: this beta-lactam is susceptible in vitro -- report "
-                "it AS TESTED (EUCAST v16). An option for uncomplicated cystitis only "
+                "it AS TESTED (CLSI M100 Ed36 Table 3A). An option for uncomplicated cystitis only "
                 "(preferred: nitrofurantoin or TMP-SMX; fosfomycin for E. coli). Avoid in "
                 "pyelonephritis and bacteraemia (IDSA AMR Guidance 2026)."
             )
@@ -170,25 +177,25 @@ def rule_possible_carbapenemase_bli(cx, dg, out):
             _w["esbl_note"] = (
                 "⛔ لا تستخدمه كعلاج نهائي منفرد في هذه العينة. اشتباه كاربابينيميز "
                 "غير مؤكد (كاربابينيم واحد R أو Meropenem I). "
-                "التوليفة حسّاسة معملياً وتُبلَّغ كما هي (EUCAST v16). "
+                "التوليفة حسّاسة معملياً وتُبلَّغ كما هي (CLSI M100 Ed36 Table 3A). "
                 "ابدأ بالكاربابينيم وأكّد بـ mCIM أو PCR، ولا تنزل لهذه التوليفة إلا "
                 "بعد نفي الإنزيم واستشارة الأمراض المعدية."
             )
             _w["esbl_note_en"] = (
                 "DO NOT use as definitive monotherapy for this specimen. Unconfirmed "
                 "carbapenemase suspicion. Susceptible in vitro and reported as tested "
-                "(EUCAST v16). Start a carbapenem, confirm with mCIM/PCR, and de-escalate "
+                "(CLSI M100 Ed36 Table 3A). Start a carbapenem, confirm with mCIM/PCR, and de-escalate "
                 "only once the enzyme is excluded and ID has been consulted."
             )
         else:
             _w["esbl_note"] = (
                 "⚠️ اشتباه كاربابينيميز غير مؤكد (كاربابينيم واحد R أو Meropenem I). "
-                "هذه التوليفة حسّاسة معملياً وتُبلَّغ كما هي (EUCAST v16). خيار مقبول "
+                "هذه التوليفة حسّاسة معملياً وتُبلَّغ كما هي (CLSI M100 Ed36 Table 3A). خيار مقبول "
                 "لالتهاب المثانة البسيط عند ثبوت الحساسية؛ أكّد بـ mCIM أو PCR."
             )
             _w["esbl_note_en"] = (
                 "Unconfirmed carbapenemase suspicion. Susceptible in vitro and reported "
-                "as tested (EUCAST v16). Acceptable for uncomplicated cystitis when proven "
+                "as tested (CLSI M100 Ed36 Table 3A). Acceptable for uncomplicated cystitis when proven "
                 "S; confirm with mCIM or PCR."
             )
         out.caution({"name": dg.name, **_w})

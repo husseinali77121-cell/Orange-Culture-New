@@ -28,6 +28,21 @@ def rule_unreadable(cx, dg, out):
 def rule_resistant(cx, dg, out):
     """R on the culture: the agent is out."""
     if dg.result == "R":
+        # v7.0 (review 2026-11-19): an R with NO breakpoint for this organism is
+        # not "MIC above the therapeutic threshold" -- there is no threshold.
+        # The QC panel calls it uninterpretable; the advisory now says the same.
+        try:
+            from cdss.astqc.ast_reportability import no_breakpoint_issue
+            _nb = no_breakpoint_issue(cx.organism, dg.name, "R")
+        except Exception:
+            _nb = None
+        if _nb:
+            out.ban(build_banned_item(
+                dg.name, "no_breakpoint",
+                "مُبلَّغ R — لكن لا breakpoint لهذا الدواء مع هذا الكائن: النتيجة لا تُفسَّر.",
+                f"{_nb.get('reason_ar', '')} (QC: {_nb.get('reference', '')})",
+            ))
+            return
         out.ban(build_banned_item(
             dg.name, "resistant", "مقاوم (R) في نتيجة المزرعة.",
             f"المزرعة أثبتت أن {dg.name} لا يثبط نمو الجرثومة. MIC أعلى من الحد العلاجي -> خطر فشل علاجي.",
