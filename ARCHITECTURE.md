@@ -75,6 +75,18 @@ build_context(...)  ──►  TherapyContext      الحالة مرة واحد�
 - **Pathogenicity** — البول من غير أعراض = بيانات غير كافية؛ البلغم من غير ارتشاح ما يوصلش «true infection»
   (`LRTI_POSSIBLE`)؛ الـ score اسمه «Evidence score» ومش احتمال.
 
+### v7.2 — حكم الـ Pathogenicity بيوصل للتوصيات
+
+- **`pathogenicity.treatment_gate()` / `gate_suppresses()`** — نقطة واحدة: `run_analysis(..., pathogenicity=,
+  treat_override=)` بيرجّع `treatment_gate` ويفضّي `ranked` و `duration`؛ الشاشة والتقرير النصي والـ PDF
+  (`pdf_parts.section_treatment_gate`) والصورة بيقروا نفس البوابة. قوائم الأمان (allowed / warned / banned)
+  بتفضل زي ما هي عشان الـ override يعرض نفس الحاجة.
+- **`cdss_ui.state.current_patho_result()`** — النتيجة اللي اتحسبت لمدخلات غير الحالية بتتعلّم stale (توقيع
+  `patho_signature`) وما بتتقريش في أي مكان.
+- **`uti_syndrome == "cuti"`** — complicated من غير علامات علوية: `TherapyContext.uti_cuti` +
+  `rules.specific.rule_cuti_bladder_agents` (تحذير) بدل منع `postprocess.apply_upper_uti`.
+- **`ast_consistency`** — `severity` لكل قاعدة (error / warning)، والـ category `verify` ليها رأس 🟠.
+
 ### الضمانات (وكل واحد عليه اختبار)
 
 | الضمان | كيف | الاختبار |
