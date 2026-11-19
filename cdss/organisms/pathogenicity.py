@@ -324,6 +324,7 @@ _NOTES_EN = [
     ("Paraplegia: الإصابات الصدرية", "Paraplegia: high thoracic lesions impair cough - assess clinically and with imaging."),
     ("Gram-positive cocci في الدم قبل التعريف", "Gram-positive cocci in blood before identification: in an unstable patient treat as possible S. aureus (MRSA cover) until coagulase / ID is available."),
     ("«Multiple bottles» لا يكفي", "\"Multiple bottles\" is not enough: the criterion is the same organism in two sets drawn separately (separate venepuncture / separate time), not two bottles of one draw."),
+    ("BAL / PSB: النمو اللفظي", "BAL / PSB: a verbal growth report (moderate / heavy / +++) is not a quantitative count - the BAL >= 10^4 and PSB >= 10^3 CFU/mL thresholds need the laboratory's actual figure."),
     ("CoNS مع قسطرة مركزية", "CoNS with a central line or prosthetic valve: draw two sets (one peripheral) before deciding; the same organism in both = probable CLABSI (IDSA 2009)."),
     ("S. aureus bacteremia", "S. aureus bacteraemia: repeat blood cultures every 24-48 h until negative, echocardiography, find and remove the source, IV therapy >= 14 days (uncomplicated). ID consultation lowers mortality."),
     ("إصابة النخاع الشوكي مع bacteremia", "Spinal cord injury with bacteraemia: commonest sources are the urinary tract, pressure ulcers / underlying osteomyelitis and pneumonia; fever may be the only sign."),
@@ -509,7 +510,7 @@ def gram_options_for(organism: str) -> List[str]:
 
 
 def _urine_threshold(collection: str, age, sex: str, symptomatic: bool, sci: bool,
-                     catheterised: bool) -> Tuple[int, str]:
+                     catheterised: bool, febrile: Optional[bool] = None) -> Tuple[int, str]:
     """(CFU/mL threshold, the rule it comes from) for a urine culture."""
     c = (collection or "").lower()
     if "aspirate" in c or "spa" in c:
@@ -550,13 +551,21 @@ def _urine_threshold(collection: str, age, sex: str, symptomatic: bool, sci: boo
                         "specimen before treating")
     if (isinstance(age, (int, float)) and age < 2
             and not ("nephrostomy" in c or "conduit" in c)):
-        if age < 8 / 365.25:
+        # v7.3 (third review): the AAP 2021 window is in DAYS (8-60); it was
+        # read from age < 2/12 years (60.9 days), so a 2-month entry fell either
+        # side by chance. Days decide now, and the UI asks for them up to 2 months.
+        _days = age * 365.25
+        if _days < 7.5:
             return 50000, ("Neonate in the first 7 days of life (catheter/SPA): outside the AAP "
                            "2021 febrile-infant guideline (8-60 days) and AAP 2011 — >= 5×10^4 "
                            "CFU/mL is used as a working figure; manage as a neonatal sepsis "
                            "evaluation")
-        if age < 2 / 12:
-            return 50000, ("Infant 8-60 days (catheter/SPA): >= 5×10^4 CFU/mL of one "
+        if _days < 60.5:
+            if febrile is False:
+                return 50000, ("Infant 8-60 days (catheter/SPA), no fever entered: the AAP 2021 "
+                               "guideline is for FEBRILE infants — >= 5×10^4 CFU/mL of one "
+                               "uropathogen with pyuria is applied by analogy")
+            return 50000, ("Febrile infant 8-60 days (catheter/SPA): >= 5×10^4 CFU/mL of one "
                            "uropathogen, or 10^4-5×10^4 with an abnormal urinalysis (AAP 2021 "
                            "febrile infant guideline)")
         return 50000, ("Infant 2-24 months (catheter/SPA): >= 5×10^4 CFU/mL of one uropathogen "
@@ -603,7 +612,8 @@ def _urine_threshold(collection: str, age, sex: str, symptomatic: bool, sci: boo
 
 def _score_colony_count(state: str, cfu_val: int, age: int, sex: str,
                         symptomatic: bool = False, collection: str = "",
-                        sci: bool = False, catheterised: bool = False):
+                        sci: bool = False, catheterised: bool = False,
+                        febrile: Optional[bool] = None):
     """(delta, positive_factor, negative_factor) for the colony-count field.
 
     v3: one threshold chosen by _urine_threshold(), then four outcomes —
@@ -619,7 +629,7 @@ def _score_colony_count(state: str, cfu_val: int, age: int, sex: str,
                            "infection. If an organism was isolated, the colony "
                            "count and the culture result disagree; re-check the "
                            "report before treating.")
-    thr, rule = _urine_threshold(collection, age, sex, symptomatic, sci, catheterised)
+    thr, rule = _urine_threshold(collection, age, sex, symptomatic, sci, catheterised, febrile)
     if cfu_val >= thr:
         return 30, f"✅ Colony count {cfu_val:,} CFU/mL meets the threshold — {rule}", None
     if cfu_val * 10 >= thr:
@@ -687,7 +697,7 @@ def _site_urine(
         references.append("NIDRR consensus statement (UTI after spinal cord injury)")
     if age < 18 or "bag" in coll_l or "كيس" in coll_l:
         references.append("AAP UTI 2011 (reaffirmed 2016)")
-    if age < 2 / 12:
+    if age * 365.25 < 60.5:
         references.append("AAP 2021 febrile infant guideline (8-60 days)")
     infant = age < 2
     if infant:
@@ -771,14 +781,16 @@ def _site_urine(
     # ── Colony count against the threshold that applies ──────────────────
     cfu_val = _parse_cfu(colony_count_text)
     cfu_state = _cfu_report_state(colony_count_text)
+    _febrile = "Fever (> 38°C)" in sym
     _thr, threshold_text = _urine_threshold(collection_method, age, sex, symptomatic,
-                                            sci, catheterised)
+                                            sci, catheterised, _febrile)
     if not symptoms_stated:
         threshold_text = "Symptoms not entered — threshold shown assumes none. " + threshold_text
     _d, _pos, _neg = _score_colony_count(cfu_state, cfu_val, age, sex,
                                          symptomatic=symptomatic,
                                          collection=collection_method,
-                                         sci=sci, catheterised=catheterised)
+                                         sci=sci, catheterised=catheterised,
+                                         febrile=_febrile)
     add("colony_count", _d, _pos or _neg)
     if cfu_state == "unreported":
         special_flags.append("CFU_NOT_REPORTED")
@@ -963,14 +975,25 @@ def _site_respiratory(
             missing.append("Sputum quality (WBC / epithelial cells per LPF)")
     else:
         cfu_val = _parse_cfu(colony_count_text)
-        if _cfu_report_state(colony_count_text) == "counted":
+        _bal_psb = any(k in spec_lower for k in ("bal", "psb"))
+        # v7.3 (third external review): a verbal report ("moderate / heavy growth",
+        # "+++") is semi-quantitative. _parse_cfu() maps it to a representative
+        # number for URINE; for BAL / PSB that number was compared with the 10^4 /
+        # 10^3 quantitative thresholds as if it had been counted. It now counts
+        # only for an endotracheal aspirate.
+        _verbal = (_cfu_report_state(colony_count_text) == "counted"
+                   and not re.search(r"\d", colony_count_text or ""))
+        if _verbal and _bal_psb:
+            missing.append("Quantitative count (BAL / PSB) or semi-quantitative growth (ETA)")
+            notes.append("🧪 BAL / PSB: النمو اللفظي (moderate / heavy / +++) ليس عدّاً كمّياً — "
+                         "عتبة BAL ≥ 10⁴ و PSB ≥ 10³ CFU/mL تحتاج الرقم الفعلي من المعمل.")
+        elif _cfu_report_state(colony_count_text) == "counted":
             thr = 10000 if "bal" in spec_lower else 1000 if "psb" in spec_lower else 100000
             threshold_text = (f"Quantitative lower-respiratory culture: >= {thr:,} CFU/mL "
                               "(BAL 10^4 · PSB 10^3 · endotracheal aspirate 10^5; ATS/IDSA 2016)"
                               + ("; a semi-quantitative report (moderate / heavy growth) is "
-                                 "acceptable for an endotracheal aspirate"
-                                 if not any(k in spec_lower for k in ("bal", "psb")) else ""))
-            _semi = (not any(k in spec_lower for k in ("bal", "psb"))
+                                 "acceptable for an endotracheal aspirate" if not _bal_psb else ""))
+            _semi = (not _bal_psb
                      and _has(colony_count_text, ("moderate", "heavy", "profuse", "confluent",
                                                   "++", "نمو متوسط", "نمو كثيف", "نمو غزير")))
             if _semi:
@@ -979,6 +1002,10 @@ def _site_respiratory(
                 # the 10^5 quantitative figure.
                 add("colony_count", 20, "✅ Moderate / heavy growth on a semi-quantitative "
                                         "endotracheal aspirate culture (ATS/IDSA 2016)")
+            elif _verbal:
+                # v7.3: light / scanty on an ETA -- no invented CFU figure in the text
+                add("colony_count", -15, "⚠️ Light / scanty growth on a semi-quantitative "
+                                         "endotracheal aspirate -- colonisation more likely")
             elif cfu_val >= thr:
                 add("colony_count", 20, f"✅ {cfu_val:,} CFU/mL meets the quantitative threshold")
             else:
