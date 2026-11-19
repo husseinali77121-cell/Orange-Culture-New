@@ -41,6 +41,8 @@ on:
       - "cdss/**"
       - "cdss_ui/**"
       - "requirements.txt"
+      - "fonts/**"
+      - "tools/check_report_fonts.py"
       - ".github/workflows/build-exe.yml"
   workflow_dispatch: {}   # manual "Run workflow" button in the Actions tab
 
@@ -231,32 +233,19 @@ jobs:
             throw "PDF generation (WeasyPrint/GTK3) could not be staged -- failing the build rather than shipping an exe with silently broken PDF reports. See EXE_BUILD_NOTES.md."
           }
 
-      # ── Stage fonts (Arabic shaping + PDF/report rendering) ─────────────
-      - name: Stage fonts
+      # ── Fonts (v6.8) ──────────────────────────────────────────────────
+      # The repository ships the exact font files the online app uses (fonts/,
+      # see fonts/README.md). This step used to DOWNLOAD two Arabic fonts and
+      # only warn if that failed; nothing registered them, so the PDF fell back
+      # to Windows fonts and the decision-tree image to Pillow's 10-pixel
+      # default. Now: the shipped files must be present -- no download, no
+      # warning-and-continue.
+      - name: Check the shipped fonts
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path fonts | Out-Null
-          # Windows already ships DejaVu-equivalent fallbacks for most Latin
-          # text, but Arabic shaping specifically needs Amiri/Noto bundled --
-          # Windows has no built-in equivalent guaranteed present.
-          $fonts = @{
-            "NotoNaskhArabic-Regular.ttf" = "https://github.com/notofonts/arabic/raw/main/fonts/NotoNaskhArabic/hinted/ttf/NotoNaskhArabic-Regular.ttf"
-            "Amiri-Regular.ttf"           = "https://github.com/aliftype/amiri/releases/latest/download/Amiri-Regular.ttf"
-          }
-          foreach ($name in $fonts.Keys) {
-            try {
-              Invoke-WebRequest -Uri $fonts[$name] -OutFile "fonts\$name" -UserAgent "Mozilla/5.0"
-              $bytes = [System.IO.File]::ReadAllBytes("fonts\$name")
-              # Real .ttf files start with 00 01 00 00 (or "OTTO" for .otf) --
-              # an HTML error page would start with "<" (0x3C).
-              if ($bytes[0] -eq 0x3C) {
-                Remove-Item "fonts\$name" -Force
-                Write-Warning "$name download returned HTML, not a font file -- skipped. Arabic text may fall back to an unshaped font."
-              }
-            } catch {
-              Write-Warning "Could not stage font $name -- Arabic text in generated PDFs may fall back to an unshaped font."
-            }
-          }
+          $ErrorActionPreference = "Stop"
+          python -c "from cdss.reports.fonts import REQUIRED_FILES, fonts_dir; d = fonts_dir(); missing = [f for f in REQUIRED_FILES if d is None or not (d / f).is_file()]; assert not missing, f'fonts/ is missing {missing} -- upload the fonts folder from the release zip'; print(f'fonts/: {len(REQUIRED_FILES)} files present in {d}')"
+          if ($LASTEXITCODE -ne 0) { throw "The fonts/ folder is incomplete -- the EXE's reports would not match the online app." }
 
       # ── Build ─────────────────────────────────────────────────────────
       - name: Install Python build dependencies
@@ -280,6 +269,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "PDF generation smoke test failed -- WeasyPrint could not render a PDF with the staged GTK3 DLLs. This means the shipped exe's PDF reports would not work. Do not relax this gate; fix the GTK3 staging step instead."
           }
+
+      # v6.8: proves, from the PDF itself, that the reports are drawn with the
+      # shipped Noto Serif / Noto Sans / Amiri / DejaVu Sans -- not with
+      # whatever Windows has -- and that the decision-tree image loads the
+      # shipped font at full size.
+      - name: Report fonts (read back from a PDF and the image renderer)
+        shell: pwsh
+        run: |
+          $env:PATH = "$PWD\gtk3-runtime\bin;" + $env:PATH
+          python tools/check_report_fonts.py
+          if ($LASTEXITCODE -ne 0) { throw "Reports would not be drawn with the shipped fonts -- see the lines above." }
 
       - name: Build with PyInstaller
         run: pyinstaller orange_cdss.spec --clean --noconfirm
@@ -308,6 +308,8 @@ jobs:
             "cdss\formulary\commercial_names.txt", "cdss_ui\app.py",
             "streamlit\static\index.html",
             "tesseract\tesseract.exe", "tesseract\tessdata\eng.traineddata",
+            "fonts\NotoSerif-Regular.ttf", "fonts\NotoSans-Regular.ttf",
+            "fonts\Amiri-Regular.ttf", "fonts\DejaVuSans.ttf",
             "gtk3-runtime\bin"
           )
           $missing = @()
