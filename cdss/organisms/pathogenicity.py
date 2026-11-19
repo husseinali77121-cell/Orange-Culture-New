@@ -51,6 +51,9 @@ __all__ = [
     "HOST_SCI_PARA", "HOST_SCI_QUAD", "HOST_FACTORS_URINE", "HOST_FACTORS_OTHER",
     "URINE_COLLECTION_METHODS", "URINE_SYMPTOMS", "GRAM_STAIN_OPTIONS",
     "WOUND_TYPES", "WOUND_SIGNS", "RESPIRATORY_SIGNS",
+    # v7.2
+    "NO_TREAT_CATEGORIES", "treatment_gate", "gate_suppresses",
+    "BLOOD_SET_OPTIONS", "blood_sets_state", "RESP_SPECIMEN_SUBTYPES",
 ]
 
 
@@ -158,7 +161,7 @@ def _org_in(name: str, group) -> bool:
 #  New keys: engine_version, category, threshold, notes, missing_inputs,
 #  confidence, references, evidence.
 # ════════════════════════════════════════════════════════════════════════════
-PATHO_ENGINE_VERSION = "3.1 (2026-11-19)"
+PATHO_ENGINE_VERSION = "3.2 (2026-11-19)"
 
 # ── Option lists (single source for the UI) ─────────────────────────────────
 HOST_SCI_PARA = "Paraplegia (spinal cord injury)"
@@ -250,6 +253,14 @@ WOUND_SIGNS = [
     "Erythema / Warmth / Swelling", "Purulent discharge", "Fever (> 38°C)",
     "Pain / Tenderness", "No local signs of infection",
 ]
+# v7.2: the respiratory specimen decides the quantitative threshold (BAL 10^4,
+# PSB 10^3, ETA 10^5 or semi-quantitative). The UI only offered "Sputum".
+RESP_SPECIMEN_SUBTYPES = [
+    "Expectorated / induced sputum",
+    "Endotracheal aspirate (ETA)",
+    "Bronchoalveolar lavage (BAL)",
+    "Protected specimen brush (PSB)",
+]
 RESPIRATORY_SIGNS = [
     "Productive cough / Purulent sputum", "Fever (> 38°C)", "Dyspnea",
     "Pleuritic chest pain", "New infiltrate on chest imaging",
@@ -305,12 +316,14 @@ _NOTES_EN = [
     ("عند العلاج: غيّر القسطرة", "When treating: replace a catheter that has been in place >= 2 weeks and culture from the new one; 7 days with prompt response, 10-14 days with delayed response (IDSA CA-UTI 2009). Resistant organisms are more likely - follow the susceptibility result."),
     ("الأعراض غير مُدخلة: في إصابة النخاع", "Symptoms not entered: in spinal cord injury the culture cannot be interpreted without them."),
     ("رضيع < سنتين", "Infant < 2 years: UTI = pyuria + >= 5x10^4 CFU/mL of a single organism from catheter or SPA (AAP). Any confirmed UTI is treated."),
-    ("UTI في الذكور", "UTI in males: consider prostatic involvement (longer course, an agent that penetrates the prostate) with fever or recurrence."),
+    ("رضيع + عينة midstream", "Infant with a midstream specimen: AAP bases the diagnosis on a catheter or SPA specimen - confirm with a catheter specimen before treating (do not delay treatment in a febrile, ill-looking infant)."),
+    ("UTI في الذكور","UTI in males: consider prostatic involvement (longer course, an agent that penetrates the prostate) with fever or recurrence."),
     ("تشخيص الالتهاب الرئوي يحتاج", "Pneumonia requires a new infiltrate on imaging - a culture alone is not sufficient (ATS/IDSA)."),
     ("مريض على tracheostomy", "Tracheostomy / ventilated patient: airway colonisation is near-universal. VAP = new infiltrate + clinical signs (fever, purulent secretions, leucocytosis, worsening oxygenation), not the culture alone; an endotracheal aspirate with semi-quantitative culture is sufficient (ATS/IDSA 2016)."),
     ("Quadriplegia: ضعف السعال", "Quadriplegia: impaired cough and respiratory muscles cause retained secretions and aspiration; pneumonia is a leading cause of death after cervical injury. Low threshold with fever or changing secretions / oxygenation, but colonisation alone (especially with tracheostomy) is not treated."),
     ("Paraplegia: الإصابات الصدرية", "Paraplegia: high thoracic lesions impair cough - assess clinically and with imaging."),
     ("Gram-positive cocci في الدم قبل التعريف", "Gram-positive cocci in blood before identification: in an unstable patient treat as possible S. aureus (MRSA cover) until coagulase / ID is available."),
+    ("«Multiple bottles» لا يكفي", "\"Multiple bottles\" is not enough: the criterion is the same organism in two sets drawn separately (separate venepuncture / separate time), not two bottles of one draw."),
     ("CoNS مع قسطرة مركزية", "CoNS with a central line or prosthetic valve: draw two sets (one peripheral) before deciding; the same organism in both = probable CLABSI (IDSA 2009)."),
     ("S. aureus bacteremia", "S. aureus bacteraemia: repeat blood cultures every 24-48 h until negative, echocardiography, find and remove the source, IV therapy >= 14 days (uncomplicated). ID consultation lowers mortality."),
     ("إصابة النخاع الشوكي مع bacteremia", "Spinal cord injury with bacteraemia: commonest sources are the urinary tract, pressure ulcers / underlying osteomyelitis and pneumonia; fever may be the only sign."),
@@ -376,11 +389,15 @@ _MISSING_AR = {
     "Urine collection method": "طريقة جمع العينة", "Pyuria / urinalysis": "الصديد / تحليل البول",
     "Sputum quality (WBC / epithelial cells per LPF)": "جودة البلغم (WBC / خلايا طلائية)",
     "Quantitative count (BAL / ETA)": "العدّ الكمّي (BAL / ETA)",
+    "Quantitative count (BAL / PSB) or semi-quantitative growth (ETA)":
+        "العدّ الكمّي (BAL / PSB) أو النمو شبه الكمي (ETA)",
+    "Number of positive sets (independent draws, not bottles)": "عدد المجموعات المستقلة الإيجابية (لا الزجاجات)",
     "Respiratory signs / imaging": "العلامات التنفسية / الأشعة",
     "Number of positive sets / bottles": "عدد الزجاجات الإيجابية",
     "SIRS criteria": "معايير SIRS", "GI symptoms": "الأعراض المعوية",
     "Local signs of infection": "علامات العدوى الموضعية",
     "Specimen type not recognised": "نوع العينة غير معروف",
+    "Urinalysis / pyuria (AAP)": "تحليل البول / الصديد (شرط AAP للرضيع)",
 }
 
 
@@ -524,12 +541,24 @@ def _urine_threshold(collection: str, age, sex: str, symptomatic: bool, sci: boo
     # v7.1 (external review 2026-11-19): AAP 2011 covers 2-24 MONTHS; it was
     # cited for every child under 2. Under 2 months the AAP 2021 febrile-infant
     # guideline (8-60 days) applies; the first week of life is outside both.
-    if isinstance(age, (int, float)) and age < 2:
+    # v7.2 (second external review 2026-11-19): the AAP figures are CATHETER /
+    # SPA figures. They were applied to an infant's midstream specimen too, and
+    # the pyuria AAP requires was only mentioned (see _site_urine).
+    if isinstance(age, (int, float)) and age < 2 and ("midstream" in c or "clean" in c):
+        return 100000, ("Infant < 2 years, midstream / clean-catch: >= 10^5 CFU/mL; AAP bases "
+                        "the diagnosis on a catheter or SPA specimen — confirm by catheter "
+                        "specimen before treating")
+    if (isinstance(age, (int, float)) and age < 2
+            and not ("nephrostomy" in c or "conduit" in c)):
+        if age < 8 / 365.25:
+            return 50000, ("Neonate in the first 7 days of life (catheter/SPA): outside the AAP "
+                           "2021 febrile-infant guideline (8-60 days) and AAP 2011 — >= 5×10^4 "
+                           "CFU/mL is used as a working figure; manage as a neonatal sepsis "
+                           "evaluation")
         if age < 2 / 12:
-            return 50000, ("Infant < 2 months (catheter/SPA): >= 5×10^4 CFU/mL of one "
+            return 50000, ("Infant 8-60 days (catheter/SPA): >= 5×10^4 CFU/mL of one "
                            "uropathogen, or 10^4-5×10^4 with an abnormal urinalysis (AAP 2021 "
-                           "febrile infant guideline, 8-60 days); the first 7 days of life are "
-                           "outside it — neonatal assessment")
+                           "febrile infant guideline)")
         return 50000, ("Infant 2-24 months (catheter/SPA): >= 5×10^4 CFU/mL of one uropathogen "
                        "WITH pyuria (AAP 2011, reaffirmed 2016)")
     if "nephrostomy" in c or "conduit" in c:
@@ -762,10 +791,36 @@ def _site_urine(
         if catheterised or neurogenic or infant:
             missing.append("Urine collection method")
 
+    if infant and ("midstream" in coll_l or "clean" in coll_l):
+        special_flags.append("INFANT_MIDSTREAM")
+        notes.append("👶 رضيع + عينة midstream: AAP يعتمد عينة قسطرة أو SPA للتشخيص — أكّد بعينة "
+                     "قسطرة قبل العلاج (ولا تؤخر العلاج في رضيع محموم يبدو مريضاً).")
+
     # ── Pyuria ───────────────────────────────────────────────────────────
     pus_val = _parse_pus(pus_cells_text)
     ua_l = urinalysis_result.lower()
-    if catheterised or neurogenic:
+    if infant:
+        # v7.2 (second external review 2026-11-19): under 2 years AAP diagnoses
+        # UTI on pyuria / an abnormal urinalysis AND the count (AAP 2011; AAP
+        # 2021 for 8-60 days) -- also from an in-out catheter, which is how the
+        # specimen is taken. The pyuria was only quoted in a note.
+        _ua_abn = "pyuria" in ua_l or "wbc" in ua_l or "nitrit" in ua_l
+        _ua_norm = "طبيعي" in urinalysis_result or "normal" in ua_l
+        if (pus_val is not None and pus_val >= 5) or (pus_val is None and _ua_abn):
+            add("pyuria", 15, "✅ Pyuria / abnormal urinalysis — required with the count to "
+                              "diagnose UTI under 2 years (AAP)")
+        elif neutropenic and (pus_val is not None or _ua_norm):
+            add("pyuria", 0, None)
+            notes.append("ℹ️ غياب الـ pyuria لا ينفي العدوى في رضيع neutropenic.")
+        elif (pus_val is not None and pus_val < 5) or (pus_val is None and _ua_norm):
+            add("pyuria", -25, "❌ No pyuria — AAP requires pyuria with the count to diagnose "
+                               "UTI under 2 years (contamination or asymptomatic bacteriuria "
+                               "more likely)")
+            special_flags.append("INFANT_NO_PYURIA")
+        else:
+            missing.append("Urinalysis / pyuria (AAP)")
+            special_flags.append("INFANT_PYURIA_UNKNOWN")
+    elif catheterised or neurogenic:
         # IDSA 2009: pyuria does not separate CA-UTI from CA-ASB; its
         # ABSENCE points away from UTI.
         if pus_val is not None and pus_val < 5 and not neutropenic:
@@ -846,7 +901,7 @@ def _site_urine(
 
     if infant:
         notes.append("👶 رضيع < سنتين: UTI = pyuria + ≥ 5×10⁴ CFU/mL لكائن واحد من قسطرة أو SPA "
-                     "(AAP 2011 لعمر 2–24 شهر؛ تحت شهرين AAP 2021 للرضيع المحموم 8–60 يوم، "
+                     "(AAP 2011 لعمر 2–24 شهر؛ 8–60 يوم AAP 2021 للرضيع المحموم، "
                      "والأسبوع الأول خارج الاثنين). أي UTI مؤكد يُعالَج.")
     if sex == "Male" and symptomatic and age >= 15:
         notes.append("♂ UTI في الذكور: فكّر في البروستاتا (مدة أطول واختيار دواء يخترقها) عند "
@@ -911,14 +966,27 @@ def _site_respiratory(
         if _cfu_report_state(colony_count_text) == "counted":
             thr = 10000 if "bal" in spec_lower else 1000 if "psb" in spec_lower else 100000
             threshold_text = (f"Quantitative lower-respiratory culture: >= {thr:,} CFU/mL "
-                              "(BAL 10^4 · PSB 10^3 · endotracheal aspirate 10^5; ATS/IDSA 2016)")
-            if cfu_val >= thr:
+                              "(BAL 10^4 · PSB 10^3 · endotracheal aspirate 10^5; ATS/IDSA 2016)"
+                              + ("; a semi-quantitative report (moderate / heavy growth) is "
+                                 "acceptable for an endotracheal aspirate"
+                                 if not any(k in spec_lower for k in ("bal", "psb")) else ""))
+            _semi = (not any(k in spec_lower for k in ("bal", "psb"))
+                     and _has(colony_count_text, ("moderate", "heavy", "profuse", "confluent",
+                                                  "++", "نمو متوسط", "نمو كثيف", "نمو غزير")))
+            if _semi:
+                # v7.2: an endotracheal aspirate is read semi-quantitatively
+                # (ATS/IDSA 2016); "moderate" maps to 3x10^4 and scored as below
+                # the 10^5 quantitative figure.
+                add("colony_count", 20, "✅ Moderate / heavy growth on a semi-quantitative "
+                                        "endotracheal aspirate culture (ATS/IDSA 2016)")
+            elif cfu_val >= thr:
                 add("colony_count", 20, f"✅ {cfu_val:,} CFU/mL meets the quantitative threshold")
             else:
                 add("colony_count", -15, f"⚠️ {cfu_val:,} CFU/mL is below the quantitative "
                                          "threshold -- colonisation more likely")
         else:
-            missing.append("Quantitative count (BAL / ETA)")
+            # v7.2: a missing count is "not entered", never evidence against infection
+            missing.append("Quantitative count (BAL / PSB) or semi-quantitative growth (ETA)")
 
     if _has(org_l, ("pneumoniae", "pneumococc", "haemophilus", "h. influenzae",
                     "moraxella", "legionella", "mycoplasma")) or is_saureus:
@@ -957,6 +1025,12 @@ def _site_respiratory(
         add("symptoms", 10, "➕ 1 respiratory sign/symptom present")
     elif not symptoms:
         missing.append("Respiratory signs / imaging")
+    if not resp:
+        # v7.2 (external review 2026-11-19): the infiltrate checkbox sits in the
+        # same list as the signs, so "infiltrate only" counted as symptoms
+        # entered and imaging + culture + specimen quality reached "TRUE
+        # INFECTION". Pneumonia needs clinical signs too -- capped below.
+        special_flags.append("NO_RESP_SIGNS")
     if ventilated:
         # v7.1: ATS/IDSA 2016 suggests NON-invasive sampling with SEMI-quantitative
         # culture; the note said the diagnosis needs a quantitative culture.
@@ -972,6 +1046,38 @@ def _site_respiratory(
     elif sci:
         notes.append("♿ Paraplegia: الإصابات الصدرية العليا تُضعف السعال — قيّم سريرياً وبالأشعة.")
     return threshold_text
+
+
+# v7.2 (second external review 2026-11-19): blood cultures are judged by
+# SETS (one venepuncture = one set, however many bottles), not by bottles.
+BLOOD_SET_OPTIONS = [
+    "مش محدد",
+    "Only one set drawn (bottles of one venepuncture)",
+    "1 positive set; the other set(s) negative",
+    "Same organism in 2 sets drawn separately",
+    "Same organism in ≥ 3 sets drawn separately",
+]
+
+
+def blood_sets_state(blood_source: str) -> str:
+    """'multiple' | 'one_set' | 'single' | 'legacy_multi' | 'unknown' for the sets entry.
+
+    Reads the v7.2 options and the pre-v7.2 labels ("Single bottle positive",
+    "Multiple bottles positive"); the latter could be one venepuncture, so it is
+    'legacy_multi' -- never counted as independent sets.
+    """
+    b = (blood_source or "").lower()
+    if not b or "مش محدد" in b:
+        return "unknown"
+    if "1 positive set" in b or "single" in b or "one positive bottle" in b:
+        return "single"
+    if "only one set" in b or "one set" in b or "مجموعة واحدة" in b or "one venepuncture" in b:
+        return "one_set"
+    if "drawn separately" in b or "independent" in b or "مستقلة" in b:
+        return "multiple"
+    if "multiple bottles" in b:
+        return "legacy_multi"
+    return "unknown"
 
 
 def _site_blood(
@@ -1002,8 +1108,16 @@ def _site_blood(
     """BLOOD: score this specimen's own evidence (moved from assess_pathogenicity)."""
     references += ["CLSI M47 (blood cultures)", "IDSA CLABSI 2009",
                    "Weinstein 1997 / Doern 2019 (contaminant criteria)"]
-    multiple = "multiple" in blood_source.lower()
-    single = "single" in blood_source.lower()
+    # v7.2 (external review 2026-11-19): BOTTLES are not SETS. Several bottles
+    # of one venepuncture are one draw; only the same organism in separately
+    # drawn (independent) sets is the CoNS criterion. The old UI asked for the
+    # number of positive bottles and "Multiple bottles positive" was scored as
+    # multiple sets (+65 for skin flora).
+    _sets = blood_sets_state(blood_source)
+    multiple = _sets == "multiple"
+    one_set = _sets == "one_set"
+    legacy_multi = _sets == "legacy_multi"
+    single = _sets == "single"
     contaminant_org = is_cons or is_viridans or _has(org_l, ("micrococcus", "bacillus spp",
                                                              "cutibacterium", "propionibacterium"))
 
@@ -1041,14 +1155,25 @@ def _site_blood(
         # For skin flora this is THE criterion: it outweighs the organism
         # penalty above (same organism in >= 2 separately drawn sets).
         add("bottles", 65 if contaminant_org else 15,
-            "✅ Same organism in multiple sets -- true bacteraemia")
+            "✅ Same organism in independently drawn sets -- true bacteraemia")
         if contaminant_org:
             special_flags.append("MULTI_SET_SKIN_FLORA")
+    elif one_set and contaminant_org:
+        add("bottles", -10, "⚠️ Only one set drawn (bottles of ONE venepuncture) + skin-flora "
+                            "organism -- one draw cannot confirm it; draw a second set")
+    elif one_set:
+        add("bottles", 5, "➕ Positive in the one set drawn")
+    elif legacy_multi and not contaminant_org:
+        add("bottles", 5, "➕ Several bottles positive (independent sets not stated)")
     elif single and contaminant_org:
-        add("bottles", -20, "⚠️ Single positive bottle + skin-flora organism -- contamination likely")
-    elif not multiple and not single:     # "" or the UI's "مش محدد" (not specified)
+        add("bottles", -20, "⚠️ Positive in one set while the other set(s) are negative + "
+                            "skin-flora organism -- contamination likely")
+    elif not multiple and not single:     # "" / "مش محدد" / the ambiguous pre-v7.2 label
         if contaminant_org:
-            missing.append("Number of positive sets / bottles")
+            missing.append("Number of positive sets (independent draws, not bottles)")
+            if legacy_multi:
+                notes.append("🩸 «Multiple bottles» لا يكفي: المطلوب نفس الكائن في مجموعتين مسحوبتين "
+                             "بشكل مستقل (وخز منفصل / وقت منفصل)، لا زجاجتين من نفس السحبة.")
     # v6.7: skin flora that cannot yet be called a contaminant. IDSA CRBSI
     # 2009: with a central line or a prosthetic valve, a single CoNS
     # bottle needs repeat sets BEFORE it is dismissed; and when the number
@@ -1057,13 +1182,17 @@ def _site_blood(
         if has_line or has_prosthesis or has_cns_device:
             special_flags.append("SKIN_FLORA_DEVICE_UNRESOLVED")
         elif not single:
+            # sets not entered, or only one set drawn: "repeat", never "do not treat"
             special_flags.append("SKIN_FLORA_SETS_UNKNOWN")
     if blood_source and "source" in blood_source.lower():
         add("source", 10, f"➕ Source identified: {blood_source}")
 
     sirs_count = len(sirs_criteria)
     if sirs_count >= 3:
-        add("sirs", 20, f"✅ {sirs_count}/4 SIRS criteria met -- sepsis probable")
+        # v7.2 (external review): SIRS is an inflammatory response, not sepsis --
+        # Sepsis-3 needs organ dysfunction (SOFA).
+        add("sirs", 20, f"✅ {sirs_count}/4 SIRS criteria met -- marked systemic inflammatory "
+                        "response; sepsis itself needs organ dysfunction (Sepsis-3 / SOFA)")
         special_flags.append("SIRS_HIGH")
     elif sirs_count == 2:
         add("sirs", 15, "➕ 2/4 SIRS criteria met")
@@ -1453,6 +1582,54 @@ def _score_purity(*, add, collection_method, culture_purity, host_factors, spec_
 
 
 # =========================================================
+# Recommendations a flag adds whatever the verdict (v7.2: one table instead of
+# two parallel if-chains, Arabic and English, that had to be kept in step).
+# (flag, only when the verdict is not TRUE_INFECTION, Arabic, English)
+_FLAG_RECS: List[Tuple[str, bool, str, str]] = [
+    ("BLOOD_CONTAMINANT_RISK", True,
+     "اسحب مجموعتين جديدتين من موضعين مختلفين قبل الحكم على CoNS / فلورا الجلد.",
+     "Draw two new sets from two separate sites before judging CoNS / skin flora."),
+    ("SKIN_FLORA_DEVICE_UNRESOLVED", True,
+     "مع قسطرة وريدية مركزية أو جهاز/صمام صناعي لا تُهمَل زجاجة CoNS واحدة: "
+     "اسحب مجموعتين متزامنتين (طرفية + من القسطرة) قبل القرار (IDSA CRBSI 2009).",
+     "With a central line or a prosthetic device/valve a single CoNS bottle is "
+     "not dismissed: draw paired sets (peripheral + through the line) before "
+     "deciding (IDSA CRBSI 2009)."),
+    ("BAG_SPECIMEN", False,
+     "عينة كيس: أكّد بعينة قسطرة أو SPA قبل اعتماد التشخيص — ولا تؤخر العلاج "
+     "في رضيع محموم يبدو مريضاً (خذ العينة الصحيحة ثم ابدأ).",
+     "Bag specimen: confirm with a catheter or SPA specimen before accepting the diagnosis - "
+     "do not delay treatment in a febrile, ill-looking infant (collect properly, then start)."),
+    ("SAUREUS_BACTERIURIA", False,
+     "اسحب مزارع دم: S. aureus في البول قد يدل على bacteremia.",
+     "Draw blood cultures: S. aureus in urine may indicate bacteraemia."),
+    ("INFANT_NO_PYURIA", False,
+     "رضيع بلا pyuria: AAP لا يشخّص UTI بالعدّ وحده — أعِد تحليل البول وعينة "
+     "قسطرة، وابحث عن مصدر آخر للحمى.",
+     "Infant without pyuria: AAP does not diagnose UTI on the count alone - "
+     "repeat the urinalysis on a catheter specimen and look for another source of fever."),
+    ("INFANT_PYURIA_UNKNOWN", False,
+     "أدخل تحليل البول / الصديد: AAP يشترط pyuria مع العدّ لتشخيص UTI تحت سنتين.",
+     "Enter the urinalysis / pus cells: AAP requires pyuria with the count to "
+     "diagnose UTI under 2 years."),
+    ("INFANT_MIDSTREAM", False,
+     "رضيع + midstream: أكّد بعينة قسطرة (أو SPA) قبل اعتماد التشخيص.",
+     "Infant, midstream specimen: confirm with a catheter (or SPA) specimen "
+     "before accepting the diagnosis."),
+]
+
+
+def _flag_recommendations(special_flags, category) -> Tuple[List[str], List[str]]:
+    """(Arabic, English) recommendations added by the flags, in table order."""
+    ar: List[str] = []
+    en: List[str] = []
+    for flag, not_true, txt_ar, txt_en in _FLAG_RECS:
+        if flag in special_flags and not (not_true and category == "TRUE_INFECTION"):
+            ar.append(txt_ar)
+            en.append(txt_en)
+    return ar, en
+
+
 def assess_pathogenicity(
     specimen: str,
     organism: str,
@@ -1671,10 +1848,15 @@ def assess_pathogenicity(
         score = 25            # sets not entered: "repeat recommended", not "do not treat"
     if "BAG_SPECIMEN" in special_flags:
         score = min(score, 65)   # AAP: a bag-specimen positive is never diagnostic on its own
+    if any(f in special_flags for f in ("INFANT_NO_PYURIA", "INFANT_PYURIA_UNKNOWN",
+                                        "INFANT_MIDSTREAM")):
+        score = min(score, 65)   # v7.2: AAP needs pyuria AND a catheter / SPA count: never "TRUE" without
     _core_missing = [m for m in missing if m in ("Symptoms", "Colony count",
                                                  "Respiratory signs / imaging",
                                                  "Local signs of infection",
-                                                 "Number of positive sets / bottles")]
+                                                 "Number of positive sets / bottles",
+                                                 "Number of positive sets (independent draws, not bottles)",
+                                                 "Urinalysis / pyuria (AAP)")]
     confidence = "high" if not missing else "moderate" if len(_core_missing) <= 1 else "low"
     # v7.1 (external review 2026-11-19): for urine the symptoms ARE the
     # diagnosis -- the same count, pus and Gram stain are a UTI with symptoms and
@@ -1689,18 +1871,28 @@ def assess_pathogenicity(
     (category, color, interpretation, recommendations, verdict) = _verdict(
         insufficient=insufficient, missing=missing, score=score, special_flags=special_flags
     )
-    if category == "TRUE_INFECTION" and "NO_INFILTRATE" in special_flags:
+    if category == "TRUE_INFECTION" and ("NO_INFILTRATE" in special_flags
+                                         or "NO_RESP_SIGNS" in special_flags):
+        _no_img = "NO_INFILTRATE" in special_flags
         # v7.1 (external review 2026-11-19): a respiratory isolate without a new
         # infiltrate is not a pneumonia (ATS/IDSA 2016 / 2019). The evidence
         # score is kept; the verdict is capped at "possible".
         category = "LRTI_POSSIBLE"
-        verdict = "🟡 POSSIBLE LOWER RESPIRATORY INFECTION -- no infiltrate entered: pneumonia NOT established"
+        verdict = ("🟡 POSSIBLE LOWER RESPIRATORY INFECTION -- "
+                   + ("no infiltrate entered" if _no_img else "no respiratory clinical sign entered")
+                   + ": pneumonia NOT established")
         color = "warning"
-        interpretation = ("مؤشرات المزرعة قوية، لكن لم يُدخَل ارتشاح جديد في الأشعة: لا يُشخَّص "
-                          "pneumonia ولا HAP/VAP بدونه (ATS/IDSA 2016 / 2019) — الكائن قد يكون "
-                          "استعماراً لمجرى الهواء.")
+        interpretation = (("مؤشرات المزرعة قوية، لكن لم يُدخَل ارتشاح جديد في الأشعة: لا يُشخَّص "
+                           "pneumonia ولا HAP/VAP بدونه (ATS/IDSA 2016 / 2019)"
+                           if _no_img else
+                           "أشعة + مزرعة بدون أي علامة إكلينيكية تنفسية (حمى، سعال/إفرازات صديدية، "
+                           "ضيق نفس، تدهور الأكسجة): لا يُشخَّص pneumonia بالأشعة والمزرعة وحدهما")
+                          + " — الكائن قد يكون استعماراً لمجرى الهواء.")
         recommendations = [
-            "اطلب أشعة صدر (أو أدخل نتيجتها): الارتشاح الجديد شرط لتشخيص الالتهاب الرئوي.",
+            ("اطلب أشعة صدر (أو أدخل نتيجتها): الارتشاح الجديد شرط لتشخيص الالتهاب الرئوي."
+             if _no_img else
+             "أدخل العلامات الإكلينيكية (حمى، سعال/إفرازات صديدية، ضيق نفس، تدهور الأكسجة): "
+             "بدونها الأشعة والمزرعة لا تكفيان."),
             "بدون ارتشاح: قرار المضاد حسب الحالة الإكلينيكية (مثلاً نوبة COPD بمعايير Anthonisen) "
             "لا حسب المزرعة وحدها.",
         ]
@@ -1720,38 +1912,27 @@ def assess_pathogenicity(
             "سجّل في ملف الحمل: وقاية بالمضاد الحيوي أثناء الولادة (IAP) مطلوبة — لا حاجة لمسحة GBS في الأسبوع 36–37 (ACOG 797).",
             "لا تعالج قبل الولادة إلا عند ≥ 10⁵ CFU/mL أو وجود أعراض.",
         ]
-    if "BLOOD_CONTAMINANT_RISK" in special_flags and category != "TRUE_INFECTION":
-        recommendations.append("اسحب مجموعتين جديدتين من موضعين مختلفين قبل الحكم على CoNS / فلورا الجلد.")
-    if "SKIN_FLORA_DEVICE_UNRESOLVED" in special_flags and category != "TRUE_INFECTION":
-        recommendations.append("مع قسطرة وريدية مركزية أو جهاز/صمام صناعي لا تُهمَل زجاجة CoNS واحدة: "
-                               "اسحب مجموعتين متزامنتين (طرفية + من القسطرة) قبل القرار (IDSA CRBSI 2009).")
-    if "BAG_SPECIMEN" in special_flags:
-        recommendations.append("عينة كيس: أكّد بعينة قسطرة أو SPA قبل اعتماد التشخيص — ولا تؤخر العلاج "
-                               "في رضيع محموم يبدو مريضاً (خذ العينة الصحيحة ثم ابدأ).")
-    if "SAUREUS_BACTERIURIA" in special_flags:
-        recommendations.append("اسحب مزارع دم: S. aureus في البول قد يدل على bacteremia.")
+    _flag_ar, _flag_en = _flag_recommendations(special_flags, category)
+    recommendations += _flag_ar
     if missing and not insufficient:
         recommendations.append("بيانات ناقصة تُضعف الثقة في التقييم: "
                                + "، ".join(_MISSING_AR.get(m, m) for m in missing) + ".")
 
     # ── English forms for the English report ───────────────────────────────
     interpretation_en, _recs_en = _CATEGORY_EN.get(category, ("", []))
+    if category == "LRTI_POSSIBLE" and "NO_INFILTRATE" not in special_flags:
+        interpretation_en = ("Imaging and culture without any respiratory clinical sign entered "
+                             "(fever, cough / purulent secretions, dyspnoea, worsening oxygenation): "
+                             "pneumonia is not diagnosed on imaging and culture alone - the isolate "
+                             "may be airway colonisation.")
+        _recs_en = ["Enter the clinical signs; without them imaging and culture are not enough.",
+                    _recs_en[1] if len(_recs_en) > 1 else ""]
     if category == "ASB_NO_TREAT" and "ABU_PROVISIONAL" in special_flags:
         interpretation_en += (" Provisional: in women ASB is confirmed by two consecutive specimens "
                               "with the same organism (IDSA 2019); the decision (no treatment) does "
                               "not change.")
     recommendations_en = list(_recs_en)
-    if "BLOOD_CONTAMINANT_RISK" in special_flags and category != "TRUE_INFECTION":
-        recommendations_en.append("Draw two new sets from two separate sites before judging CoNS / skin flora.")
-    if "SKIN_FLORA_DEVICE_UNRESOLVED" in special_flags and category != "TRUE_INFECTION":
-        recommendations_en.append("With a central line or a prosthetic device/valve a single CoNS bottle is "
-                                  "not dismissed: draw paired sets (peripheral + through the line) before "
-                                  "deciding (IDSA CRBSI 2009).")
-    if "BAG_SPECIMEN" in special_flags:
-        recommendations_en.append("Bag specimen: confirm with a catheter or SPA specimen before accepting the diagnosis - "
-                                  "do not delay treatment in a febrile, ill-looking infant (collect properly, then start).")
-    if "SAUREUS_BACTERIURIA" in special_flags:
-        recommendations_en.append("Draw blood cultures: S. aureus in urine may indicate bacteraemia.")
+    recommendations_en += _flag_en
     if missing and not insufficient:
         recommendations_en.append("Missing data lower the confidence of this assessment: " + ", ".join(missing) + ".")
     notes_en = [n for n in (_note_en(x) for x in notes) if n]
@@ -1779,6 +1960,63 @@ def assess_pathogenicity(
         "references":      references,
         "evidence":        evidence,
     }
+
+
+# ── The verdict reaches the antibiotic advice (v7.2) ────────────────────────
+# Second external review (2026-11-19): "Do NOT treat" was printed in the
+# pathogenicity card while, a few centimetres away, the ranking still offered
+# a first-line antibiotic for the same asymptomatic bacteriuria or the same
+# skin contaminant -- and the PDF printed that list with no hint of the verdict.
+# These categories now gate the recommendations: the ranked and recommended
+# lists are withheld (screen, text, PDF, image) unless the physician overrides,
+# and the override itself is printed. ASB_TREAT, GBS in pregnancy (intrapartum
+# prophylaxis needs the susceptibility), "possible" and "insufficient data"
+# verdicts do NOT gate: they ask for judgement, not for no treatment.
+NO_TREAT_CATEGORIES: Dict[str, Tuple[str, str, str]] = {
+    # category: (English reason, Arabic reason, short English label for the image)
+    "ASB_NO_TREAT": (
+        "Asymptomatic bacteriuria: no antibiotic is indicated (IDSA 2019).",
+        "بكتيريا في البول بلا أعراض: لا يوجد داعٍ لمضاد حيوي (IDSA 2019).",
+        "Asymptomatic bacteriuria (IDSA 2019)"),
+    "CONTAMINANT_OR_COLONISER": (
+        "Likely contaminant / coloniser: the culture alone does not justify an antibiotic.",
+        "تلوث أو استعمار غالباً: المزرعة وحدها لا تبرر مضاداً حيوياً.",
+        "Likely contaminant / coloniser"),
+    "LIKELY_CONTAMINANT": (
+        "Leans to contamination: repeat the specimen before treating on this result.",
+        "يميل للتلوث: أعِد أخذ العينة قبل العلاج بناءً على هذه النتيجة.",
+        "Leans to contamination - repeat specimen"),
+    "COLONISATION": (
+        "Chronic-wound colonisation without signs of infection: no systemic antibiotic.",
+        "استعمار جرح مزمن بلا علامات عدوى: لا مضاد حيوي جهازي.",
+        "Wound colonisation, no signs of infection"),
+    "SPECIMEN_REJECT": (
+        "Inadequate sputum (oral flora): reject and repeat - do not treat on this result.",
+        "عينة بلغم غير مناسبة (فلورا الفم): تُرفض وتُعاد — لا علاج بناءً عليها.",
+        "Inadequate sputum - reject and repeat"),
+}
+
+
+def treatment_gate(patho_result: Optional[Dict[str, Any]], *,
+                   override: bool = False) -> Optional[Dict[str, Any]]:
+    """The no-treatment gate for a pathogenicity result, or None when it does not apply.
+
+    Returns {"category", "verdict", "reason_en", "reason_ar", "short_en", "override"}.
+    `override` = the physician chose to see the options anyway (recorded, never silent).
+    """
+    if not isinstance(patho_result, dict):
+        return None
+    cat = str(patho_result.get("category") or "")
+    if cat not in NO_TREAT_CATEGORIES:
+        return None
+    en, ar, short = NO_TREAT_CATEGORIES[cat]
+    return {"category": cat, "verdict": str(patho_result.get("verdict") or ""),
+            "reason_en": en, "reason_ar": ar, "short_en": short, "override": bool(override)}
+
+
+def gate_suppresses(gate: Optional[Dict[str, Any]]) -> bool:
+    """True when the recommendations must be withheld (gate active, not overridden)."""
+    return bool(gate) and not gate.get("override")
 
 
 _CFU_SUPERSCRIPTS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
