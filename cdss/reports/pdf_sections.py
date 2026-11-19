@@ -129,8 +129,14 @@ def section_ranked(
         if is_preg and preg_warn_items:
             H.append(f'<div class="alert al-info" style="font-size:8.4pt">{_T["preg_only"]}</div>')
         else:
+            # v7.1: with renal impairment every agent that needs a dose change sits
+            # under Caution -- "no options" read as "nothing can be given".
             H.append('<div class="alert al-info" style="font-size:8.4pt">'
-                     'No clear first-line options — see Caution / Pregnancy sections below.</div>')
+                     + ('No option without a caution: the active agents are listed under '
+                        'Caution below with their renal dose — they CAN be used at that dose.'
+                        if is_renal else
+                        'No clear first-line options — see Caution / Pregnancy sections below.')
+                     + '</div>')
 
 
 def section_avoid(
@@ -363,7 +369,7 @@ def section_columns(
         # Score bar
         H.append(f'<div class="score-bar"><div class="score-fill" '
                  f'style="width:{sc}%;background:{clr2}"></div></div>')
-        H.append(f'<div style="font-size:10pt;margin:0.5mm 0;font-weight:bold;color:{clr2}">{sc}% — {verd}</div>')
+        H.append(f'<div style="font-size:10pt;margin:0.5mm 0;font-weight:bold;color:{clr2}">Evidence score {sc}/100 — {verd}</div>')
         # Interpretation
         if interp:
             H.append(f'<div style="font-size:9pt;color:#444;margin-bottom:0.5mm">{_clip(interp, 240)}</div>')
@@ -421,11 +427,12 @@ def section_columns(
                     H.append(f'<div class="alert al-danger" style="font-size:8.5pt"><b>▲ {_em3}</b> ({_ec3}%)</div>')
                     H.append(f'<div style="font-size:8pt;color:#922b21">{_clip(_ed3, 200)}</div>')
                 elif _ep3 in ("high","ampc"):
-                    _l3 = "AmpC β-Lactamase" if _ep3 == "ampc" else "ESBL Producer"
+                    _l3 = ("AmpC β-Lactamase" if _ep3 == "ampc" else
+                           "ESBL phenotype (predicted, not confirmed)")
                     H.append(f'<div class="alert al-danger" style="font-size:8.5pt"><b>⚠ {_l3}</b> ({_ec3}%) — {_em3}</div>')
                     H.append(f'<div style="font-size:8pt;color:#555">{_clip(_ed3, 200)}</div>')
                 elif _ep3 == "moderate":
-                    H.append(f'<div class="alert al-warn" style="font-size:8.5pt"><b>◆ ESBL Suspected</b> ({_ec3}%)</div>')
+                    H.append(f'<div class="alert al-warn" style="font-size:8.5pt"><b>◆ ESBL phenotype possible — confirm</b> ({_ec3}%)</div>')
                     H.append(f'<div style="font-size:8pt;color:#555">{_clip(_ed3, 200)}</div>')
             # MDR level
             if mdr_result and mdr_result.get("level"):

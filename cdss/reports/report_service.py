@@ -446,6 +446,7 @@ def generate_decision_tree_image(
     sir_map:             Optional[Dict[str, str]] = None,
     is_hepatic:          bool = False,
     case:                Any = None,
+    carbapenemase_type:  Optional[str] = None,
 ) -> bytes:
     # v7.0: `case` is the one record of the case facts (cdss.common.case_context):
     # collection method and host factors reach the image instead of a
@@ -547,6 +548,7 @@ def generate_decision_tree_image(
     _has_cre    = any(p in _ph_names for p in ["CRE","CRAB","CRPA"])
     _has_mdr    = (mdr_result or {}).get("level") in ("XDR","PDR")
     _esbl_prob  = (esbl_result or {}).get("probability")
+    _esbl_conf_img = int((esbl_result or {}).get("confidence") or 0)
     _has_esbl   = _esbl_prob in ("high", "carbapenemase", "ampc",
                                  "ampc_plasmid", "possible_carbapenemase",
                                  "crpa")
@@ -598,7 +600,11 @@ def generate_decision_tree_image(
 
     # ── ESBL / AmpC / Carbapenemase ────────────────────────────────────────────
     _esbl_mech = (esbl_result or {}).get("mechanism", "")
-    if _esbl_prob in ("carbapenemase", "possible_carbapenemase"):
+    if carbapenemase_type:
+        # v7.1: a laboratory-confirmed enzyme is stated as such, not as "possible".
+        alerts.append(f"Carbapenemase CONFIRMED by the laboratory: {carbapenemase_type}")
+        alerts.append("Treat by the enzyme (IDSA AMR Guidance 2026)")
+    elif _esbl_prob in ("carbapenemase", "possible_carbapenemase"):
         if "OXA-48" in _esbl_mech:
             alerts.append("Possible OXA-48 carbapenemase")
         else:
@@ -608,13 +614,18 @@ def generate_decision_tree_image(
         alerts.append("Possible AmpC β-lactamase")
         alerts.append("Avoid 3rd-gen cephalosporins; use Cefepime/Carbapenem")
     elif _esbl_prob == "high":
-        alerts.append("High probability ESBL Producer")
+        alerts.append("ESBL phenotype " + ("highly suggestive" if _esbl_conf_img >= 85 else "suspected")
+                      + " (predicted, not confirmed)")
         alerts.append("Use Carbapenems for severe cases")
     elif _esbl_prob == "moderate":
         alerts.append("ESBL confirmation recommended")
         alerts.append("Double Disk Synergy Test")
     elif _esbl_prob == "crpa":
-        if (esbl_result or {}).get("dtr"):
+        if (esbl_result or {}).get("dtr_possible"):
+            alerts.append("POSSIBLE DTR P. aeruginosa - incomplete panel: test "
+                          + ", ".join((esbl_result or {}).get("dtr_untested") or []))
+            alerts.append("Ceftolozane-Tazo / Ceftazidime-Avi / Imipenem-Rel / Cefiderocol")
+        elif (esbl_result or {}).get("dtr"):
             alerts.append("DTR P. aeruginosa - all first-line agents non-susceptible")
             alerts.append("Ceftolozane-Tazo / Ceftazidime-Avi / Imipenem-Rel / Cefiderocol")
         else:
@@ -812,7 +823,7 @@ def _text_pathogenicity(*, L, patho_assessment, sep2):
         recs  = patho_assessment.get("recommendations", [])
         flags = patho_assessment.get("special_flags", [])
         L += ["", "PATHOGENICITY ASSESSMENT", sep2,
-              f"Score    : {sc}% -- {verd}"]
+              f"Evidence : {sc}/100 (strength of evidence, not a probability) -- {verd}"]
         if "ABU_DETECTED" in flags:
             L.append("FLAG     : Asymptomatic Bacteriuria (ABU) Detected")
         if "MW_REJECT" in flags:
@@ -976,6 +987,11 @@ def _text_allowed(
                 _brands = get_commercial_name(item["name"])
                 if _brands:
                     L.append(f"Brands    : {_brands}")
+    elif is_renal:
+        # v7.1: renal dose adjustment is a caution, never a ban -- the agents are
+        # listed under CAUTION with their dose; "no options" read as "none usable".
+        L.append("No option without a caution: the active agents are listed under CAUTION "
+                 "below with their renal dose adjustment - they can be used at that dose.")
     else:
         L.append("No recommended options after applying all restrictions.")
 

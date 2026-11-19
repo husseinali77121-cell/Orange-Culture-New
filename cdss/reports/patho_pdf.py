@@ -120,7 +120,7 @@ table.cols > tbody > tr > td.gap {{ width:4mm; }}
 
         # ── Result ───────────────────────────────────────────────────────────
         H.append(f'<div class="bar"><div class="fill" style="width:{sc}%;background:{col}"></div></div>')
-        H.append(f'<div class="verdict" style="color:{col}">{sc}% — {_esc(str(pr.get("verdict", "")))}'
+        H.append(f'<div class="verdict" style="color:{col}">Evidence score {sc}/100 (not a probability) — {_esc(str(pr.get("verdict", "")))}'
                  f'<span class="small" style="font-weight:normal"> &nbsp;·&nbsp; '
                  f'{T("Assessment confidence", "ثقة التقييم")}: <b>{_conf[0] if en else _conf[1]}</b>'
                  '</span></div>')
