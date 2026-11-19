@@ -6,7 +6,7 @@
 |---|---|
 | `launcher.py` | The actual .exe entry point — starts a local Streamlit server pointed at the bundled `streamlit_app.py`, opens it in its own app window (Edge/Chrome app mode; the default browser if neither exists — see the 2026-11-13 section), sets env vars so Tesseract/GTK3/fonts resolve to the bundle instead of a system install. |
 | `orange_cdss.spec` | PyInstaller build spec. Bundles every application `.py` module as a loose file (required — see the spec's own header comment for why Streamlit needs this, not the normal frozen-import mechanism), plus `tesseract/`, `gtk3-runtime/`, `fonts/` if present. |
-| `.github/workflows/build-exe.yml` | Runs on `windows-latest` (the only place a `.exe` can actually be built — PyInstaller does not cross-compile). Stages Tesseract, the GTK3 runtime, and fonts; runs a Windows pass of the clinical-engine tests first; builds; smoke-tests that the exe actually serves a page; uploads the result as a downloadable Actions artifact. |
+| `.github/workflows/build-exe.yml` | Runs on `windows-latest` (the only place a `.exe` can actually be built — PyInstaller does not cross-compile). Stages Tesseract and the GTK3 runtime, checks the shipped `fonts/` and proves a PDF embeds them (v6.8); runs a Windows pass of the clinical-engine tests first; builds; smoke-tests that the exe actually serves a page; uploads the result as a downloadable Actions artifact. |
 
 **This was built and verified from a Linux sandbox with no Windows environment and no network access.** Every piece above compiles and is internally consistent, and the clinical-engine logic it wraps is the same code the 21-guard `cdss-tests.yml` suite already covers — but nobody has run `pyinstaller orange_cdss.spec` yet. The first real signal on whether this actually produces a working `.exe` will be the first run of `build-exe.yml` on GitHub's Windows runners.
 
@@ -81,7 +81,7 @@ The GTK3 staging step ran `Start-Process ... -ArgumentList "/S /D=$PWD\gtk3-inst
 
 **How to read the next run.** Open the failing step and read the block between `===== exe ... log =====` and `===== end of log =====`. If the log says "the exe wrote no log file at all", the process died before Python started — look for a missing Visual C++ runtime or a blocked DLL, not at the app. If "Verify bundle contents" fails, the message names the missing file and the fix belongs in `orange_cdss.spec`. If the self-test fails on a single line (for example `PDF generation inside the exe`), that line is the whole task.
 
-**Still unverified (unchanged):** everything in the manual checklist below, in particular Arabic text shaping in the PDF and fonts. The bundled `fonts/` folder is staged, but nothing here proves WeasyPrint/Pango on Windows actually *finds* Amiri/Noto from it — check an Arabic PDF by eye on the first working build.
+**Still unverified (unchanged):** everything in the manual checklist below, in particular Arabic text shaping in the PDF and fonts. The bundled `fonts/` folder is staged, but nothing here proves WeasyPrint/Pango on Windows actually *finds* Amiri/Noto from it — check an Arabic PDF by eye on the first working build. *(2026-11-14: it did not — fixed and now proved by the build; see the v6.8 section at the end.)*
 
 ### Seventh run: the self-test worked — and narrowed it down
 
@@ -150,3 +150,20 @@ The application moved from ~20 root-level `.py` files to `streamlit_app.py` + `c
 
 **Verified:** `tests/test_launcher_window.py` (25 tests: browser choice, command line, environment, what the end of the window means, one server per user, the health check with a proxy configured, secrets handling). With a real Chromium window under a virtual display: the launcher opens the window, a second start hands a second window to it and exits, and closing both windows ends the launcher and frees the port. **Not verified:** the same with Microsoft Edge on Windows — Edge uses the same Chromium process model, but the checklist above is the real test. On Windows the real-window test runs with `ORANGE_CDSS_WINDOW_TEST=1`.
 
+
+---
+
+## 2026-11-14 — the reports use the same fonts as the online app (v6.8)
+
+**Reported from the exe:** the decision-tree image's text was unreadably small, and the PDF's font was not the online one. The note in section "Seventh run" above had flagged exactly this as unverified ("nothing here proves WeasyPrint/Pango on Windows actually *finds* Amiri/Noto").
+
+**Cause:** every font path in the code was a Linux path (`/usr/share/fonts/...`, installed on Streamlit Cloud by `packages.txt`).
+- **Image:** on Windows no path existed, so `gf()` fell back to `ImageFont.load_default()` — Pillow's fixed 10-pixel face, on a canvas drawn at twice size (every heading asked for 28–52 px). Reproduced here by hiding `/usr/share/fonts`: font size 10 instead of 28.
+- **PDF:** the CSS asks for Noto Serif / Noto Sans / Amiri / DejaVu Sans. None is on Windows, and the old "Stage fonts" step only downloaded two Arabic fonts (and only warned if that failed) into a folder nothing registered with WeasyPrint — so Windows substitutes were used.
+
+**Now:**
+- `fonts/` in the repository holds the exact files (Noto Serif ×4, Noto Sans ×2, Amiri ×2, Noto Naskh Arabic ×2, DejaVu Sans ×2; OFL / Bitstream-Vera licences beside them; see `fonts/README.md`). No download at build time.
+- `cdss/reports/fonts.py` finds the folder (beside the code, `sys._MEIPASS`, or `ORANGE_CDSS_FONTS_DIR`, which `launcher.py` sets) and registers every file with WeasyPrint through `@font-face` under the family names the CSS already uses — in all three PDFs (clinical, pathogenicity, QA). Online, the same files are used, so the two cannot drift.
+- The image loads the shipped DejaVu Sans first; then the Linux paths; then Segoe UI / Arial / Tahoma from `%WINDIR%\Fonts`; the last resort is a *scalable* default at the requested size, never the 10-pixel one. Section-title emoji that no font draws (🔬 📋 ✅ 🚫 🛡) go through the PDF's glyph guard instead of printing as empty boxes.
+
+**Proved, not assumed:** `tools/check_report_fonts.py` renders a PDF in the report's own CSS and reads the embedded font names back out of the PDF (including compressed object streams). The build runs it before PyInstaller and fails if Noto Serif, Noto Sans, Amiri or DejaVu Sans is not embedded; the exe runs the same three checks in `--selftest` (folder complete, image font = shipped file at full size, PDF embeds the four families). `tests/test_fonts.py`: with every system font hidden, the decision-tree image is **byte-identical** to the one drawn with system fonts.

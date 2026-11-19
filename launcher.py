@@ -227,10 +227,18 @@ def _configure_environment(base: str) -> None:
         print(f"[launcher] WARNING: bundled GTK3 runtime not found at {gtk_dir} "
               f"-- PDF generation will not work")
 
-    # Fonts (Noto/Amiri for Arabic shaping, DejaVu, Liberation) — WeasyPrint
-    # and the dashboard image renderer both read fonts by path already;
-    # nothing else to configure here beyond making sure the fonts/ folder
-    # shipped alongside the exe, which build-exe.yml's datas= list handles.
+    # Fonts. v6.8: the comment that stood here said WeasyPrint and the image
+    # renderer "read fonts by path already" -- they read LINUX paths, so on
+    # Windows the PDF fell back to Windows fonts and the decision-tree image
+    # to Pillow's 10-pixel default (unreadable). The repository now ships the
+    # exact files (fonts/), and cdss/reports/fonts.py registers them; this
+    # just tells it where the folder is inside the bundle.
+    fonts_dir = os.path.join(base, "fonts")
+    if os.path.isfile(os.path.join(fonts_dir, "NotoSerif-Regular.ttf")):
+        os.environ.setdefault("ORANGE_CDSS_FONTS_DIR", fonts_dir)
+    else:
+        print(f"[launcher] WARNING: bundled fonts not found at {fonts_dir} "
+              f"-- reports will use Windows fonts")
 
     # Never phone home for usage stats, never prompt for an email on first
     # run — this is a clinical tool on a lab workstation, not a public demo.
@@ -725,6 +733,42 @@ def _selftest(base: str) -> int:
             raise RuntimeError(f"suspicious PDF ({len(pdf)} bytes)")
         return f"{len(pdf)} bytes"
     step("PDF generation inside the exe (WeasyPrint + GTK3)", chk_pdf)
+
+    # ── Fonts (v6.8): the reports must be drawn with the SAME files online and
+    #    here. Before, the PDF used Windows fonts and the decision-tree image
+    #    Pillow's 10-pixel default (unreadable). Proved from the outputs. ────
+    def chk_fonts_dir():
+        from cdss.reports.fonts import REQUIRED_FILES, fonts_dir
+        d = fonts_dir()
+        if d is None:
+            raise RuntimeError("fonts/ (NotoSerif-Regular.ttf ...) is not in the bundle")
+        absent = [f for f in REQUIRED_FILES if not (d / f).is_file()]
+        if absent:
+            raise RuntimeError(f"fonts/ is missing {absent}")
+        return f"{d} ({len(REQUIRED_FILES)} files)"
+    step("shipped report fonts (fonts/)", chk_fonts_dir)
+
+    def chk_image_font():
+        from cdss.reports.fonts import fonts_dir
+        from cdss.reports.image_parts import S, gf
+        f = gf(14)
+        path = getattr(f, "path", "")
+        if not (isinstance(path, str) and os.path.dirname(os.path.abspath(path)) == str(fonts_dir())
+                and getattr(f, "size", 0) == 14 * S):
+            raise RuntimeError(f"decision-tree image font is {path or 'the built-in default'} "
+                               f"at size {getattr(f, 'size', '?')} -- text would be unreadably small")
+        return f"{path} at {f.size}px"
+    step("decision-tree image draws with the shipped font", chk_image_font)
+
+    def chk_pdf_fonts():
+        from cdss.reports.fonts import embedded_font_names, font_probe_pdf, missing_families
+        pdf = font_probe_pdf()
+        missing = missing_families(pdf)
+        if missing:
+            raise RuntimeError(f"the PDF does not embed {missing}; it embeds "
+                               f"{sorted(embedded_font_names(pdf))}")
+        return ", ".join(sorted(embedded_font_names(pdf)))
+    step("PDF embeds Noto Serif / Noto Sans / Amiri / DejaVu Sans", chk_pdf_fonts)
 
     # ── The app window (informational: without Edge/Chrome the exe uses the
     #    default browser, so this never fails the self-test) ──────────────
