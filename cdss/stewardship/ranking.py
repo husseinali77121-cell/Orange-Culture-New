@@ -47,8 +47,15 @@ _TMP_FQ = ("Trimethoprim/Sulfamethoxazole", "Ciprofloxacin", "Levofloxacin")
 _CARBAPENEMS = ("Meropenem", "Imipenem/Cilastatin", "Ertapenem")
 _AMINOGLYCOSIDES = ("Gentamicin", "Amikacin", "Tobramycin")        # cystitis: one dose
 
-_ESBL_CYSTITIS: Tier = [("Nitrofurantoin", "Trimethoprim/Sulfamethoxazole") + _AMINOGLYCOSIDES]
-_ESBL_UPPER_UTI: Tier = [_TMP_FQ, _CARBAPENEMS]
+# v6.9 (IDSA 2026, Q1.1-1.4): pivmecillinam, gepotidacin and sulopenem join the
+# preferred cystitis group; cefepime-enmetazobactam is preferred with the
+# carbapenems for cUTI when TMP-SMX / FQ are precluded. The guideline's
+# ALTERNATIVES (oral fosfomycin for ESBL E. coli cystitis, cefepime-
+# enmetazobactam for invasive infection) are deliberately not tiers: a tier is
+# printed as "preferred", and they follow in the stewardship order instead.
+_ESBL_CYSTITIS: Tier = [("Nitrofurantoin", "Trimethoprim/Sulfamethoxazole", "Pivmecillinam",
+                         "Gepotidacin", "Sulopenem") + _AMINOGLYCOSIDES]
+_ESBL_UPPER_UTI: Tier = [_TMP_FQ, ("Cefepime + Enmetazobactam",) + _CARBAPENEMS]
 _ESBL_INVASIVE: Tier = [("Meropenem",), ("Imipenem/Cilastatin",), ("Ertapenem",)]
 _AMPC_UPPER_UTI: Tier = [_TMP_FQ, ("Cefepime",), _CARBAPENEMS]
 _AMPC_INVASIVE: Tier = [("Cefepime",), _CARBAPENEMS]
@@ -162,6 +169,31 @@ def guideline_tiers(organism: str, culture_type: str, phenotypes: List[Dict],
     return []
 
 
+# IDSA AMR Guidance 2026 ALTERNATIVES (v7.0, review 2026-11-19). They rank
+# after the preferred groups and before everything else -- and are never
+# labelled "preferred". Without this, the order among non-preferred agents was
+# AWaRe alone, so an Access aminoglycoside and a Watch quinolone were ordered
+# by stewardship class only, not by what the guideline says for this site.
+_AMINOGLYCOSIDES = ("Gentamicin", "Amikacin", "Tobramycin", "Plazomicin")
+_ESBL_UPPER_UTI_ALT = _AMINOGLYCOSIDES + ("Fosfomycin IV", "Piperacillin + Tazobactam")
+_AMPC_UPPER_UTI_ALT = _AMINOGLYCOSIDES
+
+
+def guideline_alternatives(organism: str, culture_type: str, phenotypes: List[Dict],
+                           carbapenemase_type: Optional[str] = None,
+                           uti_syndrome: Optional[str] = None) -> Tuple[str, ...]:
+    """The guideline's named ALTERNATIVES for this mechanism and site (may be empty)."""
+    ph = {p.get("phenotype", "") for p in (phenotypes or [])}
+    _site, kind = _site_kind(culture_type, uti_syndrome)
+    if kind != "upper_uti" or ph & {"CRE", "DTR_PA", "CRAB", "STENO"}:
+        return ()
+    if "ESBL" in ph:
+        return _ESBL_UPPER_UTI_ALT
+    if "AMPC" in ph or _is_moderate_risk_ampc(organism):
+        return _AMPC_UPPER_UTI_ALT
+    return ()
+
+
 def guideline_preferred(organism: str, culture_type: str, phenotypes: List[Dict],
                         carbapenemase_type: Optional[str] = None,
                         uti_syndrome: Optional[str] = None) -> List[str]:
@@ -193,9 +225,12 @@ def rank_sensitive_antibiotics(
 
       1. نتيجة المزرعة   : S قبل I  (بوابة صارمة — لا يتخطى I دواءً S أبداً)
       2. الإرشادات       : الأدوية المفضّلة للآلية والموقع، بترتيب الإرشاد (IDSA 2026)؛
-                           داخل المجموعة الواحدة المتساوية تقرر المعايير التالية
+                           داخل المجموعة الواحدة المتساوية تقرر المعايير التالية.
+                           v7.0: البدائل التي يسمّيها الإرشاد (aminoglycosides /
+                           Fosfomycin IV / Pip-Tazo لـ ESBL في الحويضة) بعد المفضّل وقبل الباقي
       3. WHO AWaRe       : Access > Watch > Reserve
-      4. طريق الإعطاء     : Oral قبل IV/IM — إلا في الدم والسائل النخاعي (العلاج يبدأ وريدياً)
+      4. طريق الإعطاء     : Oral قبل IV/IM — إلا في الدم والسائل النخاعي (العلاج يبدأ وريدياً).
+                           v7.0: في الحويضة / cUTI الطريق يسبق AWaRe (IDSA cUTI 2025)
       5. Priority        : أولوية الـ formulary (أقل = أفضل)
       6. ملاءمة العينة   : دواء له specimen_note للعينة الحالية (فاصل تعادل فقط)
       7. الاسم           : لضمان ترتيب ثابت (deterministic)
@@ -220,7 +255,15 @@ def rank_sensitive_antibiotics(
         for _d in _g:
             _group_of.setdefault(_d, _i)
     _preferred = list(_group_of)
+    _alternatives = set(guideline_alternatives(organism, culture_type, phenotypes,
+                                               carbapenemase_type, uti_syndrome)) - set(_preferred)
     _iv_first = classify_specimen(culture_type) in _IV_FIRST_SITES
+    # v7.0 (review 2026-11-19: "ranking must use route + syndrome, not AWaRe
+    # only"): in pyelonephritis / cUTI an oral high-bioavailability agent the
+    # isolate is S to is the IDSA cUTI 2025 choice for the patient who can
+    # take it, so the ROUTE decides before the AWaRe class there. (An Access
+    # aminoglycoside used to outrank an oral fluoroquinolone on AWaRe alone.)
+    _route_before_aware = _site_kind(culture_type, uti_syndrome)[1] == "upper_uti"
 
     def sort_key(item):
         name = item.get("name", "")
@@ -228,7 +271,7 @@ def rank_sensitive_antibiotics(
         # 1) Susceptibility gate (S=0, I=1, unknown=2 -> آخر القائمة)
         k_sir = _sir_rank.get(sir, 2)
         # 2) Guideline order for this mechanism and site
-        k_guide = _group_of.get(name, len(_tiers))
+        k_guide = _group_of.get(name, len(_tiers) + (0 if name in _alternatives else 1))
         # 3) AWaRe (Access first). لكن CRE/CRAB/CRPA تُنزّل السيفالوسبورين غير الـ S
         aware = item.get("aware")
         k_aware = _aware_rank.get(aware, 3)
@@ -242,6 +285,8 @@ def rank_sensitive_antibiotics(
         k_priority = item.get("priority", 99)
         # 6) Specimen note present (tie-breaker only)
         k_spec = 0 if (item.get("specimen_notes") or {}).get(culture_type) else 1
+        if _route_before_aware:
+            return (k_sir, k_guide, k_route, k_aware, k_priority, k_spec, name)
         return (k_sir, k_guide, k_aware, k_route, k_priority, k_spec, name)
 
     # _score للعرض فقط (تقريبي) — لا يُستخدم في الترتيب
@@ -260,7 +305,8 @@ def rank_sensitive_antibiotics(
 
     scored = [
         {**item, "_score": _display_score(item), "_sir": (sir_map.get(item.get("name", "")) or "--"),
-         "_guideline_preferred": item.get("name", "") in _preferred}
+         "_guideline_preferred": item.get("name", "") in _preferred,
+         "_guideline_alternative": item.get("name", "") in _alternatives}
         for item in allowed
     ]
     return sorted(scored, key=sort_key)

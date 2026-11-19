@@ -18,18 +18,42 @@ INFECTION_SYNDROMES = {
     ("Urine", None): {
         "syndrome":  "Urinary Tract Infection (UTI)",
         "classify":  lambda age, is_preg, is_cath: (
-            "Complicated UTI" if (is_cath or age > 65) else
+            "Catheter-associated UTI (CA-UTI)" if is_cath else
+            "Complicated UTI" if age > 65 else
             "Pregnancy-associated UTI" if is_preg else
             "Uncomplicated UTI"
         ),
         "first_choice": ["Nitrofurantoin","Fosfomycin","Trimethoprim/Sulfamethoxazole"],
+        # v7.0 (review 2026-11-19): a febrile CA-UTI was shown the CYSTITIS
+        # first-line list. Bladder-only agents do not reach the kidney or the
+        # bloodstream (IDSA cUTI 2025 · IDSA AMR Guidance 2026).
+        "first_choice_by_sub": {
+            "Complicated UTI": ["Ceftriaxone", "Ciprofloxacin / Levofloxacin",
+                                "Trimethoprim/Sulfamethoxazole (if S)",
+                                "ESBL: Ertapenem / Meropenem"],
+            "Catheter-associated UTI (CA-UTI)": ["Ceftriaxone", "Ciprofloxacin / Levofloxacin",
+                                                 "Trimethoprim/Sulfamethoxazole (if S)",
+                                                 "ESBL: Ertapenem / Meropenem"],
+        },
         # 2026-11-10: cUTI 7 days (IDSA cUTI 2025); the culture threshold read
         # "10^3 symptomatic / 10^5 asymptomatic" for every patient -- the
         # 10^3 figure applies to symptomatic women and men specifically.
         "duration": {"Uncomplicated UTI": "1-7 أيام حسب الدواء (Nitrofurantoin 5 · TMP-SMX 3 · Fosfomycin جرعة)",
                      "Complicated UTI": "7 أيام عند الاستجابة السريعة (FQ 5-7) — 10-14 للاستجابة البطيئة",
+                     "Catheter-associated UTI (CA-UTI)": (
+                         "7 أيام عند الاستجابة السريعة — 10-14 للاستجابة البطيئة؛ غيّر القسطرة إن "
+                         "مرّ عليها ≥ 2 أسبوع وخذ العينة من القسطرة الجديدة (IDSA CA-UTI)"),
                      "Pregnancy-associated UTI": "5-7 أيام"},
         "escalation": "لو فشل الخط الأول أو CrCl < 45 (Nitrofurantoin) -> حسب الحساسية: Cefixime / Ciprofloxacin",
+        # v7.0: the cystitis escalation line was printed for a febrile CA-UTI too
+        "escalation_by_sub": {
+            "Complicated UTI": ("تدهور / sepsis -> وريدي حسب الحساسية؛ ESBL -> Ertapenem / Meropenem؛ "
+                                "CRE -> حسب نوع الكاربابينيميز (IDSA 2026). اعمل تصوير لو مفيش تحسن "
+                                "خلال 48-72 ساعة."),
+            "Catheter-associated UTI (CA-UTI)": (
+                "غيّر/انزع القسطرة أولاً؛ تدهور / sepsis -> وريدي حسب الحساسية؛ ESBL -> Ertapenem / "
+                "Meropenem؛ CRE -> حسب نوع الكاربابينيميز (IDSA 2026)."),
+        },
         "culture_threshold": ("≥ 10³ CFU/mL مع أعراض (نساء ورجال)؛ ≥ 10⁵ للبيلة اللاعرضية "
                               "(تُعالج فقط في الحمل وقبل إجراء بولي جراحي)"),
     },
@@ -124,6 +148,7 @@ def get_infection_syndrome(
     is_preg:   bool,
     is_cath:   bool = False,
     sex:       str = "",
+    uti_upper: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """
     يعيد السياق السريري للعدوى -- يدعم مطابقة مرنة لأسماء العينات.
@@ -161,13 +186,20 @@ def get_infection_syndrome(
     if (sub_type == "Uncomplicated UTI"
             and str(sex or "").strip().lower() in ("male", "m", "ذكر")):
         sub_type = "Complicated UTI"
+    # v7.0: the RESOLVED syndrome (fever / flank pain -> upper UTI) decides too;
+    # this card said "Uncomplicated UTI" while the engine treated pyelonephritis.
+    if uti_upper and sub_type in ("Uncomplicated UTI", "Pregnancy-associated UTI"):
+        sub_type = "Complicated UTI"
     duration  = syndrome_data["duration"].get(sub_type, "حسب الاستجابة السريرية")
+    first = (syndrome_data.get("first_choice_by_sub") or {}).get(
+        sub_type, syndrome_data["first_choice"])
 
     return {
         "syndrome":       syndrome_data["syndrome"],
         "sub_type":       sub_type,
-        "first_choice":   syndrome_data["first_choice"],
+        "first_choice":   first,
         "duration":       duration,
-        "escalation":     syndrome_data["escalation"],
+        "escalation":     (syndrome_data.get("escalation_by_sub") or {}).get(
+            sub_type, syndrome_data["escalation"]),
         "threshold":      syndrome_data["culture_threshold"],
     }

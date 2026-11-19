@@ -52,6 +52,16 @@ TREATMENT_DURATION_DB: Dict[str, Any] = {
         "notes": "FQ 5-7d | TMP-SMX or beta-lactam 7d. Verify sensitivities.",
         "follow_up_culture": False, "ref": "IDSA cUTI Guideline 2025",
     },
+    # v7.0 (review 2026-11-19): a febrile catheter-associated UTI had no row
+    # and fell to "Pyelonephritis (Outpatient)", IV 0 d.
+    "UTI_catheter": {
+        "label": "Catheter-associated UTI (CA-UTI)",
+        "days": (7, 14), "standard": 7, "iv_days": 2, "po_days": 5,
+        "notes": ("7 d if prompt response, 10-14 d if delayed (IDSA CA-UTI). Replace the catheter "
+                  "if in place >= 2 weeks and culture from the new one; remove it if no longer "
+                  "needed. Oral step-down only to an agent the isolate is S to."),
+        "follow_up_culture": False, "ref": "IDSA CA-UTI Guideline · IDSA cUTI Guideline 2025",
+    },
     "Pyelonephritis_inpatient": {
         "label": "Pyelonephritis / cUTI (Inpatient)",
         "days": (7, 14), "standard": 7, "iv_days": 2, "po_days": 5,
@@ -281,6 +291,9 @@ def _sir_lookup(drug: str, sir_map: Dict[str, str]) -> Optional[str]:
     """Return S/I/R for `drug` from sir_map, matching keys tolerantly."""
     if not sir_map:
         return None
+    # "SDD" must not be read by its first letter as S (CLSI SDD is read as I).
+    from cdss.therapy.clsi_categories import canonical_panel
+    sir_map = canonical_panel(sir_map)
     try:
         from cdss.formulary.abx_guidelines import normalize_abx_key
         target = normalize_abx_key(drug)
@@ -337,8 +350,18 @@ def get_treatment_duration(
     specimen: str, organism: str, syndrome: str,
     age: int, sex: str, is_renal: bool,
     phenotypes: List[Dict], severity: str = "moderate",
+    *,
+    is_cath: bool = False,
+    primary: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Treatment Duration Engine -- IDSA AMR Guidance 2026 | Sanford Guide 2025"""
+    """Treatment Duration Engine -- IDSA AMR Guidance 2026 | Sanford Guide 2025
+
+    v7.0 (review 2026-11-19):
+      is_cath  a urinary catheter is in place (case record) -> CA-UTI row.
+      primary  the top-ranked agent; its ROUTE sets the IV / PO split. The
+               panel printed "IV: 0 d · PO: 7 d" under gentamicin IV/IM as the
+               only active agent.
+    """
     org  = organism.lower()
     synd = (syndrome or "").lower()
     _cat = classify_specimen(specimen)
@@ -348,7 +371,10 @@ def get_treatment_duration(
 
     key = None
     if _cat == "urine":
-        if any(k in synd for k in ["pyelonephritis", "upper", "kidney", "pyelo"]):
+        if is_cath and (severity != "mild" or any(k in synd for k in ["pyelonephritis", "upper",
+                                                                     "kidney", "pyelo"])):
+            key = "Pyelonephritis_inpatient" if severity == "severe" else "UTI_catheter"
+        elif any(k in synd for k in ["pyelonephritis", "upper", "kidney", "pyelo"]):
             # Syndrome explicitly says pyelonephritis
             key = "Pyelonephritis_inpatient" if severity == "severe" else "Pyelonephritis_outpatient"
         elif severity == "severe":
@@ -438,4 +464,29 @@ def get_treatment_duration(
         _base = d.get("notes") or ""
         d["notes"] = (_base + " | " if _base else "") + " | ".join(notes_extra)
     d.update({"min_days": mn, "max_days": mx, "standard_days": d["standard"]})
+    _route_split(d, primary)
     return d
+
+
+def _route_split(d: Dict[str, Any], primary: Optional[Dict[str, Any]]) -> None:
+    """Make the IV / PO split agree with the route of the agent actually chosen."""
+    if not primary:
+        return
+    name = str(primary.get("name", ""))
+    total = int(d.get("standard_days") or d.get("standard") or 0)
+    if not name or total <= 0:
+        return
+    # `high_po` is the formulary's oral-route flag (the same one the screen's
+    # "Route" line and the ranking read: cdss.common.util.get_route_label).
+    oral = primary.get("high_po")
+    if oral is None:
+        from cdss.formulary.abx_guidelines import ABX_GUIDELINES
+        oral = (ABX_GUIDELINES.get(name) or {}).get("high_po", False)
+    if not oral:
+        if int(d.get("po_days") or 0) > 0:
+            d["iv_days"], d["po_days"] = total, 0
+            d["route_note"] = (f"{name} is parenteral only (IV/IM): the whole course is parenteral "
+                               "unless an oral agent tests S for a step-down.")
+            d["notes"] = (d.get("notes") or "") + " | " + d["route_note"]
+    elif int(d.get("iv_days") or 0) == 0 and int(d.get("po_days") or 0) == 0:
+        d["po_days"] = total
