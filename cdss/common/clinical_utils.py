@@ -194,6 +194,9 @@ class Patient:
 
     current_meds: list = field(default_factory=list)
     host_factors: list = field(default_factory=list)
+    # v7.0: how the specimen was collected (urine: midstream / Foley ...), from
+    # the pathogenicity inputs -- cdss.common.case_context reads it.
+    collection_method: str = ""
     allergies: list = field(default_factory=list)
 
     # ── derived ────────────────────────────────────────────────────────────
