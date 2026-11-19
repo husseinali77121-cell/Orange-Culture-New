@@ -64,6 +64,17 @@ build_context(...)  ──►  TherapyContext      الحالة مرة واحد�
 - **`cdss/reports/fit_page.py`** — تقرير الـ Pathogenicity وتقرير الجودة بيتعملوا `build(scale)` ويترندروا بأكبر
   حجم خط يدخل صفحة A4 واحدة.
 
+### v7.1 — نفس السجل بيحدد الـ cUTI والجهاز
+
+- **`CaseContext.cuti_device` / `syndrome_device()`** — القسطرة (أي نوع) أو الـ nephrostomy بتخلي الـ UTI
+  complicated في الـ pipeline والشاشة بنفس القاعدة (`resolve_uti_syndrome(..., catheter=)`)؛ وكارت الـ syndrome
+  بيقرا جهاز العينة نفسها (قسطرة بولية / جهاز تنفس / قسطرة مركزية).
+- **`TherapyContext`** — نوع الكاربابينيميز المؤكد في Enterobacterales بيقلب `is_carbapenemase`، و `weight_kg`
+  بيوصل للقواعد (حد الوزن في النشرة).
+- **`ranking.guideline_tiers(..., sir_map)`** — مستويات للمثانة بدون آلية مقاومة و MSSA، بنفس آلية مستويات IDSA.
+- **Pathogenicity** — البول من غير أعراض = بيانات غير كافية؛ البلغم من غير ارتشاح ما يوصلش «true infection»
+  (`LRTI_POSSIBLE`)؛ الـ score اسمه «Evidence score» ومش احتمال.
+
 ### الضمانات (وكل واحد عليه اختبار)
 
 | الضمان | كيف | الاختبار |

@@ -583,3 +583,55 @@ Norfloxacin I · Nitrofurantoin R · TMP-SMX R. اتشغّلت على الصفح
 - الـ snapshot (2,133 حالة) اتراجع: التغييرات Cefoperazone-sulbactam (بلا breakpoint)، Fosfomycin لغير E. coli،
   Serratia tetracyclines (تحذير بدل منع)، Gentamicin لـ P. aeruginosa، Azithromycin لـ Salmonella غير محددة
   (تحذير)، وأكواد PL2 في الـ QC. مخرجات التقارير (450) اتقارنت نص بنص مع v6.9.
+
+## 13. مراجعة تانية لكل القواعد والتوصيات + الـ Pathogenicity + مراجعة خارجية لـ v7.0 — v7.1 (2026-11-19)
+
+المصادر اللي اتراجع عليها: IDSA cUTI 2025، IDSA CA-UTI 2009، IDSA ASB 2019، IDSA AMR Guidance 2026، ACOG 2023،
+ATS/IDSA 2016 / 2019، AAP 2011 / 2021، NIDRR (عن طريق SCIRE)، FDA labels للأدوية الجديدة، CLSI M100 Ed36.
+الحالات اتشغّلت على المحرك وعلى الصفحة نفسها (fake Streamlit)، و 15,000 حالة fuzz بدون أي مخالفة.
+
+### 13.1 تصنيف الـ UTI (IDSA cUTI 2025)
+| قبل | بعد |
+|---|---|
+| ذكر / سن ≥ 65 / قصور كلوي / سكر / عيب خلقي = «complicated» | مش complicated لوحدهم (الإرشادات بتقول كده صراحة) |
+| القسطرة بس مع حرارة = cUTI | القسطرة (دائمة / suprapubic / متقطعة) أو nephrostomy = cUTI → Nitrofurantoin و Fosfomycin الفموي بيتمنعوا تلقائياً (الاختيار اليدوي «مثانة» لسه بيكسب) |
+| UTI الراجل = «Complicated UTI» | كارت «UTI in men» + مدة 7 أيام (Drekonja 2021) |
+| الحامل: TMP-SMX في الخط الأول، والحويضة بتاخد قائمة فيها FQ، والمدة «Complicated (incl. men)» | كروت حمل لوحدها (مثانة / حويضة / قسطرة) من غير FQ، والمدة 5–7 أيام للمثانة و 14 يوم للحويضة (ACOG 2023) |
+
+### 13.2 الترتيب
+- التهاب المثانة بدون آلية مقاومة: Amox-Clav كان الأول **بالترتيب الأبجدي**، والأمينوجليكوزيد قبل Fosfomycin → دلوقتي Nitrofurantoin / TMP-SMX / Fosfomycin / Pivmecillinam الأول (IDSA/ESCMID 2011)؛ Enterococcus: Ampicillin / Amoxicillin / Nitrofurantoin / Fosfomycin.
+- MSSA: Clindamycin كان الأول في الجرح و TMP-SMX في الدم → Cefazolin / Oxacillin (وفي الجلد Cephalexin) الأول.
+- TMP-SMX مش علاج أولي لـ S. aureus bacteremia (Paul, BMJ 2015) → تحذير.
+- القصور الكلوي: «No recommended options» كانت بتطلع لما كل الأدوية محتاجة تعديل جرعة → بقت «الأدوية في قائمة الحذر بجرعتها الكلوية وتُستخدم بيها».
+
+### 13.3 أخطاء اتصلحت
+- **Metronidazole** S كان بيتقترح لـ E. coli في الدم والـ CSF → مقاومة جوهرية لكل الهوائيات (الجدولين + سجل المصادر).
+- ملاحظة Fosfomycin لـ E. faecium كانت بتتكلم عن Klebsiella.
+- كارت الـ syndrome: HAP/VAP و CRBSI ما كانوش بيتوصلوا أبداً (الجهاز كان بيتقري للبول بس) → جهاز التنفس / القسطرة المركزية بيتقروا، ومدة HAP/VAP 7 أيام.
+- CAP بـ Pseudomonas / MRSA / Acinetobacter: 7 أيام مش 5 (ATS/IDSA 2019).
+- «الخط الأول (guidelines)» على الشاشة بقى «الخط الأول التجريبي (قبل المزرعة)» + سطر «حسب نتيجة المزرعة».
+
+### 13.4 المراجعة الخارجية لـ v7.0 — كل نقطة اتراجعت على الكود
+| النقطة | الحكم | اللي اتعمل |
+|---|---|---|
+| بول من غير أعراض مُدخلة → 87 «Treat» | صحيحة | «أعراض غير مُدخلة» = بيانات غير كافية للبول، حتى لو العدد والصديد موجودين |
+| بلغم من غير ارتشاح → «TRUE INFECTION» | صحيحة | فئة جديدة `LRTI_POSSIBLE`: «pneumonia not established» لحد ما الأشعة تتدخل |
+| PSB مش بيتوجّه للتنفسي | صحيحة | اتضاف |
+| الـ Score مش احتمال | صحيحة | «Evidence score x/100 (not a probability)» في الشاشة والتقارير |
+| SCI + قسطرة متقطعة 10² في الملاحظة بس | صحيحة | عتبات NIDRR بتتطبق في إصابات النخاع: CIC ≥ 10²، condom ≥ 10⁴، تبول تلقائي ≥ 10⁵؛ الدائمة ≥ 10³ (IDSA) |
+| ABU في الست من عينة واحدة | صحيحة | «provisional — one specimen» (القرار «لا علاج» زي ما هو) |
+| AAP 2011 لكل أقل من سنتين | صحيحة | 2–24 شهر: AAP 2011؛ أقل من شهرين: AAP 2021 (8–60 يوم)؛ والسن بالشهور بيوصل للتقييم |
+| DTR من 5 أدوية بس | صحيحة جزئياً (القرار كان مقصود عشان اللوحات المصرية) | DTR مؤكد بس لو الـ 8 اتختبروا؛ 5–7 = «POSSIBLE DTR — اختبر …» بنفس الحذر العلاجي |
+| KPC مؤكد ومتجاهَل | صحيحة (لـ Sulopenem / Cefepime-enmetazobactam / Pivmecillinam)؛ Gepotidacin مش بيتمنع مع KPC بس تحذيره كان غايب | النوع المؤكد في Enterobacterales بيتقدم على التنبؤ، والتقرير بيكتب «CONFIRMED by the laboratory» |
+| Klebsiella spp. = K. pneumoniae | صحيحة | النطاق بالنوع؛ Enterobacterales بالتصنيف مش بقائمة ESBL |
+| وزن Gepotidacin | صحيحة | الوزن بيتقري: < 40 kg ممنوع، تحت 18 من غير وزن = تحذير |
+| CLSI I عام | صحيحة جزئياً (ده تعريف CLSI نفسه) | النص بقى «فقط حيث يوجد نظام جرعة عالية معتمد لهذا الدواء — راجع الـ MIC» |
+| I → SDD تلقائي | صحيحة | اتلغى: I على زوج مالوش I في CLSI بيفضل I وبيطلب الـ MIC (I قديم ممكن يكون R النهارده) |
+| ESBL مستوى واحد | صحيحة جزئياً (كان مكتوب «Predicted») | «suspected / highly suggestive — not confirmed» |
+| Sulopenem في الحويضة | صحيحة | ممنوع للـ upper UTI (FDA بيستثني cUTI والـ step-down) |
+| EUCAST خارج سجل التحويل | صحيحة | Fusidic acid بيتكتب «مقروء بمعايير EUCAST»؛ Fosfomycin IV و Pivmecillinam كانوا متعلّمين؛ Temocillin مش في القائمة العلاجية |
+| Cefoperazone من مصدر ثانوي | صحيحة | متعلّم «secondary» والتوقيع متسحوب — مستني الجدول الرسمي |
+
+### 13.5 ورقة A4
+`SCI-urine-culture-sampling-A4.pdf` + نسخة Doc قابلة للتعديل: طريقة أخذ مزرعة البول لمرضى Paraplegia / Quadriplegia
+حسب طريقة تفريغ المثانة، السلامة (autonomic dysreflexia)، التسجيل والنقل، والعتبات — نفس عتبات البرنامج.
