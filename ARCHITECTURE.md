@@ -87,6 +87,14 @@ build_context(...)  ──►  TherapyContext      الحالة مرة واحد�
   `rules.specific.rule_cuti_bladder_agents` (تحذير) بدل منع `postprocess.apply_upper_uti`.
 - **`ast_consistency`** — `severity` لكل قاعدة (error / warning)، والـ category `verify` ليها رأس 🟠.
 
+### v7.3 — المكان منفصل عن التعقيد، والثقة من السجل
+
+- **`therapy_rules.classify_uti()` → `UtiClass(site, complicated, value, upper_signs, conflict, confirmed)`** —
+  `resolve_uti_syndrome()` بيرجّع `.value` بس؛ الصفحة (`analysis._resolve_uti`) بتعرض التعارض وبتطلب التأكيد،
+  والقرار بيوصل للتقرير النصي (`uti_note`) والصورة.
+- **`cdss_ui.state.treat_override_key()`** — مفتاح الموافقة = بصمة مدخلات التقييم.
+- **`ast_consistency`** — الـ `severity` لكل قاعدة لازم يطابق كلام السجل (`test_v7_3_review`).
+
 ### الضمانات (وكل واحد عليه اختبار)
 
 | الضمان | كيف | الاختبار |
