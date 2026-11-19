@@ -52,7 +52,7 @@ import io
 import logging
 import re
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,7 @@ from cdss.reports.image_parts import (  # noqa: F401 -- the image's palette and 
     SPEC_BG,
     WHITE,
     _fix_arabic,
+    guard_draw,
     fh,
     gf,
     rbox,
@@ -137,6 +138,7 @@ from cdss.reports.pdf_sections import (
     section_ranked,
     section_warned,
 )
+from cdss.reports.fonts import with_bundled_fonts
 from cdss.reports.html_utils import (
     _esc,
     pdf_glyph_guard,
@@ -144,6 +146,9 @@ from cdss.reports.html_utils import (
 from cdss.resistance.mdr import (
     MDR_INFO,
     mdr_display_label,
+    physician_mdr_categories,
+    physician_mdr_label,
+    physician_mdr_level,
     classify_mdr,
 )
 from cdss.resistance.mechanism import (
@@ -156,12 +161,14 @@ from cdss.therapy.notes import (
     warned_note_for,
 )
 from cdss.therapy.panel_filters import (
+    _drop_tested_ns,
     _hide_urine_only,
 )
 from cdss.therapy.tables import (
     RENAL_BAN_REASONS,
     preg_status_of,
 )
+from cdss.common.case_context import LOW_MUSCLE_CRCL_NOTE_EN, TDM_AGENTS  # noqa: F401
 from cdss.organisms.organism_profile import ORGANISM_PROFILE
 
 # AST Panel Completeness -- a standalone module (like ast_reportability.py),
@@ -399,7 +406,9 @@ def generate_pdf_html_report(
     try:
         if return_html:
             return pdf_glyph_guard(_full_html)
-        return _wp.HTML(string=pdf_glyph_guard(_full_html)).write_pdf()
+        # v6.8: the shipped fonts (fonts/) are registered on the way in, so the
+        # EXE draws with the same Noto / Amiri / DejaVu files as the online app.
+        return _wp.HTML(string=with_bundled_fonts(pdf_glyph_guard(_full_html))).write_pdf()
     except Exception:
         return None
 
@@ -434,7 +443,14 @@ def generate_decision_tree_image(
     culture_condition:   str = "Aerobic",
     microbiologist:      str = "",
     age_months:          Optional[int] = None,
+    sir_map:             Optional[Dict[str, str]] = None,
+    is_hepatic:          bool = False,
+    case:                Any = None,
 ) -> bytes:
+    # v7.0: `case` is the one record of the case facts (cdss.common.case_context):
+    # collection method and host factors reach the image instead of a
+    # hard-coded "Mid-Stream" and an unconditional "Renal: Normal".
+    sir_map = sir_map or {}
     if not PIL_AVAILABLE:
         raise RuntimeError("Pillow غير متاح -- أضف Pillow لـ requirements.txt")
 
@@ -461,7 +477,7 @@ def generate_decision_tree_image(
 
     # ── Build Image ───────────────────────────────────────────────────────────
     img  = Image.new("RGB", (W, H), BG)
-    draw = ImageDraw.Draw(img)
+    draw = guard_draw(ImageDraw.Draw(img))     # v6.8: no empty boxes for emoji
 
     # ── 1. HEADER ─────────────────────────────────────────────────────────────
     rbox(draw, (P, 6*S, W-P, 62*S), NAVY, NAVY, radius=12, width=1)
@@ -509,9 +525,12 @@ def generate_decision_tree_image(
             f"Renal:         IMPAIRED  CrCl:{_eff:.0f}"
             f"{'' if _meas else ' (assumed)'}" if _eff is not None
             else "Renal:         IMPAIRED  CrCl:not measured")
+    elif getattr(case, "low_muscle_mass", False):
+        # creatinine overestimates GFR in low muscle mass: never a bare "Normal"
+        p_lines.append("Renal:         Cr normal* (low muscle mass: use TDM)")
     else:
         p_lines.append("Renal:         Normal")
-    p_lines.append("Hepatic:       Normal")
+    p_lines.append(f"Hepatic:       {'IMPAIRED' if is_hepatic else 'Normal'}")
     if sex == "Female" and 12 <= age <= 55:
         p_lines.append(f"Pregnancy:     {'Yes' if is_preg else 'No'}")
 
@@ -569,10 +588,13 @@ def generate_decision_tree_image(
         mdr_cats = (mdr_result or {}).get("resistant_categories", [])
         rc = (mdr_result or {}).get("resistant_count", 0)
         rt = (mdr_result or {}).get("total_tested", 0)
-        _lvl_txt = f"possible {mdr_lvl}" if (mdr_result or {}).get("provisional") else mdr_lvl
-        alerts.append(f"{_lvl_txt}: Resistant {rc}/{rt} categories")
+        # v7.0: physician-facing -- provisional XDR prints as MDR; categories
+        # name the agents in them that are still S.
+        _lvl_txt = physician_mdr_level(mdr_result) or mdr_lvl
+        alerts.append(f"{_lvl_txt}: non-susceptible {rc}/{rt} categories")
         if mdr_cats:
-            alerts.append(f"R-cats: {', '.join(mdr_cats[:3])}")
+            _usable_img = {str(x).split(" [")[0].split(" (")[0] for x in (preferred or []) + (use_caution or [])}
+            alerts.append(f"NS-cats: {', '.join(physician_mdr_categories(mdr_result, sir_map, _usable_img)[:3])}")
 
     # ── ESBL / AmpC / Carbapenemase ────────────────────────────────────────────
     _esbl_mech = (esbl_result or {}).get("mechanism", "")
@@ -610,7 +632,11 @@ def generate_decision_tree_image(
     # ── Organism-specific baseline alerts ────────────────────────────────────
     org_l = organism.lower()
     if not alerts:  # فقط لو مفيش MDR/ESBL
-        if "klebsiella" in org_l:
+        if "aerogenes" in org_l:
+            # v6.9: K. aerogenes is an AmpC organism, not a K. pneumoniae.
+            alerts += ["Chromosomal AmpC (IDSA 2026)",
+                       "Invasive: cefepime, not 3rd-gen ceph."]
+        elif "klebsiella" in org_l:
             alerts += ["Consider ESBL screening",
                        "Natural resistance: Ampicillin"]
         elif "e. coli" in org_l or "coli" in org_l:
@@ -651,9 +677,12 @@ def generate_decision_tree_image(
 
     # Specimen box -- no title, direct fields
     # Specimen label -- add collection method for Urine
+    # v7.0: the collection method the user entered (case record) -- this was a
+    # hard-coded "Mid-Stream" even for a Foley specimen.
     _spec_label = specimen
-    if "urine" in specimen.lower():
-        _spec_label = f"{specimen} / Mid-Stream"
+    _coll = getattr(case, "collection_label", "") if case is not None else ""
+    if _coll:
+        _spec_label = f"{specimen} / {_coll}"
     spec_items = [
         f"Specimen:      {_spec_label}",
         "Method:        Culture & Sensitivity",
@@ -665,7 +694,7 @@ def generate_decision_tree_image(
         f"Pus Cells: {pus_cells if pus_cells else chr(8212)} /HPF",
         f"RBCs:      {rbcs if rbcs else chr(8212)} /HPF",
     ]
-    fl_items = first_line[:4] or ["--"]
+    fl_items = first_line[:5] or ["--"]
 
     r2_data = [
     ("",                   spec_items,  SPEC_BD,  SPEC_BG,  ""),
@@ -695,7 +724,7 @@ def generate_decision_tree_image(
     avoid_subtitle = "Contraindicated / Not recommended" if is_preg else "Due to other factors"
 
     columns = [
-        ("✅ PREFERRED (SAFE)",  "Preferred oral options",  preferred,       GREEN_BD, GREEN_BG, GREEN_TXT),
+        ("✅ PREFERRED (SAFE)",  "Ranked for this site · route shown",  preferred,  GREEN_BD, GREEN_BG, GREEN_TXT),
         ("⚠️  USE WITH CAUTION", "Use with caution",         use_caution,     AMBER_BD, AMBER_BG, AMBER_TXT),
         (avoid_title,            avoid_subtitle,             contraindicated,  RED_BD,   RED_BG,   RED_TXT),
         ("🛡️  RESERVE (WHO)",     "Last-resort agents (MDR/XDR)", reserve,      BLUE_BD,  BLUE_BG,  BLUE_TXT),
@@ -759,7 +788,7 @@ def generate_decision_tree_image(
     fx1 = P + 3*(fw4+G);  fx2 = W - P
     rbox(draw, (fx1, FY1, fx2, FY2), FOOT_BG, FOOT_BD, radius=12, width=2)
     draw.text((fx1+10*S, FY1+10*S), "REFERENCES", fill=DARK, font=F_SUBTITL)
-    refs = ["EUCAST Breakpoint Tables v16.1", "CLSI M100 Ed36", "IDSA AMR Guidance 2026",
+    refs = ["CLSI M100 Ed36", "IDSA AMR Guidance 2026", "EUCAST Intrinsic Resistance",
             "WHO AWaRe 2025", "Egypt Nat. Guidelines", "BNF 2025 | FDA Labels"]
     ry = FY1 + 30*S
     for ref in refs:
@@ -818,6 +847,7 @@ def _text_banned(*, L, banned, organism, sep, sep2, specimen):
             ("child",     "[D] NOT SUITABLE FOR AGE"),
             ("organism",  f"[E] INEFFECTIVE FOR {organism}"),
             ("specimen",  f"[F] INAPPROPRIATE FOR {specimen.upper()} SPECIMEN"),
+            ("no_breakpoint", "[F2] NO CLSI BREAKPOINT -- RESULT NOT INTERPRETABLE"),
             ("other",     "[G] OTHER CONTRAINDICATIONS"),
         ]
         _rendered_cats = set()
@@ -859,7 +889,8 @@ def _text_warned(*, L, cl_cr, is_renal, sep, sep2, show_commercial_names, sir_ma
         if is_renal:
             L.append(f"Patient CrCl = {crcl_label(cl_cr, is_renal)}\n")
         for item in warned:
-            sir_tag = f" [Culture: {sir_map[item['name']]}]" if sir_map and item['name'] in sir_map else ""
+            sir_tag = (f" [Culture: {'SDD' if item.get('culture_sdd') else sir_map[item['name']]}]"
+                       if sir_map and item['name'] in sir_map else "")
             L += [f"{item['name']}{sir_tag}", sep2, f"WHO AWaRe : {item.get('aware','-')}"]
             # Printed BEFORE the reason branch, not inside it: an Intermediate
             # agent that also needs a renal or hepatic adjustment carries the
@@ -867,11 +898,19 @@ def _text_warned(*, L, cl_cr, is_renal, sep, sep2, show_commercial_names, sir_ma
             # this report entirely.
             if (item.get("culture_intermediate")
                     and item.get("warning_reason") != "intermediate_culture"):
-                L.append("!! CONFLICT : culture is INTERMEDIATE (EUCAST: susceptible at "
-                         "INCREASED exposure) while the host requires a REDUCED dose. "
+                L.append("!! CONFLICT : culture is "
+                         + ("SDD (CLSI: susceptible only at a higher-exposure regimen)"
+                            if item.get("culture_sdd") else
+                            "INTERMEDIATE (CLSI: efficacy only where the drug is concentrated, "
+                            "e.g. urine, or at a higher-than-normal dose)")
+                         + " while the host requires a REDUCED dose. "
                          "Prefer a fully susceptible agent; if unavoidable, dose with TDM.")
             if item.get("warning_reason") == "intermediate_culture":
-                L.append("Reason    : Intermediate (I) on culture result")
+                L.append("Reason    : " + ("SDD" if item.get("culture_sdd") else "Intermediate (I)")
+                         + " on culture result (CLSI M100)")
+                _inote = str(item.get("intermediate_note_en") or "").strip()
+                if _inote:
+                    L.append("            " + _inote)
             elif item.get("esbl_note") or item.get("esbl_note_en"):
                 # Mechanism warnings (ESBL BLI-in-UTI, suspected carbapenemase)
                 # carry their reason in esbl_note; without this branch they fell
@@ -1010,6 +1049,7 @@ def generate_report(
     patho_assessment:      dict = None,
     show_commercial_names: bool = False,
     age_months:            Optional[int] = None,
+    case:                  Any = None,
 ) -> str:
     now  = datetime.now().strftime("%Y-%m-%d %H:%M")
     sep  = "=" * 60
@@ -1027,17 +1067,23 @@ def generate_report(
          else f"Age      : {age} years"),
           f"Gender   : {sex}",
           f"Weight   : {weight} kg",
-          f"Renal    : {'IMPAIRED' if is_renal else 'Normal'}"]
+          f"Renal    : {'IMPAIRED' if is_renal else ('Creatinine normal*' if getattr(case, 'low_muscle_mass', False) else 'Normal')}"]
     if is_renal:
         _eff, _ = resolve_crcl(cl_cr, is_renal)
         L.append(f"CrCl     : {crcl_label(cl_cr, is_renal)} "
                  f"({get_renal_severity(_eff)})")
+    if not is_renal and getattr(case, "low_muscle_mass", False):
+        # v7.0: creatinine overestimates GFR in low muscle mass
+        L.append(f"           * {LOW_MUSCLE_CRCL_NOTE_EN}")
+    if getattr(case, "host_factors", None):
+        L.append(f"Host     : {', '.join(case.host_factors)}")
     L.append(f"Hepatic  : {'IMPAIRED' if is_hepatic else 'Normal'}")
     if sex == "Female" and age >= 18:
         L.append(f"Pregnant : {'Yes' if is_preg else 'No'}")
 
+    _coll_t = getattr(case, "collection_label", "") if case is not None else ""
     L += ["\nCULTURE & MICROSCOPY", sep2,
-          f"Specimen : {specimen}"]
+          f"Specimen : {specimen}" + (f" / {_coll_t}" if _coll_t else "")]
     if date_in:
         L.append(f"Date In  : {date_in}")
     L.append(f"Organism : {organism}")
@@ -1055,9 +1101,17 @@ def generate_report(
         spec_ctx = (op.get("specimen_context") or {}).get(specimen, "")
         if spec_ctx:
             L.append(f"Context    : {spec_ctx}")
-        _fl_disp = _hide_urine_only(op.get("first_line"), specimen)
+        _fl_gen = _hide_urine_only(op.get("first_line"), specimen)
+        # v7.0: agree with the AST -- generic first-line agents this isolate is
+        # R / I to are not printed as first line under its own results.
+        _fl_disp = _drop_tested_ns(_fl_gen, sir_map)
+        _banned_nm = {str(b.get("name", "")).lower() for b in (banned or [])}
+        _fl_disp = [d for d in _fl_disp if d.lower() not in _banned_nm]
         if _fl_disp:
-            L.append(f"First-line : {', '.join(_fl_disp)}")
+            L.append(f"First-line : {', '.join(_fl_disp)}  (organism default, AST-filtered)")
+        elif _fl_gen:
+            L.append("First-line : none of the organism's default agents is usable for this "
+                     "isolate -- see RECOMMENDED below")
         if op.get("avoid"):
             L.append(f"Avoid      : {', '.join(op['avoid'])}")
 
@@ -1080,11 +1134,12 @@ def generate_report(
     if sir_map:
         mdr_r = classify_mdr(organism, sir_map)
         if mdr_r["level"]:
-            info = MDR_INFO[mdr_r["level"]]
-            L += [f"\n{info['icon']} RESISTANCE CLASSIFICATION: {mdr_display_label(mdr_r)}", sep2,
+            info = MDR_INFO[physician_mdr_level(mdr_r)]
+            L += [f"\n{info['icon']} RESISTANCE CLASSIFICATION: {physician_mdr_label(mdr_r)}", sep2,
                   info["detail"],
-                  f"Resistant ({mdr_r['resistant_count']}/{mdr_r['total_tested']}): "
-                  + ", ".join(mdr_r['resistant_categories']),
+                  f"Non-susceptible ({mdr_r['resistant_count']}/{mdr_r['total_tested']}): "
+                  + ", ".join(physician_mdr_categories(
+                      mdr_r, sir_map, {d.get("name") for d in (allowed or []) + (warned or [])})),
                   f"Action: {info['action']}", ""]
         esbl_r = predict_esbl(organism, sir_map)
         prob   = esbl_r.get("probability")
@@ -1139,7 +1194,8 @@ def generate_report(
     L += ["\nDISCLAIMER", sep,
           "هذا التقرير أداة مساعدة للقرار الطبي وليس بديلاً عن التقييم السريري.",
           "القرار النهائي للوصف العلاجي يعود للطبيب المعالج.", sep,
-          "Guidelines: EUCAST Breakpoint Tables v16.1 | CLSI M100 Ed36 | IDSA AMR Guidance 2026 | Egypt National",
+          "Guidelines: CLSI M100 Ed36 (breakpoints) | IDSA AMR Guidance 2026 | "
+          "EUCAST Expected Resistant Phenotypes | Egypt National",
           "Route info: BNF 2025 | FDA Labels | WHO AWaRe 2025",
           "WHO AWaRe : Access | Watch | Reserve", sep,
           f"Developed by Dr / Hussein Ali | {lab_name}{(' | ' + lab_city) if lab_city else ''}", sep]

@@ -16,10 +16,13 @@ from cdss.health import (
     PANEL_COMPLETENESS_AVAILABLE,
     _check_panel_completeness_ext,
 )
+from cdss.reports.fit_page import mm, pt, render_one_page
+from cdss.reports.fonts import with_bundled_fonts  # noqa: F401  (kept for importers)
 from cdss.reports.html_utils import (
     _esc,
     _md_inline,
-    pdf_glyph_guard,
+    bidi_isolate,
+    pdf_glyph_guard,  # noqa: F401
 )
 
 
@@ -32,228 +35,209 @@ def generate_qa_report_pdf(
     microbiologist: str = "",
     lab_id: str = "",
     patient_ref: str = "",
+    return_html: bool = False,
+    scale: float = 1.0,
+    sdd=None,
 ) -> Optional[bytes]:
     """
     تقرير AST-QA PDF منفصل تماماً عن تقرير الطبيب.
     للأرشفة الداخلية ومراجعة الجودة من قِبل الميكروبيولوجي فقط.
     لا يُعرض ولا يُرسل للطبيب المعالج.
+
+    v7.0: ONE A4 sheet (user request, 2026-11-19) -- compact header, findings
+    first, completeness and the panel side by side, organism summary last;
+    fit_page.render_one_page lowers the type scale until it fits. The Arabic
+    organism notes isolate their English runs (bidi_isolate). `return_html`
+    and `scale` exist for inspection and tests.
     """
-    if not WEASYPRINT_AVAILABLE or _wp is None:
+    if not return_html and (not WEASYPRINT_AVAILABLE or _wp is None):
         return None
 
     _now = datetime.now().strftime("%Y-%m-%d  %H:%M")
+    _issues = list(qc_issues or [])
+    _n_err = sum(1 for i in _issues if i.get("severity") == "error")
+    _n_warn = len(_issues) - _n_err
 
-    H: List[str] = []
-    H.append("""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-@page { size:A4; margin:12mm 14mm; }
-body { font-family:'Segoe UI',Tahoma,Arial,sans-serif; color:#1a1a2e; font-size:10pt; }
-.hdr { border-bottom:2px solid #6e2fa0; padding-bottom:3mm; margin-bottom:4mm; }
-.hdr-title { font-size:16pt; font-weight:bold; color:#6e2fa0; }
-.hdr-sub   { font-size:9pt; color:#888; margin-top:1mm; }
-.meta-row  { display:flex; justify-content:space-between; font-size:9pt; margin-bottom:3mm;
-             background:#f7f5fb; padding:2.5mm 3mm; border-radius:2mm; }
-.sec-ttl   { font-size:11pt; font-weight:bold; color:#6e2fa0;
-             border-bottom:1px solid #ddd; padding-bottom:1mm; margin:4mm 0 2mm 0; }
-.conf-box  { padding:3mm; border-radius:2mm; margin-bottom:4mm; }
-.issue     { padding:2mm 3mm; margin:1.5mm 0; border-radius:1.5mm; font-size:9pt; line-height:1.5; }
-.err       { background:#fdf2f2; border-left:3px solid #922b21; }
-.warn      { background:#fef9e7; border-left:3px solid #b7770d; }
-.ast-tbl   { width:100%; border-collapse:collapse; font-size:8.5pt; margin-top:2mm; }
-.ast-tbl th{ background:#6e2fa0; color:#fff; padding:1.5mm 2mm; text-align:left; }
-.ast-tbl td{ padding:1.2mm 2mm; border-bottom:1px solid #eee; }
-.sir-S     { color:#1e8449; font-weight:bold; }
-.sir-I     { color:#b7770d; font-weight:bold; }
-.sir-R     { color:#922b21; font-weight:bold; }
-.footer    { margin-top:6mm; padding-top:2mm; border-top:1px solid #ddd;
-             font-size:7.5pt; color:#888; }
-.org-box   { background:#f7f5fb; border-left:3px solid #6e2fa0; padding:2mm 3mm;
-             border-radius:1.5mm; font-size:8.8pt; line-height:1.45; }
-.org-box .ar { direction:rtl; text-align:right; unicode-bidi:isolate; margin-bottom:1mm;
-               font-family:'Amiri','Noto Naskh Arabic','Segoe UI',Tahoma,Arial,sans-serif; }
-.org-box .ln { direction:ltr; margin-top:0.6mm; }
-.sir-line  { font-size:8.8pt; line-height:1.5; margin:0.8mm 0; }
-.confidential { background:#fdf2f2; color:#922b21; font-weight:bold;
-                text-align:center; padding:1.5mm; border-radius:1.5mm;
-                font-size:8.5pt; margin-bottom:3mm; }
-</style></head><body>""")
-
-    H.append(
-        '<div class="confidential">'
-        '🔒 INTERNAL LABORATORY USE ONLY &nbsp;—&nbsp; '
-        'NOT FOR PHYSICIAN OR PATIENT DISTRIBUTION'
-        '</div>'
-    )
-
-    H.append(
-        '<div class="hdr">'
-        '<div class="hdr-title">🔬 AST Quality Assurance Report</div>'
-        '<div class="hdr-sub">Laboratory Consistency &amp; Confidence Audit — Internal QA Archive</div>'
-        '</div>'
-    )
-
-    H.append(
-        '<div class="meta-row">'
-        f'<div><b>Organism:</b>&nbsp;{_esc(organism or "—")}</div>'
-        f'<div><b>Specimen:</b>&nbsp;{_esc(specimen or "—")}</div>'
-        f'<div><b>Generated:</b>&nbsp;{_esc(_now)}</div>'
-        '</div>'
-    )
-    H.append(
-        '<div class="meta-row">'
-        f'<div><b>Microbiologist:</b>&nbsp;{_esc(microbiologist or "—")}</div>'
-        f'<div><b>Patient Ref:</b>&nbsp;{_esc(patient_ref or "—")}</div>'
-        f'<div><b>Lab ID:</b>&nbsp;{_esc(lab_id or "—")}</div>'
-        '</div>'
-    )
-
-    # ── Organism summary (2026-11-11) ──────────────────────────────────────
-    # The same guidance card the screen shows under the specimen data, in full,
-    # so the archived QA sheet says what the organism IS, not only its name.
-    _op_qa = ORGANISM_PROFILE.get(organism) or {}
-    if _op_qa:
-        H.append('<div class="sec-ttl">📌 Organism Summary</div>')
-        H.append('<div class="org-box">')
-        if _op_qa.get("note"):
-            H.append(f'<div class="ar">{_md_inline(_op_qa["note"])}</div>')
-        _ctx_qa = (_op_qa.get("specimen_context") or {}).get(specimen, "")
-        if _ctx_qa:
-            H.append(f'<div class="ar"><b>{_esc(specimen)}:</b> {_md_inline(_ctx_qa)}</div>')
-        for _lbl, _key in (("First-line", "first_line"), ("Second-line", "second_line"),
-                           ("Third-line", "third_line"), ("Avoid", "avoid")):
-            if _op_qa.get(_key):
-                H.append(f'<div class="ln"><b>{_lbl}:</b> {_esc(", ".join(_op_qa[_key]))}</div>')
-        if "urine" in str(specimen).lower() and _op_qa.get("urine_note"):
-            H.append(f'<div class="ar">{_md_inline(_op_qa["urine_note"])}</div>')
-        H.append('</div>')
-
-    # ── Confidence Score ──────────────────────────────────────────────
-    H.append('<div class="sec-ttl">📊 Recommendation Confidence Score</div>')
-    H.append(
-        f'<div class="conf-box" style="background:{confidence["color"]}18;'
-        f'border:1.5px solid {confidence["color"]}">'
-        f'<div style="font-size:13pt;font-weight:bold;color:{confidence["color"]}">'
-        f'{confidence["icon"]} {_esc(confidence["level"])} — {confidence["score"]}/100</div>'
-        '<ul style="margin:2mm 0 0 4mm;padding:0;font-size:9pt">'
-        + "".join(f'<li>{_esc(r)}</li>' for r in confidence["reasons"])
-        + '</ul></div>'
-    )
-    H.append(
-        f'<div style="font-size:8pt;color:#888;margin-bottom:3mm">'
-        f'Errors: <b>{confidence["n_errors"]}</b> &nbsp;|&nbsp; '
-        f'Warnings: <b>{confidence["n_warnings"]}</b> &nbsp;|&nbsp; '
-        f'Antibiotics tested: <b>{confidence["n_tested"]}</b>'
-        '</div>'
-    )
-
-    # ── QC Issues ────────────────────────────────────────────────────
-    H.append(f'<div class="sec-ttl">🔍 AST-QA Findings ({len(qc_issues)})</div>')
-    if not qc_issues:
-        H.append(
-            '<div style="font-size:9.5pt;color:#1e8449">'
-            '✅ All AST consistency checks passed. No issues detected.'
-            '</div>'
-        )
-    else:
-        for issue in qc_issues:
-            cls  = "err" if issue["severity"] == "error" else "warn"
-            icon = "❌"  if issue["severity"] == "error" else "⚠️"
-            H.append(
-                f'<div class="issue {cls}">'
-                f'<b>{icon} {_esc(issue["severity"].upper())}</b><br>'
-                f'{_md_inline(issue["message"])}<br>'
-                f'<span style="color:#555">✏️ {_md_inline(issue["fix"])}</span>'
-                '</div>'
-            )
-
-    # ── AST Panel Completeness ──────────────────────────────────────────
-    # Added 2026-08-22: this is THE internal QA PDF (confirmed against a
-    # live screenshot -- "تقرير الجودة الداخلي للميكروبيولوجي فقط" is
-    # this document's own header text) -- Panel Completeness had been added
-    # to generate_report()/generate_pdf_html_report() (the CLINICIAN-facing
-    # report) instead, which was the wrong document for an "internal AST
-    # report" request. Kept in both now; this is the one that actually
-    # matters for "was enough tested" as a QA question, not a treatment one.
+    _pc = None
     if PANEL_COMPLETENESS_AVAILABLE and _check_panel_completeness_ext and sir_map:
-        _pc_pdf = _check_panel_completeness_ext(organism, specimen, sir_map)
-        if _pc_pdf.status != "not_evaluated":
-            _pc_pdf_missing = _pc_pdf.missing_primary + _pc_pdf.missing_supplemental
-            H.append('<div class="sec-ttl">🧫 AST Panel Completeness</div>')
+        try:
+            _pc = _check_panel_completeness_ext(organism, specimen, sir_map)
+            if _pc.status == "not_evaluated":
+                _pc = None
+        except Exception:
+            _pc = None
+    _op_qa = ORGANISM_PROFILE.get(organism) or {}
+    _sdd = set(sdd or ())
+
+    def _ar(text: str) -> str:
+        return _md_inline(bidi_isolate(text))
+
+    def build(z: float) -> str:
+        H: List[str] = []
+        H.append(f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+@page {{ size:A4; margin:8mm 10mm; }}
+body {{ font-family:'Noto Sans','DejaVu Sans','Segoe UI',Tahoma,Arial,sans-serif; color:#1a1a2e;
+        font-size:{pt(8.6, z)}; margin:0; }}
+.confidential {{ background:#fdf2f2; color:#922b21; font-weight:bold; text-align:center;
+                 padding:{mm(0.8, z)}; border-radius:1mm; font-size:{pt(7.4, z)}; margin-bottom:{mm(1.5, z)}; }}
+table.hdr {{ width:100%; border-collapse:collapse; border-bottom:1.6pt solid #6e2fa0; margin-bottom:{mm(1.5, z)}; }}
+table.hdr td {{ vertical-align:bottom; padding:0 0 {mm(1, z)} 0; }}
+.hdr-title {{ font-size:{pt(13.5, z)}; font-weight:bold; color:#6e2fa0; }}
+.hdr-sub {{ font-size:{pt(7.3, z)}; color:#888; }}
+table.meta {{ width:100%; border-collapse:collapse; font-size:{pt(7.8, z)}; background:#f7f5fb;
+              margin-bottom:{mm(1.5, z)}; }}
+table.meta td {{ padding:{mm(0.6, z)} {mm(1.8, z)}; }}
+.sec-ttl {{ font-size:{pt(9.3, z)}; font-weight:bold; color:#6e2fa0; border-bottom:0.6pt solid #ddd;
+            padding-bottom:{mm(0.4, z)}; margin:{mm(2, z)} 0 {mm(0.8, z)} 0; }}
+.conf-box {{ padding:{mm(1, z)} {mm(2, z)}; border-radius:1.2mm; margin-bottom:{mm(0.6, z)}; }}
+.issue {{ padding:{mm(0.8, z)} {mm(1.8, z)}; margin:{mm(0.7, z)} 0; border-radius:1mm;
+          font-size:{pt(7.9, z)}; line-height:1.35; }}
+.issue .fix {{ color:#555; }}
+.err {{ background:#fdf2f2; border-left:2.2pt solid #922b21; }}
+.warn {{ background:#fef9e7; border-left:2.2pt solid #b7770d; }}
+.chip {{ font-weight:bold; font-size:{pt(7, z)}; }}
+table.cols {{ width:100%; border-collapse:collapse; table-layout:fixed; }}
+table.cols > tbody > tr > td {{ vertical-align:top; padding:0; }}
+table.cols > tbody > tr > td.gap {{ width:4mm; }}
+.sir-line {{ font-size:{pt(7.9, z)}; line-height:1.4; margin:{mm(0.5, z)} 0; }}
+.sir-S {{ color:#1e8449; font-weight:bold; }} .sir-I {{ color:#b7770d; font-weight:bold; }}
+.sir-R {{ color:#922b21; font-weight:bold; }}
+.small {{ font-size:{pt(7.4, z)}; color:#555; }}
+.org-box {{ background:#f7f5fb; border-left:2.2pt solid #6e2fa0; padding:{mm(1, z)} {mm(2, z)};
+            border-radius:1.2mm; font-size:{pt(7.8, z)}; line-height:1.4; }}
+.org-box .ar {{ direction:rtl; text-align:right; unicode-bidi:isolate; margin-bottom:{mm(0.6, z)};
+               font-family:'Amiri','Noto Naskh Arabic','Segoe UI',Tahoma,Arial,sans-serif; }}
+.org-box .ln {{ direction:ltr; margin-top:{mm(0.4, z)}; }}
+.footer {{ margin-top:{mm(2, z)}; padding-top:{mm(0.8, z)}; border-top:0.6pt solid #ddd;
+           font-size:{pt(6.6, z)}; color:#888; }}
+</style></head><body>""")
+        H.append('<div class="confidential">🔒 INTERNAL LABORATORY USE ONLY &nbsp;—&nbsp; '
+                 'NOT FOR PHYSICIAN OR PATIENT DISTRIBUTION</div>')
+        H.append('<table class="hdr"><tr><td><div class="hdr-title">🔬 AST Quality Assurance Report</div>'
+                 '<div class="hdr-sub">Laboratory Consistency &amp; Confidence Audit — Internal QA Archive'
+                 '</div></td></tr></table>')
+        H.append(
+            '<table class="meta"><tr>'
+            f'<td><b>Organism:</b>&nbsp;{_esc(organism or "—")}</td>'
+            f'<td><b>Specimen:</b>&nbsp;{_esc(specimen or "—")}</td>'
+            f'<td><b>Generated:</b>&nbsp;{_esc(_now)}</td></tr><tr>'
+            f'<td><b>Microbiologist:</b>&nbsp;{_esc(microbiologist or "—")}</td>'
+            f'<td><b>Patient Ref:</b>&nbsp;{_esc(patient_ref or "—")}</td>'
+            f'<td><b>Lab ID:</b>&nbsp;{_esc(lab_id or "—")}</td></tr></table>')
+
+        # ── Confidence (one line) ────────────────────────────────────────────
+        _c = confidence or {}
+        _col = _c.get("color", "#555")
+        H.append(
+            f'<div class="conf-box" style="background:{_col}18;border:1.2pt solid {_col}">'
+            f'<b style="font-size:{pt(10.5, z)};color:{_col}">{_c.get("icon", "")} '
+            f'{_esc(str(_c.get("level", "")))} — {_c.get("score", "")}/100</b>'
+            f'<span class="small"> &nbsp;|&nbsp; Errors: <b>{_c.get("n_errors", _n_err)}</b>'
+            f' &nbsp;|&nbsp; Warnings: <b>{_c.get("n_warnings", _n_warn)}</b>'
+            f' &nbsp;|&nbsp; Antibiotics tested: <b>{_c.get("n_tested", len(sir_map or {}))}</b></span>'
+            + (f'<div class="small" dir="rtl" style="text-align:right;unicode-bidi:isolate">'
+               f'{_esc(bidi_isolate(" · ".join(_c.get("reasons") or [])))}</div>'
+               if _c.get("reasons") else "")
+            + '</div>')
+
+        # ── Findings ─────────────────────────────────────────────────────────
+        H.append(f'<div class="sec-ttl">🔍 AST-QA Findings ({len(_issues)})</div>')
+        if not _issues:
+            H.append('<div style="color:#1e8449">✅ All AST consistency checks passed. '
+                     'No issues detected.</div>')
+        for issue in _issues:
+            _err = issue.get("severity") == "error"
             H.append(
-                f'<div style="font-size:9pt;color:#555;margin-bottom:2mm">'
-                f'Organism group: <b>{_esc(_pc_pdf.organism_group)}</b> &nbsp;|&nbsp; '
-                f'Expected: <b>{_pc_pdf.expected_total}</b> &nbsp;|&nbsp; '
-                f'Tested: <b>{_pc_pdf.tested_count}</b> &nbsp;|&nbsp; '
-                f'Missing: <b>{len(_pc_pdf_missing)}</b>'
-                '</div>'
-            )
-            if not _pc_pdf_missing:
-                H.append(
-                    '<div style="font-size:9.5pt;color:#1e8449">'
-                    '✅ Panel adequate -- all expected agents for this organism were tested.'
-                    '</div>'
-                )
-            else:
-                if _pc_pdf.status == "critical":
-                    H.append(
-                        '<div class="issue err">'
-                        '<b>❌ CRITICAL</b><br>'
-                        'Every primary agent tested came back Resistant, and expected '
-                        'primary agent(s) were never tested. A therapeutic option may '
-                        'exist among the untested agents -- this panel cannot rule that '
-                        'out. Do not report &ldquo;no susceptible options&rdquo; from an '
-                        'incomplete panel.'
-                        '</div>'
-                    )
-                if _pc_pdf.missing_primary:
-                    H.append(
-                        f'<div class="issue warn"><b>⚠️ Missing (primary)</b><br>'
-                        f'{_esc(", ".join(_pc_pdf.missing_primary))}</div>'
-                    )
-                if _pc_pdf.missing_supplemental:
-                    H.append(
-                        f'<div style="font-size:8.5pt;color:#555;margin:1mm 0">'
-                        f'🔵 Missing (supplemental): {_esc(", ".join(_pc_pdf.missing_supplemental))}'
-                        '</div>'
-                    )
-            if _pc_pdf.rule_id:
+                f'<div class="issue {"err" if _err else "warn"}">'
+                f'<span class="chip" style="color:{"#922b21" if _err else "#b7770d"}">'
+                f'{"❌ ERROR" if _err else "⚠️ WARNING"}</span> '
+                f'{_md_inline(issue.get("message", ""))}'
+                + (f'<br><span class="fix">✏️ {_md_inline(issue.get("fix", ""))}</span>'
+                   if issue.get("fix") else "")
+                + '</div>')
+
+        # ── Completeness | panel as entered ──────────────────────────────────
+        left: List[str] = []
+        if _pc is not None:
+            _miss = _pc.missing_primary + _pc.missing_supplemental
+            _reflex = getattr(_pc, "reflex_missing", {}) or {}
+            left.append('<div class="sec-ttl">🧫 AST Panel Completeness</div>')
+            left.append(f'<div class="small">Group: <b>{_esc(_pc.organism_group)}</b> · Expected '
+                        f'<b>{_pc.expected_total}</b> · Tested <b>{_pc.tested_count}</b> · Missing '
+                        f'<b>{len(_miss)}</b></div>')
+            if not _miss:
+                left.append('<div class="sir-line" style="color:#1e8449">✅ Panel adequate — every '
+                            'expected agent was tested.</div>')
+            if _pc.status == "critical":
+                left.append('<div class="issue err"><b>❌ CRITICAL</b> — every primary agent tested '
+                            'was R and expected primary agents were never tested; do not report '
+                            '&ldquo;no susceptible options&rdquo; from this panel.</div>')
+            if _reflex:
+                left.append('<div class="issue err"><b>❌ Required by another result:</b> '
+                            + _esc(" · ".join(f"{d} ({w})" for d, w in _reflex.items()))
+                            + '</div>')
+            _prim = [d for d in _pc.missing_primary if d not in _reflex]
+            if _prim:
+                left.append(f'<div class="sir-line"><b>⚠️ Missing (primary):</b> '
+                            f'{_esc(", ".join(_prim))}</div>')
+            if _pc.missing_supplemental:
+                left.append(f'<div class="sir-line small">🔵 Missing (supplemental): '
+                            f'{_esc(", ".join(_pc.missing_supplemental))}</div>')
+            if _pc.rule_id:
                 try:
-                    from cdss.guidelines.guideline_registry import citation_line as _pc_pdf_cite_fn
-                    _pc_pdf_ref = _pc_pdf_cite_fn(_pc_pdf.rule_id)
+                    from cdss.guidelines.guideline_registry import citation_line as _cite
+                    _ref = _cite(_pc.rule_id)
                 except Exception:
-                    _pc_pdf_ref = ""
-                if _pc_pdf_ref:
-                    H.append(
-                        f'<div style="font-size:7.5pt;color:#888">📖 {_esc(_pc_pdf_ref)}</div>'
-                    )
+                    _ref = ""
+                if _ref:
+                    left.append(f'<div class="small" style="color:#888">📖 {_esc(_ref)}</div>')
+        right: List[str] = ['<div class="sec-ttl">🧪 Full AST Panel as Entered</div>']
+        if sir_map:
+            for _res, _lbl in (("S", "Susceptible"), ("I", "Intermediate / SDD"), ("R", "Resistant")):
+                _grp = sorted((f"{d} (SDD)" if d in _sdd else d)
+                              for d, r in sir_map.items() if r == _res)
+                if _grp:
+                    right.append(f'<div class="sir-line"><span class="sir-{_res}">{_res} — {_lbl} '
+                                 f'({len(_grp)}):</span> {_esc(", ".join(_grp))}</div>')
+            _oth = sorted(f"{d} ({r})" for d, r in sir_map.items() if r not in ("S", "I", "R"))
+            if _oth:
+                right.append(f'<div class="sir-line"><b>Other:</b> {_esc(", ".join(_oth))}</div>')
+        else:
+            right.append('<div class="small">No AST data recorded.</div>')
+        if left:
+            H.append('<table class="cols"><tr><td>' + "".join(left) + '</td><td class="gap"></td><td>'
+                     + "".join(right) + '</td></tr></table>')
+        else:
+            H.extend(right)
 
-    # ── Full AST Panel ────────────────────────────────────────────────
-    # Compact since 2026-11-11: one row per drug pushed the sheet onto a
-    # second page for any normal panel. Grouped by result it is three lines,
-    # and nothing is lost -- every tested agent is still named.
-    H.append('<div class="sec-ttl">🧪 Full AST Panel as Entered</div>')
-    if sir_map:
-        for _res, _lbl in (("S", "Susceptible"), ("I", "Intermediate / SDD"), ("R", "Resistant")):
-            _grp = sorted(d for d, r in sir_map.items() if r == _res)
-            if _grp:
-                H.append(f'<div class="sir-line"><span class="sir-{_res}">{_res} — {_lbl} '
-                         f'({len(_grp)}):</span> {_esc(", ".join(_grp))}</div>')
-        _oth = sorted(f"{d} ({r})" for d, r in sir_map.items() if r not in ("S", "I", "R"))
-        if _oth:
-            H.append(f'<div class="sir-line"><b>Other:</b> {_esc(", ".join(_oth))}</div>')
-    else:
-        H.append('<div style="font-size:9pt;color:#888">No AST data recorded.</div>')
+        # ── Organism summary (2026-11-11), last: reference, not a finding ─────
+        if _op_qa:
+            H.append('<div class="sec-ttl">📌 Organism Summary</div>')
+            H.append('<div class="org-box">')
+            if _op_qa.get("note"):
+                H.append(f'<div class="ar">{_ar(_op_qa["note"])}</div>')
+            _ctx_qa = (_op_qa.get("specimen_context") or {}).get(specimen, "")
+            if _ctx_qa:
+                H.append(f'<div class="ar"><b>{_esc(specimen)}:</b> {_ar(_ctx_qa)}</div>')
+            for _lbl, _key in (("First-line", "first_line"), ("Second-line", "second_line"),
+                               ("Third-line", "third_line"), ("Avoid", "avoid")):
+                if _op_qa.get(_key):
+                    _names = [(f"{d} [{sir_map.get(d)}]" if (sir_map or {}).get(d) in ("I", "R") else d)
+                              for d in _op_qa[_key]]
+                    H.append(f'<div class="ln"><b>{_lbl}:</b> {_esc(", ".join(_names))}</div>')
+            if "urine" in str(specimen).lower() and _op_qa.get("urine_note"):
+                H.append(f'<div class="ar">{_ar(_op_qa["urine_note"])}</div>')
+            H.append('</div>')
 
-    H.append(
-        '<div class="footer">'
-        'Generated by Orange Lab AST-QA Engine&nbsp;|&nbsp;'
-        'EUCAST Expert Rules v3.1 (2016) / CLSI M100 Ed36<br>'
-        'This document is for internal laboratory quality control and audit only. '
-        'It must not be shared with referring physicians or included in the patient report.'
-        '</div>'
-    )
-    H.append('</body></html>')
+        H.append('<div class="footer">Generated by Orange Lab AST-QA Engine&nbsp;|&nbsp;CLSI M100 Ed36 '
+                 '/ EUCAST Expert Rules v3.1 (2016). Internal laboratory quality control and audit '
+                 'only — not for referring physicians or the patient report.</div>')
+        H.append('</body></html>')
+        return "".join(H)
 
+    if return_html:
+        return build(scale)
     try:
-        return _wp.HTML(string=pdf_glyph_guard("".join(H))).write_pdf()
+        return render_one_page(build)
     except Exception:
         return None

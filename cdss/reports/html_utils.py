@@ -31,6 +31,66 @@ def _md_inline(text: str) -> str:
     out = out.replace("  \n", "<br>").replace("\n", "<br>")
     return out
 
+import re as _re_bidi
+
+# A Latin run inside Arabic text: starts with a letter / digit / "(", may carry
+# spaces and the punctuation drug names and citations use, ends on a letter,
+# digit, ")" "%" or ".".
+_LATIN_RUN = _re_bidi.compile(
+    r"[A-Za-z0-9(][A-Za-z0-9\-+/.,()%:'≥≤<>=·×µ ]*[A-Za-z0-9).%]|[A-Za-z0-9]")
+_ARABIC = _re_bidi.compile(r"[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]")
+LRI, PDI = "\u2066", "\u2069"
+
+
+def bidi_isolate(text: str) -> str:
+    """Wrap every Latin run of an ARABIC sentence in LRI ... PDI (v7.0).
+
+    Review 2026-11-19: in the QA sheet's Organism Summary, sentences such as
+    "مقاومة جوهرية: Colistin · Nitrofurantoin (CLSI M100 Appendix B1)" came out
+    with the English words and the brackets in the wrong order -- the Unicode
+    bidi algorithm treats the punctuation between neutral-direction runs by the
+    paragraph direction. An isolate makes each English run one LTR unit.
+    Text with no Arabic is returned unchanged. Apply BEFORE escaping.
+    """
+    if not isinstance(text, str) or not _ARABIC.search(text):
+        return text
+
+    def _iso(run: str) -> str:
+        # an unmatched bracket stays OUTSIDE the isolate, where the bidi
+        # algorithm pairs it with its partner in the Arabic text
+        depth, cut = 0, -1
+        for i, ch in enumerate(run):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                if depth == 0:
+                    cut = i
+                    break
+                depth -= 1
+        if cut < 0 and depth > 0:
+            d = 0
+            for i in range(len(run) - 1, -1, -1):
+                if run[i] == ")":
+                    d += 1
+                elif run[i] == "(":
+                    if d == 0:
+                        cut = i
+                        break
+                    d -= 1
+        if cut >= 0:
+            return _iso(run[:cut]) + run[cut] + _iso(run[cut + 1:])
+        core = run.strip()
+        if not core or not any(c.isalnum() for c in core):
+            return run
+        i = run.find(core)
+        return run[:i] + LRI + core + PDI + run[i + len(core):]
+
+    def _wrap(m):
+        return _iso(m.group(0))
+
+    return _LATIN_RUN.sub(_wrap, text)
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # PDF GLYPH GUARD
 # ══════════════════════════════════════════════════════════════════════════

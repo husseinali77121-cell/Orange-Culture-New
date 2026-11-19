@@ -11,6 +11,7 @@ tests/test_report_split.py.
 """
 import logging
 import re
+from cdss.formulary.abx_guidelines import ABX_GUIDELINES
 from typing import Dict
 
 from cdss.reports.html_utils import _esc
@@ -43,7 +44,7 @@ def pdf_strings(_EN: bool) -> Dict[str, str]:
         "renal_label":   "Patient CrCl" if _EN else "Patient CrCl",
         "renal_thresh":  "Threshold: CrCl ≤",
         "renal_adj":     "⚠ Renal dose adjustment required  |  Threshold: CrCl ≤",
-        "intermediate":  "⚠ Intermediate (I) in culture result -- use only if no better option",
+        "intermediate":  "⚠ Intermediate (I) / SDD in culture result (CLSI M100) -- use only if no susceptible option fits",
         # Patho
         "supporting":    "Supporting:",
         "against":       "Against:",
@@ -322,8 +323,12 @@ def header_html(page_lbl: str, *, mdr_class, mdr_result, _hdr_ph_labels, esbl_co
     mdr_pills = ""
     # MDR/XDR/PDR — deterministic category count (Magiorakos 2012), always shown
     if mdr_class:
-        _mdr_pill = (f"possible {mdr_class}" if (mdr_result or {}).get("provisional") else mdr_class)
-        mdr_pills += pill(_mdr_pill, "background:#922b21;color:#fff")+" "
+        # v7.0: the physician report prints MDR for a provisional XDR/PDR
+        # ("possible XDR" stays on the screen and in the internal QA report).
+        from cdss.resistance.mdr import physician_mdr_level
+        _mdr_pill = physician_mdr_level(mdr_result) or mdr_class
+        mdr_pills += pill(_mdr_pill, "background:#922b21;color:#fff" if _mdr_pill in ("XDR", "PDR")
+                          else "background:#b7770d;color:#fff")+" "
     # Resistance phenotypes (MRSA/VRE/CRE/CRAB/CRPA) — confirmed via direct AST
     # markers, always shown. Weak/fallback inferences already excluded upstream.
     for ph in _hdr_ph_labels[:3]: mdr_pills += pill(ph, "background:#6e2fa0;color:#fff")+" "
@@ -353,3 +358,48 @@ def header_html(page_lbl: str, *, mdr_class, mdr_result, _hdr_ph_labels, esbl_co
     <span class="hdr-org">&#x2066;{_esc(organism)}&#x2069;</span>
   </div>
 </div><div class="accent"></div><div class="content">"""
+
+
+def avoid_reason_tag(bd, sir_map, *, is_mrsa=False, is_carbapenemase=False, is_esbl_like=False):
+    """(tag, colour) for one banned agent in the physician PDF's AVOID strip."""
+    cat = bd.get("category", "")
+    nm  = bd.get("name", "")
+    _sir = sir_map.get(nm, "")
+    _info_lookup = ABX_GUIDELINES.get(nm, {})
+    _cls = (_info_lookup.get("class", "") or "").lower()
+    # 0. v7.0: no breakpoint for this pair -- the result (even an R) says nothing
+    if cat == "no_breakpoint":
+        return ('⊘ No breakpoint', '#7f8c8d')
+    # 1. Resistant in culture (explicit R)
+    if cat == "resistant" or _sir == "R":
+        return ('✗ (R)', '#922b21')
+    # 2. Pregnancy contraindication
+    if cat == "pregnancy":
+        return ('⊘ Pregnancy', '#7d3c98')
+    # 3. Pediatric / child
+    if cat in ("child", "pediatric"):
+        return ('⊘ Pediatric', '#7d3c98')
+    # 4. Renal
+    if cat == "renal":
+        return ('⚠ Renal', '#b7770d')
+    # 5. Organism-based (MRSA / ESBL / AmpC / Carbapenemase / intrinsic)
+    if cat == "organism":
+        _is_betalactam = any(k in _cls for k in
+                             ("penicillin", "cephalosporin", "carbapenem", "monobactam"))
+        # MRSA: detected + beta-lactam
+        if is_mrsa and _is_betalactam:
+            return ('⚠ MRSA -- β-lactam', '#922b21')
+        # Carbapenemase
+        if is_carbapenemase and _is_betalactam:
+            return ('⚠ Carbapenemase', '#922b21')
+        # ESBL/AmpC suppression of penicillins+cephalosporins
+        if is_esbl_like and _is_betalactam:
+            return ('⚠ ESBL Concern', '#b7770d')
+        # Otherwise intrinsic resistance
+        return ('⚠ Intrinsic R', '#922b21')
+    # v7.0: name the reason instead of a bare "Avoid"
+    return {"uti_upper": ('⊘ Cystitis only', '#b7770d'), "specimen": ('⊘ Site', '#b7770d'),
+            "safety_gate": ('⊘ Site / host', '#b7770d'), "hepatic": ('⚠ Hepatic', '#b7770d'),
+            "allergy": ('⊘ Allergy', '#922b21'), "neonate": ('⊘ Neonate', '#7d3c98'),
+            "cross_resistance": ('✗ Cross-R', '#922b21'),
+            "interaction": ('⚠ Interaction', '#b7770d')}.get(cat, ('✗ Avoid', '#922b21'))

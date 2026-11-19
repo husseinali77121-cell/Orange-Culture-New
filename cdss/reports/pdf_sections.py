@@ -25,7 +25,9 @@ from cdss.reports.html_utils import _esc
 from cdss.reports.html_utils import _score_color
 from cdss.reports.i18n_en import alert_en
 from cdss.resistance.mdr import MDR_INFO
-from cdss.resistance.mdr import mdr_display_label
+from cdss.reports.pdf_parts import avoid_reason_tag
+from cdss.resistance.mdr import (mdr_display_label, physician_mdr_categories,  # noqa: F401
+                               physician_mdr_label, physician_mdr_level)
 from cdss.stewardship.duration import annotate_regimen_note
 from cdss.stewardship.ranking import route_label
 from cdss.stewardship.syndrome import INFECTION_SYNDROMES
@@ -100,6 +102,8 @@ def section_ranked(
             _rte  = "PO" if route_label(_rd, specimen) == "PO" else "IV/IM"
             _rnl  = _esc(_rnote(_rd)) if is_renal else ""
             _dose = _esc(_rd.get("gate_dose_note_en" if lang == "en" else "gate_dose_note") or "")
+            # v7.0: low muscle mass -- creatinine overestimates GFR; levels, not CrCl
+            _tdm = _esc(_rd.get("tdm_note_en" if lang == "en" else "tdm_note") or "")
             if _tlbl != prev_tier:
                 H.append(f'<div class="tier-sep" style="color:{_hclr};border-color:{_hclr}">{_tlbl}</div>')
                 prev_tier = _tlbl
@@ -112,6 +116,7 @@ def section_ranked(
                 f'&ensp;<span style="font-size:8.5pt;color:#555">{_rte}</span>'
                 + (f'&ensp;<small style="color:#b7770d">⚠ {_rnl}</small>' if _rnl else "")
                 + (f'&ensp;<small style="color:#0d3b66">💉 {_dose}</small>' if _dose else "")
+                + (f'<div style="font-size:7.8pt;color:#b7770d">⚠ {_tdm}</div>' if _tdm else "")
                 + '</div>'
                 f'<div>{pill(_raw, AWARE_PILL.get(_raw,""))}</div>'
                 '</div>'
@@ -142,39 +147,8 @@ def section_avoid(
     # ── AVOID -- each drug with its specific reason ────────────────────────
     if banned:
         def _ban_reason(bd):
-            cat = bd.get("category", "")
-            nm  = bd.get("name", "")
-            _sir = sir_map.get(nm, "")
-            _info_lookup = ABX_GUIDELINES.get(nm, {})
-            _cls = (_info_lookup.get("class", "") or "").lower()
-            # 1. Resistant in culture (explicit R)
-            if cat == "resistant" or _sir == "R":
-                return ('✗ (R)', '#922b21')
-            # 2. Pregnancy contraindication
-            if cat == "pregnancy":
-                return ('⊘ Pregnancy', '#7d3c98')
-            # 3. Pediatric / child
-            if cat in ("child", "pediatric"):
-                return ('⊘ Pediatric', '#7d3c98')
-            # 4. Renal
-            if cat == "renal":
-                return ('⚠ Renal', '#b7770d')
-            # 5. Organism-based (MRSA / ESBL / AmpC / Carbapenemase / intrinsic)
-            if cat == "organism":
-                _is_betalactam = any(k in _cls for k in
-                                     ("penicillin", "cephalosporin", "carbapenem"))
-                # MRSA: detected + beta-lactam
-                if _is_mrsa and _is_betalactam:
-                    return ('⚠ MRSA -- β-lactam', '#922b21')
-                # Carbapenemase
-                if _is_carbapenemase and _is_betalactam:
-                    return ('⚠ Carbapenemase', '#922b21')
-                # ESBL/AmpC suppression of penicillins+cephalosporins
-                if _is_esbl_like and _is_betalactam:
-                    return ('⚠ ESBL Concern', '#b7770d')
-                # Otherwise intrinsic resistance
-                return ('⚠ Intrinsic R', '#922b21')
-            return ('✗ Avoid', '#922b21')
+            return avoid_reason_tag(bd, sir_map, is_mrsa=_is_mrsa,
+                                    is_carbapenemase=_is_carbapenemase, is_esbl_like=_is_esbl_like)
 
         H.append(
             '<div class="sec-ttl" style="margin-top:1mm;color:#922b21;border-bottom-color:#922b21">'
@@ -217,7 +191,8 @@ def section_warned(*, H, _EN, _T, _rnote, cl_cr, is_renal, warned) -> None:
         if is_renal:
             _sub_notes.append(f'Patient CrCl = {crcl_label(cl_cr, is_renal)}')
         if any(_wd.get("warning_reason") == "intermediate_culture" for _wd in warned):
-            _sub_notes.append('⚠ Intermediate (I) in culture -- use only if no better option')
+            _sub_notes.append('⚠ Intermediate (I) / SDD in culture (CLSI M100) -- use only if no '
+                              'susceptible option fits')
         if _sub_notes:
             H.append('<div style="font-size:8.2pt;color:#7d6608;margin-bottom:1mm">'
                      + ' &nbsp;·&nbsp; '.join(_sub_notes) + '</div>')
@@ -247,8 +222,10 @@ def section_warned(*, H, _EN, _T, _rnote, cl_cr, is_renal, warned) -> None:
             elif _wreason == "intermediate_culture":
                 # Never leave the card body empty -- a blank card next to cards
                 # carrying a renal caveat reads as "nothing to adjust here".
-                _detail = ('Intermediate (I) on AST \u2014 use only if no better '
-                           'option; maximise dose/exposure.')
+                # v6.9: the CLSI meaning for this class / site, or the SDD regimen.
+                _detail = _esc(_wd.get("intermediate_note_en" if _EN else "intermediate_note")
+                               or 'Intermediate (I) on AST \u2014 use only if no better option '
+                                  '(CLSI M100).')
                 _rn_i = _esc(_rnote(_wd))
                 if _rn_i:
                     _detail += f' Renal: {_rn_i}'
@@ -274,6 +251,11 @@ def section_warned(*, H, _EN, _T, _rnote, cl_cr, is_renal, warned) -> None:
                         "review manually." if _EN else
                         "تحذير بلا تفسير مسجَّل — راجِع النتيجة يدوياً.")
 
+            # v6.9: a second caution attached after the primary one (e.g. the
+            # paediatric quinolone note on a renal-warned drug) is printed too.
+            _xn = str(_wd.get("clinical_note_en" if _EN else "clinical_note") or "").strip()
+            if _detail and _xn and _esc(_xn) not in _detail:
+                _detail += " | " + _esc(_xn)
             H.append(
                 # flex:1 1 42mm -> chips grow to fill each row evenly (fixes poor
                 # distribution when few drugs); min-width forces a clean wrap; max-width
@@ -447,14 +429,16 @@ def section_columns(
                     H.append(f'<div style="font-size:8pt;color:#555">{_clip(_ed3, 200)}</div>')
             # MDR level
             if mdr_result and mdr_result.get("level"):
-                _ml3 = mdr_result["level"]
+                # v7.0: physician-facing -- a provisional XDR/PDR prints as MDR,
+                # and each category shows the agents in it that are still S.
+                _ml3 = physician_mdr_level(mdr_result)
                 _mi3 = MDR_INFO.get(_ml3, {})
                 _clr3 = "#922b21" if _ml3 in ("XDR","PDR") else "#b7770d"
                 H.append(f'<div style="font-size:9pt;font-weight:bold;color:{_clr3};margin-top:1mm">'
-                         f'{_mi3.get("icon","")} {_esc(mdr_display_label(mdr_result))}</div>')
+                         f'{_mi3.get("icon","")} {_esc(physician_mdr_label(mdr_result))}</div>')
                 H.append(f'<div style="font-size:8pt;color:#555">'
-                         f'Resistant {mdr_result["resistant_count"]}/{mdr_result["total_tested"]} categories: '
-                         f'{_esc(_join_more(mdr_result.get("resistant_categories",[]), 6))}</div>')
+                         f'Non-susceptible {mdr_result["resistant_count"]}/{mdr_result["total_tested"]} categories: '
+                         f'{_esc(_join_more(physician_mdr_categories(mdr_result, sir_map, {d.get("name") for d in allowed or []}), 6))}</div>')
             # Phenotypes
             if phenotypes:
                 for _ph3 in phenotypes[:3]:
@@ -624,7 +608,7 @@ def section_combo_hepatic_footer(
     H.append("""<hr class="dv" style="margin-top:1mm">
 <div class="grid2">
   <div class="g2l" style="font-size:8pt;color:#666">
-    <b>References:</b> CLSI 2026 | EUCAST Breakpoint Tables v16.1 | IDSA AMR Guidance 2026 | WHO AWaRe 2025 | Sanford 2025 | BNF 2025 | Egypt Nat. Guidelines
+    <b>References:</b> CLSI M100 Ed36 | IDSA AMR Guidance 2026 | EUCAST Expected Resistant Phenotypes | WHO AWaRe 2025 | Sanford 2025 | BNF 2025 | Egypt Nat. Guidelines
   </div>
   <div class="g2r" style="font-size:8pt;color:#666">
     <b>Disclaimer:</b> Clinical decision support only. Treatment decisions are the sole responsibility of the treating physician.

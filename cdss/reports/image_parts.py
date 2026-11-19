@@ -14,6 +14,8 @@ import functools
 from cdss.common.optional_deps import ARABIC_SUPPORT
 from cdss.common.optional_deps import ImageFont
 from cdss.common.optional_deps import _arabic_reshaper_mod
+from cdss.reports.fonts import font_file
+from cdss.reports.html_utils import pdf_glyph_guard
 
 S = 2      # the image's scale factor -- generate_decision_tree_image() asserts it matches
 
@@ -47,7 +49,14 @@ def gf(size: int, bold: bool = False):
     """
     import os as _os
     _b = "Bold" if bold else "Regular"
-    paths = [
+    # v6.8: the font shipped with the program comes FIRST (fonts/, see
+    # cdss/reports/fonts.py) -- the same DejaVu Sans file online and in the EXE.
+    # Every path below is a Linux path: on Windows none existed, the loader fell
+    # through to Pillow's fixed 10-pixel default, and the whole image was drawn
+    # in unreadably small text.
+    _shipped = font_file("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf")
+    _win = _os.path.join(_os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
+    paths = ([_shipped] if _shipped else []) + [
         # ── DejaVu Sans FIRST -- supports Arabic Unicode (fonts-dejavu-core) ─
         f"/usr/share/fonts/truetype/dejavu/DejaVuSans{'-Bold' if bold else ''}.ttf",
         f"/usr/share/fonts/dejavu/DejaVuSans{'-Bold' if bold else ''}.ttf",
@@ -68,6 +77,11 @@ def gf(size: int, bold: bool = False):
         # ── Other common fonts ───────────────────────────────────────────────
         f"/usr/share/fonts/truetype/freefont/FreeSans{'Bold' if bold else ''}.ttf",
         f"/usr/share/fonts/truetype/ubuntu/Ubuntu-{'B' if bold else 'R'}.ttf",
+        # ── Windows (the EXE, if the shipped folder is somehow missing) ─────
+        # Segoe UI / Arial / Tahoma all carry Arabic glyphs.
+        _os.path.join(_win, "segoeuib.ttf" if bold else "segoeui.ttf"),
+        _os.path.join(_win, "arialbd.ttf" if bold else "arial.ttf"),
+        _os.path.join(_win, "tahomabd.ttf" if bold else "tahoma.ttf"),
     ]
     for p in paths:
         if _os.path.isfile(p):
@@ -96,8 +110,85 @@ def gf(size: int, bold: bool = False):
                             continue
         except Exception:
             continue
-    return ImageFont.load_default()
+    # Last resort: a SCALABLE default at the requested size (Pillow >= 10.1).
+    # The size-less default is a fixed 10-pixel face -- the "tiny text" bug.
+    try:
+        return ImageFont.load_default(size=size * S)
+    except TypeError:
+        return ImageFont.load_default()
 
+
+
+def image_glyph_guard(text):
+    """The PDF's glyph guard, for the image (v6.8).
+
+    Section titles carry emoji (🔬 📋 ✅ 🚫 🛡) that neither the shipped nor any
+    installed font can draw -- they came out as empty boxes online and offline
+    alike. Known ones become DejaVu symbols (◆ ▣ ✓ ⊘), the rest are dropped,
+    exactly as in the PDF; a title that lost its leading emoji loses the gap too.
+    """
+    if not isinstance(text, str):
+        return text
+    out = _coverage_guard(pdf_glyph_guard(text))
+    if out != text and text[:1] != out[:1]:
+        out = out.lstrip()
+    return out
+
+
+@functools.lru_cache(maxsize=None)
+def _font_cmap() -> frozenset:
+    """Code points the image font can draw (empty = unknown -> no coverage filter)."""
+    try:
+        from fontTools.ttLib import TTFont
+        cps = set()
+        for name in ("DejaVuSans.ttf", "DejaVuSans-Bold.ttf"):
+            path = font_file(name)
+            if path:
+                cmap = TTFont(path, lazy=True).getBestCmap() or {}
+                cps = set(cmap) if not cps else (cps & set(cmap))
+        return frozenset(cps)
+    except Exception:
+        return frozenset()
+
+
+def _coverage_guard(text: str) -> str:
+    """Drop what the font would draw as an empty box (v7.0, review 2026-11-19).
+
+    pdf_glyph_guard() handles the emoji ranges. Two kinds still came out as
+    "▯" in the image: invisible FORMAT characters (bidi isolates U+2066-2069
+    and marks, zero-width joiners -- Pillow has no bidi engine, the text is
+    already in visual order when it gets here) and the odd BMP symbol the font
+    lacks. Letters are always kept -- losing a letter is worse than a box.
+    """
+    import unicodedata
+    cmap = _font_cmap()
+    out = []
+    for ch in text:
+        if ch in "\n\t " or ch.isalnum():
+            out.append(ch)
+            continue
+        if unicodedata.category(ch) == "Cf":
+            continue
+        if cmap and ord(ch) not in cmap:
+            sub = _IMAGE_FALLBACK.get(ch)
+            if sub is not None:
+                out.append(sub)
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+# Covered stand-ins for symbols the font lacks (anything else is dropped).
+_IMAGE_FALLBACK = {"⛔": "⊘", "✅": "✓", "❌": "✗", "⭐": "★", "❗": "!", "❓": "?",
+                   "➡": "→", "⬅": "←", "⬆": "↑", "⬇": "↓", "⏱": "", "⌛": ""}
+
+
+def guard_draw(draw):
+    """Route every draw.text / draw.textlength through image_glyph_guard."""
+    _text, _length = draw.text, draw.textlength
+    draw.text = lambda xy, text, *a, **k: _text(xy, image_glyph_guard(text), *a, **k)
+    draw.textlength = lambda text, *a, **k: _length(image_glyph_guard(text), *a, **k)
+    return draw
 
 
 def fh(f) -> int:
