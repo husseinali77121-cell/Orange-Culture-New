@@ -178,12 +178,13 @@ COMBINATION_THERAPY: Dict[str, Dict] = {
         "title": "AmpC-producing Enterobacterales (derepressed / plasmid)",
         "urgency": "MODERATE",
         "options": [
-            {"combo": "Cefepime (if MIC <= 2 / S)", "evidence": "★★★",
+            {"combo": "Cefepime (MIC <= 8: S or SDD)", "evidence": "★★★",
              "indication": "Preferred for invasive infection -- stable to AmpC",
-             "caution": "If cefepime is SDD/I, suspect ESBL co-production -- use a carbapenem",
+             "caution": ("SDD (MIC 4-8): use the high-exposure regimen, 2 g q8h (CLSI). IDSA 2026: "
+                         "SDD is not associated with ESBL -- a carbapenem only if an ESBL gene is found"),
              "ref": "IDSA AMR Guidance 2026"},
             {"combo": "Carbapenem (Meropenem / Ertapenem)", "evidence": "★★★",
-             "indication": "Cefepime SDD/I or R, or critical illness", "caution": "",
+             "indication": "Cefepime R, a confirmed ESBL gene, or critical illness", "caution": "",
              "ref": "IDSA AMR Guidance 2026"},
             {"combo": "Oral step-down: TMP-SMX or a fluoroquinolone", "evidence": "★★",
              "indication": "After clinical response, if S", "caution": "", "ref": "IDSA AMR Guidance 2026"},
