@@ -361,7 +361,9 @@ _KNOWN = {"renal_adjustment", "hepatic_adjustment", "safety_gate", "neonate",
           # v7.0 (EUCAST audit): cefoperazone read by the old CLSI criterion
           "legacy_breakpoint",
           # v7.0: ofloxacin / norfloxacin beside a non-susceptible quinolone
-          "fq_low_level"}
+          "fq_low_level",
+          # v7.1: TMP-SMX is not initial therapy for S. aureus bacteraemia
+          "saureus_bsi_tmp_smx"}
 _unhandled = sorted(str(r) for r in _reasons_seen if r and r not in _KNOWN)
 check("every warning_reason the engine emits has a resolver branch",
       not _unhandled, f"unhandled: {_unhandled}")

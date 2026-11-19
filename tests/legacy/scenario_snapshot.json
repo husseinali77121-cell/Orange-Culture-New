@@ -8430,7 +8430,6 @@
    "Gentamicin",
    "Linezolid",
    "Teicoplanin",
-   "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
   "banned": [
@@ -8451,7 +8450,8 @@
   ],
   "warned": [
    "Ciprofloxacin",
-   "Levofloxacin"
+   "Levofloxacin",
+   "Trimethoprim/Sulfamethoxazole"
   ]
  },
  "Blood|MRSA|mdr": {
@@ -8464,7 +8464,6 @@
    "Fusidic acid",
    "Linezolid",
    "Teicoplanin",
-   "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
   "banned": [
@@ -8486,7 +8485,9 @@
   ],
   "preg_warn": [],
   "qc_ids": [],
-  "warned": []
+  "warned": [
+   "Trimethoprim/Sulfamethoxazole"
+  ]
  },
  "Blood|MRSA|mrsa": {
   "allowed": [
@@ -8499,7 +8500,6 @@
    "Gentamicin",
    "Linezolid",
    "Teicoplanin",
-   "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
   "banned": [],
@@ -8516,7 +8516,8 @@
   "qc_ids": [],
   "warned": [
    "Ciprofloxacin",
-   "Levofloxacin"
+   "Levofloxacin",
+   "Trimethoprim/Sulfamethoxazole"
   ]
  },
  "Blood|MRSA|pdr": {
@@ -8598,7 +8599,6 @@
    "Gentamicin",
    "Linezolid",
    "Teicoplanin",
-   "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
   "banned": [
@@ -8619,7 +8619,8 @@
   ],
   "warned": [
    "Ciprofloxacin",
-   "Levofloxacin"
+   "Levofloxacin",
+   "Trimethoprim/Sulfamethoxazole"
   ]
  },
  "Blood|MRSA|wild_type": {
@@ -8633,7 +8634,6 @@
    "Gentamicin",
    "Linezolid",
    "Teicoplanin",
-   "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
   "banned": [],
@@ -8650,7 +8650,8 @@
   "qc_ids": [],
   "warned": [
    "Ciprofloxacin",
-   "Levofloxacin"
+   "Levofloxacin",
+   "Trimethoprim/Sulfamethoxazole"
   ]
  },
  "Blood|MRSA|xdr": {
@@ -13271,7 +13272,6 @@
    "Gentamicin",
    "Linezolid",
    "Oxacillin",
-   "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
   "banned": [
@@ -13292,7 +13292,8 @@
   "warned": [
    "Ciprofloxacin",
    "Levofloxacin",
-   "Penicillin"
+   "Penicillin",
+   "Trimethoprim/Sulfamethoxazole"
   ]
  },
  "Blood|Staphylococcus aureus|mdr": {
@@ -13302,7 +13303,6 @@
    "Erythromycin",
    "Fusidic acid",
    "Linezolid",
-   "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
   "banned": [
@@ -13333,7 +13333,8 @@
   "warned": [
    "Amoxicillin + Clavulanic acid",
    "Oxacillin",
-   "Penicillin"
+   "Penicillin",
+   "Trimethoprim/Sulfamethoxazole"
   ]
  },
  "Blood|Staphylococcus aureus|mrsa": {
@@ -13344,7 +13345,6 @@
    "Fusidic acid",
    "Gentamicin",
    "Linezolid",
-   "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
   "banned": [
@@ -13375,7 +13375,8 @@
   ],
   "warned": [
    "Ciprofloxacin",
-   "Levofloxacin"
+   "Levofloxacin",
+   "Trimethoprim/Sulfamethoxazole"
   ]
  },
  "Blood|Staphylococcus aureus|pdr": {
@@ -13465,7 +13466,6 @@
    "Gentamicin",
    "Linezolid",
    "Oxacillin",
-   "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
   "banned": [
@@ -13486,7 +13486,8 @@
   "warned": [
    "Ciprofloxacin",
    "Levofloxacin",
-   "Penicillin"
+   "Penicillin",
+   "Trimethoprim/Sulfamethoxazole"
   ]
  },
  "Blood|Staphylococcus aureus|wild_type": {
@@ -13504,7 +13505,6 @@
    "Gentamicin",
    "Linezolid",
    "Oxacillin",
-   "Trimethoprim/Sulfamethoxazole",
    "Vancomycin"
   ],
   "banned": [
@@ -13522,7 +13522,8 @@
   "warned": [
    "Ciprofloxacin",
    "Levofloxacin",
-   "Penicillin"
+   "Penicillin",
+   "Trimethoprim/Sulfamethoxazole"
   ]
  },
  "Blood|Staphylococcus aureus|xdr": {
@@ -50647,6 +50648,52 @@
   "phenotypes": [],
   "preg_warn": [],
   "qc_ids": [
+   "nobp_cefoperazone:Cefoperazone + Sulbactam"
+  ],
+  "warned": [
+   "Colistin",
+   "Trimethoprim/Sulfamethoxazole"
+  ]
+ },
+ "Sputum|Legionella pneumophila|intrinsic_violation": {
+  "allowed": [
+   "Amoxicillin + Clavulanic acid",
+   "Azithromycin",
+   "Ciprofloxacin",
+   "Clarithromycin",
+   "Doxycycline",
+   "Erythromycin",
+   "Levofloxacin",
+   "Minocycline",
+   "Tetracycline"
+  ],
+  "banned": [
+   "Amikacin",
+   "Ampicillin/Sulbactam",
+   "Cefepime",
+   "Cefoperazone + Sulbactam",
+   "Cefotaxime",
+   "Cefoxitin",
+   "Ceftazidime",
+   "Ceftriaxone",
+   "Cefuroxime",
+   "Ertapenem",
+   "Gentamicin",
+   "Imipenem/Cilastatin",
+   "Meropenem",
+   "Metronidazole",
+   "Piperacillin + Tazobactam"
+  ],
+  "dtr": null,
+  "esbl": null,
+  "esbl_conf": 0,
+  "mdr": null,
+  "mdr_cats": [],
+  "patho": "🟢 LIKELY CONTAMINANT / COLONIZER -- Do Not Treat",
+  "phenotypes": [],
+  "preg_warn": [],
+  "qc_ids": [
+   "intr_aerobes_nitroimidazoles:Metronidazole",
    "nobp_cefoperazone:Cefoperazone + Sulbactam"
   ],
   "warned": [

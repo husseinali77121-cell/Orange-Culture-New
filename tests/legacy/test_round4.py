@@ -269,12 +269,17 @@ check("every Avoid category the engine emits has an on-screen label", not _missi
 # ═══════════════════════════════════════════════════════════════════════════
 print("\n[9] Severity, syndrome, pathogenicity in pregnancy, disk codes, checklist")
 # ═══════════════════════════════════════════════════════════════════════════
-_sv = A.run_analysis(Patient(age_years=30, sex="Female", is_renal=True, cl_cr=None), "E. coli", "Urine",
-                     {"Ciprofloxacin": "S"})["severity"]
-check("renal flag with an UNKNOWN clearance makes a UTI complicated (was read as CrCl 95)",
-      _sv["suggested"] == "moderate" and any("Renal" in x for x in _sv["reasons"]), _sv)
-check("a man's UTI is a complicated UTI on the syndrome panel",
-      A.get_infection_syndrome("Urine", "E. coli", 40, False, sex="Male")["sub_type"] == "Complicated UTI")
+_ra = A.run_analysis(Patient(age_years=30, sex="Female", is_renal=True, cl_cr=None), "E. coli", "Urine",
+                     {"Ciprofloxacin": "S"})
+_sv = _ra["severity"]
+# v7.1 (IDSA cUTI 2025): renal impairment alone no longer makes a UTI
+# "complicated". The round-4 point -- an UNKNOWN clearance is not a normal
+# 95 ml/min -- still holds: the renal flag reaches the duration advice.
+check("renal flag with an UNKNOWN clearance still reaches the advice (not read as CrCl 95)",
+      _sv["suggested"] == "mild" and "Renal impairment" in (_ra["duration"].get("notes") or ""),
+      (_sv, _ra["duration"].get("notes")))
+check("a man's UTI has its own card (IDSA cUTI 2025: male sex alone is not 'complicated')",
+      A.get_infection_syndrome("Urine", "E. coli", 40, False, sex="Male")["sub_type"] == "UTI in men")
 check("age > 65 alone is no longer labelled 'Severe CAP'",
       "Severe" not in A.get_infection_syndrome("Sputum", "Streptococcus pneumoniae", 70, False)["sub_type"])
 check("the sidebar pregnancy flag reaches the pathogenicity engine",

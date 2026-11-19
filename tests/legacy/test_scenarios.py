@@ -222,7 +222,10 @@ def run_case(case: dict) -> dict:
                    "novel_agent", "organism_caution", "allergy", "uti_upper",
                    "aminoglycoside_pseudomonas", "colistin",
                    "penicillinase_unconfirmed", "no_breakpoint", "ampc_sdd",
-                   "ampc_cefepime"}
+                   "ampc_cefepime",
+                   # v6.9-v7.1 reasons (all resolved through `clinical_note`)
+                   "child_fq", "idsa_new_agent", "label_population",
+                   "legacy_breakpoint", "fq_low_level", "saureus_bsi_tmp_smx"}
     for _w in warned:
         _wr = _w.get("warning_reason")
         if _wr and _wr not in _RENDERABLE:
@@ -231,7 +234,7 @@ def run_case(case: dict) -> dict:
         if _wr in ("novel_agent", "organism_caution", "allergy", "uti_upper",
                    "aminoglycoside_pseudomonas", "colistin",
                    "penicillinase_unconfirmed", "no_breakpoint", "ampc_sdd",
-                   "ampc_cefepime") and not _w.get("clinical_note"):
+                   "ampc_cefepime", "saureus_bsi_tmp_smx") and not _w.get("clinical_note"):
             fail(cid, "INV-14 warning-is-renderable",
                  f"warning_reason={_wr!r} carries no clinical_note to show")
         if _wr in ("esbl_bli_uti_only", "possible_carbapenemase") and not (
