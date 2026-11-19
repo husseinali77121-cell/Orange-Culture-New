@@ -3,6 +3,7 @@
 """MDR / XDR / PDR classification (Magiorakos 2012)."""
 from typing import Any
 from typing import Dict
+from typing import List
 
 from cdss.ocr.ocr_parsing import normalize_sir_map
 from cdss.therapy.intrinsic import (
@@ -62,7 +63,7 @@ MDR_CATEGORIES = {
     "Glycylcyclines":          ["Tigecycline"],
     "Lipopeptides":            ["Daptomycin"],
     "Anti-MRSA Cephalosporins": ["Ceftaroline"],
-    "Fosfomycins":             ["Fosfomycin"],
+    "Fosfomycins":             ["Fosfomycin", "Fosfomycin IV"],
     "Tetracyclines":           ["Doxycycline", "Tetracycline", "Minocycline"],
     "Macrolides":              ["Azithromycin", "Clarithromycin", "Erythromycin"],
     "Lincosamides":            ["Clindamycin"],
@@ -465,6 +466,45 @@ def mdr_display_label(mdr_result: Dict[str, Any]) -> str:
         n = len(mdr_result.get("untested_categories") or [])
         label = f"Possible {label} ({n} categor{'y' if n == 1 else 'ies'} not tested)"
     return label
+
+def physician_mdr_level(mdr_result: Dict[str, Any]) -> str:
+    """The level a PHYSICIAN-facing report prints (v7.0, review 2026-11-19).
+
+    A provisional XDR/PDR ("possible XDR": not every category was tested) is
+    printed as MDR, which IS established (>= 3 categories non-susceptible).
+    "Possible XDR" stays on the screen and in the internal QA report, where
+    the untested categories are listed and can be acted on.
+    """
+    level = (mdr_result or {}).get("level") or ""
+    if level in ("XDR", "PDR") and (mdr_result or {}).get("provisional"):
+        return "MDR"
+    return level
+
+
+def physician_mdr_label(mdr_result: Dict[str, Any]) -> str:
+    level = physician_mdr_level(mdr_result)
+    return MDR_INFO.get(level, {}).get("label", level) if level else ""
+
+
+def physician_mdr_categories(mdr_result: Dict[str, Any], sir_map: Dict[str, Any],
+                             usable=None) -> List[str]:
+    """Non-susceptible categories, each marked with the agents in it that are still S.
+
+    "Aminoglycosides" in the resistant list beside gentamicin as the first
+    choice read as a contradiction; "Aminoglycosides (gentamicin S)" does not.
+    Magiorakos counts a category non-susceptible when ONE agent is I/R.
+    """
+    out: List[str] = []
+    for cat in (mdr_result or {}).get("resistant_categories") or []:
+        # `usable` (the advisory's allowed / caution names): only an agent the
+        # report actually offers is worth naming -- "Cefixime S" inside an ESBL
+        # category, or an uninterpretable cefoperazone-sulbactam, is not.
+        s_agents = [d for d in MDR_CATEGORIES.get(cat, [])
+                    if str((sir_map or {}).get(d, "")).strip().upper() == "S"
+                    and (usable is None or d in usable)]
+        out.append(f"{cat} ({', '.join(s_agents)} S)" if s_agents else cat)
+    return out
+
 
 MDR_INFO = {
     "MDR": {

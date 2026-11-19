@@ -18,6 +18,7 @@ ESBL_PRODUCERS = frozenset([
     "klebsiella pneumoniae", "klebsiella spp.", "klebsiella oxytoca",
     "proteus mirabilis", "proteus spp.", "proteus vulgaris",
     "enterobacter cloacae", "enterobacter spp.", "enterobacter aerogenes",
+    "klebsiella aerogenes",
     "citrobacter freundii", "citrobacter koseri", "citrobacter spp.",
     "serratia marcescens", "serratia spp.",
     "morganella morganii", "providencia spp.",
@@ -61,6 +62,7 @@ def is_esbl_producer(organism: str) -> bool:
 # Chromosomal inducible AmpC ("SPICE/SPACE") + P. aeruginosa + Hafnia.
 AMPC_PRODUCERS = frozenset([
     "enterobacter cloacae", "enterobacter spp.", "enterobacter aerogenes",
+    "klebsiella aerogenes",
     "citrobacter freundii", "citrobacter spp.",
     "serratia marcescens", "serratia spp.",
     "morganella morganii", "providencia spp.",
@@ -227,7 +229,7 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
             "detail": (
                 f"مقاومة كاربابينيم ({', '.join(carb_R_list) or 'Meropenem I'}) في "
                 "P. aeruginosa. الآلية الأشيع فقد/تقليل بورين OprD ± مضخات طرد "
-                "± AmpC مُحدَث — وليست إنزيم كاربابينيميز. لا يوجد في EUCAST "
+                "± AmpC مُحدَث — وليست إنزيم كاربابينيميز. لا يوجد في CLSI ولا EUCAST "
                 "خوارزمية معتمدة تفرّق بينهما من أقراص البيتا-لاكتام."
                 + (f"  \nلا يزال حسّاساً لـ: {', '.join(_active_bl)}."
                    if _active_bl else "")
@@ -235,7 +237,7 @@ def predict_esbl(organism: str, sir_map: Dict[str, str]) -> Dict[str, Any]:
             "detail_en": (
                 f"Carbapenem resistance ({', '.join(carb_R_list) or 'Meropenem I'}) in "
                 "P. aeruginosa. The commonest mechanism is OprD porin loss ± efflux ± derepressed "
-                "AmpC — not a carbapenemase. EUCAST has no validated algorithm that separates "
+                "AmpC — not a carbapenemase. Neither CLSI nor EUCAST has a validated algorithm that separates "
                 "them from beta-lactam disks."
                 + (f" Still susceptible to: {', '.join(_active_bl)}." if _active_bl else "")
             ),
