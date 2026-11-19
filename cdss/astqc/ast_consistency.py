@@ -132,27 +132,37 @@ EQUIVALENCE_RULES: List[Dict[str, Any]] = [
                    "or confirm with PBP2a latex agglutination or mecA PCR. "
                    "Report all beta-lactams as resistant until resolved."),
         "reference": "CLSI M100 Ed36 — cefoxitin as the mecA surrogate",
+        # error: the split decides every beta-lactam on the sheet and must be
+        # resolved before release (borderline / mecC strains are why, not a reason
+        # to report it as it stands).
+        "severity": "error",
     },
     {
         "id": "equiv_ctx_cro",
         "organisms": ENTEROBACTERALES,
         "a": "cefotaxime", "a_exclude": _INHIBITORS,
         "b": "ceftriaxone", "b_exclude": _INHIBITORS,
+        # v7.2 (second external review): "verify", not "error". Identical CLSI
+        # criteria make a split UNEXPECTED, but an MIC one dilution either side of
+        # the breakpoint, or a disk-zone reading, produces it without a lab fault.
+        "severity": "warning",
         "reason_ar": ("Cefotaxime و Ceftriaxone سيفالوسبورينان من الجيل الثالث "
-                      "بنفس الـ MIC breakpoints تماماً ضد الـ Enterobacterales، "
-                      "وكل الـ ESBL الشائعة تحلّلهما بنفس الكفاءة تقريباً. "
-                      "استحالة أن يكون أحدهما S والآخر R على نفس العزلة."),
+                      "بنفس الـ breakpoints ضد الـ Enterobacterales، "
+                      "والـ ESBL الشائعة تحلّلهما بكفاءة متقاربة: أن يكون أحدهما S والآخر R "
+                      "على نفس العزلة غير متوقَّع — راجِع وأعِد قبل الإبلاغ (قد يكون MIC على "
+                      "حافة الـ breakpoint أو قراءة zone)."),
         "reason_en": ("Cefotaxime and ceftriaxone are third-generation "
-                      "cephalosporins with identical MIC breakpoints against "
-                      "Enterobacterales, and every common ESBL hydrolyses them "
-                      "near-identically. One S and one R on the same isolate is "
-                      "not possible."),
-        "fix_ar": ("أعِد اختبار القرصين على نفس اللقاح. راجع: كثافة اللقاح "
+                      "cephalosporins with identical breakpoints against "
+                      "Enterobacterales, and common ESBLs hydrolyse them similarly. "
+                      "One S and one R on the same isolate is not expected - verify "
+                      "and repeat before reporting (an MIC at the breakpoint or a "
+                      "zone reading can produce it)."),
+        "fix_ar": ("أعِد اختبار القرصين على نفس اللقاح، ويُفضَّل MIC. راجع: كثافة اللقاح "
                    "(0.5 McFarland) · صلاحية الأقراص وتخزينها · قياس الـ zone "
-                   "(الحافة لا الظل) · نقاء المستعمرة. لا تُبلِّغ اللوحة قبل الحل."),
-        "fix_en": ("Repeat both disks from the same inoculum. Check: inoculum "
+                   "(الحافة لا الظل) · نقاء المستعمرة."),
+        "fix_en": ("Repeat both from the same inoculum, preferably by MIC. Check: inoculum "
                    "density (0.5 McFarland), disk potency and storage, zone edge "
-                   "reading, colony purity. Do not report until resolved."),
+                   "reading, colony purity."),
         "reference": "CLSI M100 Ed36 Table 2A (identical criteria) · EUCAST Breakpoint Tables v16.1",
     },
     {
@@ -161,21 +171,24 @@ EQUIVALENCE_RULES: List[Dict[str, Any]] = [
         # Two-token match so "sulbactam" does not also grab cefoperazone-sulbactam.
         "a_tokens": ["amoxicillin", "clav"],
         "b_tokens": ["ampicillin", "sulbactam"],
-        "reason_ar": ("Amoxicillin/Clavulanate و Ampicillin/Sulbactam هما نفس "
-                      "الأمينوبنسلين مع مثبّط بيتا-لاكتاماز من نفس الفئة (A)، "
-                      "ويتصرّفان بشكل شبه متطابق ضد الـ Enterobacterales. أن يكون "
-                      "أحدهما S والآخر R على نفس العزلة خطأ معملي لا نمط مقاومة."),
-        "reason_en": (
-            "VERIFY (not a hard error): sulbactam and clavulanate differ in potency and carry different breakpoints and dosing, so a split result is unusual rather than impossible. "
-            "Amoxicillin-clavulanate and ampicillin-sulbactam are the same "
-                      "aminopenicillin plus an equivalent class-A beta-lactamase "
-                      "inhibitor; against Enterobacterales they behave "
-                      "near-identically. One S and one R on the same isolate is a "
-                      "laboratory error, not a resistance pattern."),
-        "fix_ar": ("أعِد اختبار التركيبتين من نفس اللقاح؛ تحقّق من صلاحية الأقراص "
+        # v7.2 (second external review): "verify". The English already said a
+        # split is unusual rather than impossible while the Arabic called it a
+        # laboratory error; sulbactam and clavulanate differ in potency and the
+        # two carry different breakpoints and doses.
+        "severity": "warning",
+        "reason_ar": ("Amoxicillin/Clavulanate و Ampicillin/Sulbactam أمينوبنسلين مع مثبّط "
+                      "بيتا-لاكتاماز من الفئة (A)، ويتصرّفان بشكل متقارب ضد الـ Enterobacterales — "
+                      "لكن المثبّطين مختلفان في القوة، والـ breakpoints والجرعات مختلفة: "
+                      "S مع R نتيجة غير متوقعة تحتاج مراجعة، لا خطأ معملي مؤكد."),
+        "reason_en": ("Amoxicillin-clavulanate and ampicillin-sulbactam are an aminopenicillin "
+                      "with a class-A beta-lactamase inhibitor and behave similarly against "
+                      "Enterobacterales - but sulbactam and clavulanate differ in potency and "
+                      "the two carry different breakpoints and doses, so one S and one R is "
+                      "unexpected and needs verifying, not a proven laboratory error."),
+        "fix_ar": ("أعِد اختبار التركيبتين من نفس اللقاح (MIC لو متاح)؛ تحقّق من صلاحية الأقراص "
                    "وقراءة الـ zone قبل الإبلاغ."),
-        "fix_en": ("Repeat both combinations from the same inoculum; verify disk "
-                   "potency and zone reading before reporting."),
+        "fix_en": ("Repeat both combinations from the same inoculum (MIC if available); verify "
+                   "disk potency and zone reading before reporting."),
         "reference": "EUCAST Expert Rules v3.1 (2016) — laboratory-consistency check (no CLSI counterpart, none contradicts it)",
     },
 ]
@@ -218,16 +231,23 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
         "organisms": ENTEROBACTERALES,
         "better": "ertapenem", "better_exclude": [],
         "worse": "meropenem", "worse_needle_extra": "",
-        "reason_ar": ("Meropenem مقاوم بينما Ertapenem حسّاس — الاتجاه معكوس. "
+        # v7.2 (second external review): "verify", not "error". Unusual rather
+        # than impossible -- some carbapenemases (SME in Serratia, IMI / NMC-A in
+        # Enterobacter) hit imipenem / meropenem harder than ertapenem.
+        "severity": "warning",
+        "reason_ar": ("Meropenem مقاوم بينما Ertapenem حسّاس — الاتجاه غير المعتاد. "
                       "الإرتابينيم هو الأضعف أمام آليات مقاومة الكاربابينيم، "
                       "فالمعتاد هو العكس (Ertapenem-R مع Meropenem-S = "
-                      "OXA-48 أو فقد بورين، وهذا طبيعي)."),
-        "reason_en": ("Meropenem resistant with ertapenem susceptible is the wrong "
+                      "OXA-48 أو فقد بورين). نادر لكن ممكن (مثل SME في Serratia و IMI في "
+                      "Enterobacter): أكّد بـ MIC واختبار كاربابينيميز قبل الإبلاغ."),
+        "reason_en": ("Meropenem resistant with ertapenem susceptible is the unusual "
                       "way round. Ertapenem is the most labile carbapenem, so the "
                       "usual pattern is the reverse (ertapenem-R with meropenem-S "
-                      "= OXA-48 or porin loss, which is normal)."),
-        "fix_ar": "أعِد اختبار الكاربابينيمات وأكّد بـ MIC.",
-        "fix_en": "Repeat the carbapenems and confirm with an MIC method.",
+                      "= OXA-48 or porin loss). Rare but possible (e.g. SME in Serratia, "
+                      "IMI in Enterobacter): confirm by MIC and a carbapenemase test "
+                      "before reporting."),
+        "fix_ar": "أعِد اختبار الكاربابينيمات وأكّد بـ MIC، واطلب اختبار كاربابينيميز (mCIM / CARBA-5).",
+        "fix_en": "Repeat the carbapenems, confirm with an MIC method and test for a carbapenemase (mCIM / CARBA-5).",
         "reference": "CLSI M100 Ed36 Tables 3B / 3C · EUCAST Guidance on detection of resistance mechanisms",
     },
     {
@@ -454,10 +474,15 @@ def _worse_than(a: Optional[str], b: Optional[str]) -> bool:
 def check_consistency(organism: str, sir_map: Dict[str, str]) -> List[Dict[str, Any]]:
     """Find results on this panel that contradict each other.
 
-    Every issue is an `error`, not a warning: unlike a missing breakpoint (which
-    produces a meaningless result), a discrepancy means one of two printed
-    results is actively WRONG — and there is no way to tell from the report
-    which one. A clinician reading the S has no signal that anything is amiss.
+    Severity is set PER RULE (v7.2, second external review). `error` = a
+    logical impossibility (an inhibitor cannot reduce activity; the CLSI
+    predictive rules) or a split that decides every beta-lactam on the sheet
+    (oxacillin / cefoxitin): one printed result is wrong and the panel is not
+    released until it is resolved. `warning` ("verify") = two agents expected to
+    agree that need not always (cefotaxime / ceftriaxone near the breakpoint,
+    amoxicillin-clavulanate / ampicillin-sulbactam), or an unusual direction a
+    rare mechanism produces (meropenem-R / ertapenem-S): confirm, preferably by MIC.
+    Unusual combinations are warnings; exceptional phenotypes carry no severity.
     """
     if not sir_map or not organism:
         return []
@@ -478,10 +503,11 @@ def check_consistency(organism: str, sir_map: Dict[str, str]) -> List[Dict[str, 
         # S vs R only. S vs I is a one-step drift that ordinary technical
         # variation explains — flagging it would bury the real signal.
         if {va, vb} == {"S", "R"}:
+            _sev = rule.get("severity", "error")
             issues.append({
                 "id": f'{rule["id"]}:{da}|{db}',
-                "category": "discrepancy",
-                "severity": "error",
+                "category": "discrepancy" if _sev == "error" else "verify",
+                "severity": _sev,
                 "drugs": [da, db],
                 "results": {da: va, db: vb},
                 "reason_ar": rule["reason_ar"], "reason_en": rule["reason_en"],
@@ -506,10 +532,11 @@ def check_consistency(organism: str, sir_map: Dict[str, str]) -> List[Dict[str, 
             continue
         if _worse_than(sir_map[d_worse], sir_map[d_better]) and \
                 sir_map[d_better] == "S" and sir_map[d_worse] == "R":
+            _sev = rule.get("severity", "error")
             issues.append({
                 "id": f'{rule["id"]}:{d_better}|{d_worse}',
-                "category": "discrepancy",
-                "severity": "error",
+                "category": "discrepancy" if _sev == "error" else "verify",
+                "severity": _sev,
                 "drugs": [d_better, d_worse],
                 "results": {d_better: sir_map[d_better], d_worse: sir_map[d_worse]},
                 "reason_ar": rule["reason_ar"], "reason_en": rule["reason_en"],
@@ -576,6 +603,9 @@ def format_issue(issue: Dict[str, Any], lang: str = "ar") -> Dict[str, str]:
     if issue.get("category") == "unusual":
         head = ("⚠️ **نمط نادر — أكّد قبل الإصدار** — " if lang == "ar"
                 else "⚠️ **Unusual combination — confirm before release** — ")
+    elif issue.get("category") == "verify":
+        head = ("🟠 **نتيجة غير متوقعة — راجِع وأكّد** — " if lang == "ar"
+                else "🟠 **Unexpected result — verify and confirm** — ")
     else:
         head = ("🔴 **تناقض في اللوحة — أعِد الاختبار** — " if lang == "ar"
                 else "🔴 **Panel discrepancy — repeat testing** — ")
