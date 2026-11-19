@@ -124,7 +124,8 @@ def run_analysis(
     # complicated. With no explicit choice the engine now treats it as one --
     # the same rule the UI applies (therapy_rules.resolve_uti_syndrome).
     # v7.2 (second external review): complicated, not pyelonephritis -- "cuti".
-    if uti_syndrome is None and case.cuti_device:
+    # v7.3 (third review): a device keeps an explicit "lower" complicated too.
+    if uti_syndrome in (None, "lower") and case.cuti_device:
         uti_syndrome = "cuti"
 
     allowed, warned, banned, preg_warn, interactions = analyze_antibiotics(
