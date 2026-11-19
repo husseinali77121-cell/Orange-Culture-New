@@ -4,8 +4,10 @@
 
 Decision D1 (2026-11-14) made CLSI M100 Ed36 the reference for everything.
 Forty-one rows of the guideline registry still name a EUCAST document as their
-source, because that is where they were first checked. This table records, row
-by row, which of three things is true -- and the test suite fails if a
+source, because that is where they were first checked. This table has 42
+entries: those 41, plus nobp_cefoperazone, which was CONVERTED and now cites
+CLSI M100 (v7.2: the header said 41 and the table held 42). It records, row by
+row, which of three things is true -- and the test suite fails if a
 EUCAST-sourced row has no entry here, so a new one cannot slip in silently.
 
   CLSI_CONCORDANT  CLSI states the same rule. The rule stays exactly as it is
@@ -164,8 +166,9 @@ AUDIT: Dict[str, Dict[str, str]] = {
     "equiv_ctx_cro": _c("CLSI M100 Ed36 Table 2A (identical criteria)",
                         "Cefotaxime and ceftriaxone share the same CLSI criteria."),
     "equiv_amc_sam": _e(
-        "A laboratory-consistency check (a split result is a reading error). CLSI has no "
-        "statement either way. Kept: it catches transcription errors."),
+        "A laboratory-consistency check (a split result is unexpected - verify; v7.2 "
+        "severity 'warning'). CLSI has no statement either way. Kept: it catches "
+        "transcription and reading errors."),
     "hier_amp_vs_amc": _e(
         "Logic, not a breakpoint: adding an inhibitor cannot lower activity. No CLSI "
         "counterpart is needed and none contradicts it."),

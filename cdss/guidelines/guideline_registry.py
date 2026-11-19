@@ -122,6 +122,20 @@ SOURCES: Dict[str, Dict[str, str]] = {
                  "still has to be read by the countersigning clinician."),
         "url": "https://www.idsociety.org/practice-guideline/amr-guidance/",
     },
+    "IDSA_CUTI": {
+        # v7.2 (second external review 2026-11-19): the program has cited "IDSA
+        # cUTI 2025" in the UTI rules since v6.9 without a source entry.
+        "title": "IDSA Complicated Urinary Tract Infections (cUTI): Clinical Guidelines "
+                 "for Treatment and Management",
+        "version": "2025 (first edition)",
+        "dated": "2025-07",
+        "note": ("SECONDARY, pending the countersigning clinician: read from published "
+                 "summaries (emDocs 2025). Used for: catheter / nephrostomy / stent or "
+                 "obstruction makes a UTI complicated; fever, flank pain, rigors = beyond "
+                 "the bladder; nitrofurantoin and oral fosfomycin 'generally not "
+                 "appropriate' for cUTI; shorter courses (7 days with prompt response)."),
+        "url": "https://www.idsociety.org/practice-guideline/complicated-urinary-tract-infections/",
+    },
     "WHO_AWARE": {
         "title": "WHO AWaRe (Access, Watch, Reserve) classification of antibiotics "
                  "for evaluation and monitoring of use",
@@ -778,21 +792,22 @@ RULES: Dict[str, Dict[str, Any]] = {
     },
     "equiv_ctx_cro": {
         "assertion": "Cefotaxime and ceftriaxone share MIC breakpoints against "
-                     "Enterobacterales and are hydrolysed near-identically by common "
-                     "ESBLs; one S and one R on the same isolate is a laboratory error.",
+                     "Enterobacterales and are hydrolysed similarly by common ESBLs; "
+                     "one S and one R on the same isolate is unexpected and is "
+                     "verified (repeat, preferably by MIC) before reporting.",
         "source": "EUCAST_BP", "locus": "Enterobacterales; CLSI M100 Table 2A",
         "verified": "secondary", "checked_by": _AI, "checked_on": "2026-07-22",
         "countersigned_by": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03",
-        "note": 'Cefotaxime and ceftriaxone share Enterobacterales breakpoints in both EUCAST and CLSI. Treated as a VERIFY flag rather than a hard error, since rare enzyme-specific discordance exists.',
+        "note": 'Cefotaxime and ceftriaxone share Enterobacterales breakpoints in both EUCAST and CLSI. Treated as a VERIFY flag rather than a hard error, since rare enzyme-specific discordance exists. v7.2: the code now says so too (severity "warning"); it had emitted an error.',
     },
     "equiv_amc_sam": {
         "assertion": "Amoxicillin-clavulanate and ampicillin-sulbactam behave "
-                     "near-identically against Enterobacterales; a split result is a "
-                     "laboratory error, not a resistance pattern.",
+                     "similarly against Enterobacterales; a split result is unexpected "
+                     "and is verified before reporting.",
         "source": "EUCAST_EXPERT", "locus": "beta-lactam interpretive rules",
         "verified": "secondary", "checked_by": _AI, "checked_on": "2026-07-22",
         "countersigned_by": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03",
-        "note": 'DOWNGRADED to a verify-flag this round. Sulbactam and clavulanate differ in potency and carry different breakpoints and dosing, so a split result is unusual rather than impossible.',
+        "note": 'DOWNGRADED to a verify-flag this round. Sulbactam and clavulanate differ in potency and carry different breakpoints and dosing, so a split result is unusual rather than impossible. v7.2: the code now emits it as a warning and the Arabic text no longer calls it a laboratory error.',
     },
     "hier_amp_vs_amc": {
         "assertion": "Ampicillin S with amoxicillin-clavulanate R is impossible — "
@@ -812,13 +827,15 @@ RULES: Dict[str, Dict[str, Any]] = {
     },
     "hier_mem_vs_etp": {
         "recheck": "EUCAST v16.1 -- carbapenem breakpoints under active review after a second consultation; re-read when it closes.",
-        "assertion": "Meropenem R with ertapenem S is the wrong way round; ertapenem "
+        "assertion": "Meropenem R with ertapenem S is the unusual way round; ertapenem "
                      "is the most labile carbapenem, so the usual pattern is the "
-                     "reverse (ertapenem-R with meropenem-S = OXA-48 or porin loss).",
+                     "reverse (ertapenem-R with meropenem-S = OXA-48 or porin loss). "
+                     "It is verified by MIC and a carbapenemase test, not called a "
+                     "laboratory error.",
         "source": "EUCAST_EXPERT", "locus": "carbapenem interpretive rules",
         "verified": "secondary", "checked_by": _AI, "checked_on": "2026-07-22",
         "countersigned_by": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03",
-        "note": 'Ertapenem is the most labile carbapenem; the ertapenem-R/meropenem-S direction is the recognised OXA-48 or porin-loss signature. The reverse warrants a repeat.',
+        "note": 'Ertapenem is the most labile carbapenem; the ertapenem-R/meropenem-S direction is the recognised OXA-48 or porin-loss signature. The reverse warrants a repeat. v7.2 (second external review): a warning ("verify"), not an error -- SME (Serratia) and IMI / NMC-A (Enterobacter) can produce it.',
     },
     "hier_tet_vs_doxy": {
         "assertion": "Tetracycline S predicts doxycycline/minocycline S; the reverse "
