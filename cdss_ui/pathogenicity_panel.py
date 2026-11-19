@@ -28,11 +28,11 @@ def _patho_age(page) -> float:
     """Age in years with the months the UI collects for infants (v7.1): the
     pathogenicity rules split under 2 months / 2-24 months (AAP 2021 / 2011).
     v7.2: the days, when entered for an infant under 2 months (first week /
-    8-60 days)."""
+    8-60 days). v7.3: up to 2 months -- the 60 / 61-day boundary."""
     from cdss.common.clinical_utils import resolve_age_years
     _days = getattr(page, "age_days", None)
     _m = getattr(page, "age_months", None)
-    if _days is not None and _m is not None and _m < 2:
+    if _days is not None and _m is not None and _m <= 2:
         try:
             return float(_days) / 365.25
         except (TypeError, ValueError):

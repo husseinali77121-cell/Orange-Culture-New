@@ -192,6 +192,8 @@ def prepare_report_inputs(page):
         page.strategy_l.append("TDM: levels, not CrCl (low muscle mass)")
 
     page.notes: List[str] = []
+    if getattr(page, "uti_note", ""):
+        page.notes.append(page.uti_note)
     if _withheld:
         page.notes.append(f"No antibiotic treatment indicated -- {_gate['reason_en']}")
     elif _gate:
@@ -304,7 +306,7 @@ def render_text_report(page):
     page._rpt_input_hash = hashlib.md5(
         f"{page._pt}|{page.age}|{page.age_months}|{page.sex}|{page.weight}|{page.cl_cr}|{page.is_renal}|{page.is_preg}|{page.is_hepatic}"
         f"|{page._child_pugh_now}|{sorted(page.current_meds or [])}|{sorted(page.allergies or [])}"
-        f"|{page._carb_type_now}|{page._uti_syn_now}"
+        f"|{page._carb_type_now}|{page._uti_syn_now}|{getattr(page, 'uti_note', '')}"
         f"|{page.organism_type}|{page.culture_type}|{page.colony_count}|{page.date_in}"
         f"|{page.pus_cells_text}|{page.rbcs_text}|{str(sorted(page.sir_map.items()))}"
         f"|{_bsig(page.allowed)}|{_bsig(page.warned)}|{_bsig(page.banned)}|{_bsig(page.preg_warn_items)}"
@@ -333,6 +335,7 @@ def render_text_report(page):
             show_commercial_names=page.show_commercial,
             case=getattr(page, "case", None),
             treatment_gate=getattr(page, "treatment_gate", None),
+            uti_note=getattr(page, "uti_note", ""),
         )
         st.session_state._rpt_text = _new_report
         st.session_state._rpt_hash = page._rpt_input_hash

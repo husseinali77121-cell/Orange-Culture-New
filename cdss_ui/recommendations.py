@@ -10,6 +10,7 @@ import streamlit as st
 from cdss.common.catalog import AWARE_COLORS
 from cdss.common.util import get_route_label
 from cdss.organisms.pathogenicity import gate_suppresses
+from cdss_ui.state import treat_override_key
 from cdss.stewardship.ranking import rank_sensitive_antibiotics
 from cdss.stewardship.ranking import route_label
 from cdss.stewardship.syndrome import get_infection_syndrome
@@ -33,7 +34,8 @@ def render_treatment_gate(page) -> bool:
     st.error(f"🚫 **لا يوجد داعٍ لمضاد حيوي — تقييم الـ Pathogenicity:** {_gate['verdict']}  \n"
              f"{_gate['reason_ar']}")
     st.checkbox("أنا الطبيب المعالج: اعرض الخيارات رغم ذلك (قرار إكلينيكي مختلف — يُطبع في "
-                "التقرير)", key=f"treat_override_chk_{_gate['category']}")
+                "التقرير)", key=treat_override_key(),
+                help="الموافقة مرتبطة بهذا التقييم: أي تغيير في المدخلات أو تقييم جديد يلغيها.")
     if gate_suppresses(_gate):
         page.ranked = []
         st.caption(f"الخيارات المحسوبة مخفية ولا تُطبع في التقارير: {len(page.allowed)} مسموح · "

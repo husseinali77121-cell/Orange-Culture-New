@@ -16,9 +16,38 @@ from cdss.pipeline import run_analysis
 from cdss.resistance.mdr import classify_mdr
 from cdss.resistance.mechanism import predict_esbl
 from cdss.therapy.therapy_rules import normalize_carbapenemase_type
-from cdss.therapy.therapy_rules import resolve_uti_syndrome
+from cdss.therapy.therapy_rules import classify_uti
 from cdss.organisms.pathogenicity import treatment_gate
-from cdss_ui.state import current_patho_result
+from cdss_ui.state import current_patho_result, treat_override_key
+
+
+def _resolve_uti(page):
+    """(engine value, note for the reports) for the UTI syndrome -- v7.3.
+
+    Third external review: a manual "cystitis" / "cUTI without fever" choice
+    no longer silences fever, flank pain or rigors. When they disagree the page
+    says so and treats the UTI as upper unless the physician confirms a
+    non-urinary source -- and that confirmation is printed.
+    """
+    if classify_specimen(page.culture_type) != "urine":
+        return classify_uti(page.uti_syndrome_choice, [], False).value, ""
+    _sym = st.session_state.get("patho_symptoms") or []
+    _dev = page.case.cuti_device
+    uc = classify_uti(page.uti_syndrome_choice, _sym, catheter=_dev)
+    if not uc.conflict:
+        return uc.value, ""
+    _picked = "التهاب مثانة" if "مثانة" in str(page.uti_syndrome_choice) else "cUTI بلا حمى"
+    st.warning(f"⚠️ اخترت «{_picked}» لكن الأعراض المُدخلة فيها حمى / ألم خاصرة / رعشة — "
+               "البرنامج بيتعامل معها كالتهاب حويضة (أدوية المثانة ممنوعة) إلا لو أكّدت إن "
+               "مصدرها غير بولي.")
+    _ok = st.checkbox("أؤكد إكلينيكياً: الحمى / الأعراض من مصدر غير بولي — اعتمد اختياري "
+                      "(يُطبع في التقرير)", key=f"uti_nonurinary_ok_{page._fh}")
+    uc = classify_uti(page.uti_syndrome_choice, _sym, catheter=_dev, confirm_non_urinary=_ok)
+    if uc.confirmed:
+        return uc.value, (f"UTI: physician kept '{'cystitis' if uc.value == 'lower' else 'cUTI'}' "
+                          "despite fever / flank pain / rigors (non-urinary source confirmed)")
+    return uc.value, ("UTI: fever / flank pain / rigors entered - treated as pyelonephritis "
+                      "(the manual cystitis / cUTI choice was not confirmed)")
 
 
 def run_case_analysis(page):
@@ -58,9 +87,7 @@ def run_case_analysis(page):
         weight_kg=getattr(page, "weight", None),
     )
     page._carb_type_now = normalize_carbapenemase_type(page.carbapenemase_choice)
-    page._uti_syn_now = resolve_uti_syndrome(page.uti_syndrome_choice,
-                                        st.session_state.get("patho_symptoms") or [],
-                                        catheter=page.case.cuti_device)
+    page._uti_syn_now, page.uti_note = _resolve_uti(page)
     st.session_state["carb_type_now"] = page._carb_type_now
     # page.aux_tests (D-test / penicillinase) ride in the panel; run_analysis()
     # hands them to the therapy rules and strips them for every other step.
@@ -69,9 +96,11 @@ def run_case_analysis(page):
     # verdict (asymptomatic bacteriuria, contaminant, colonisation, rejected
     # sputum) reaches the advice. Only a CURRENT result counts (not one left
     # over from other inputs); the physician's override is per verdict.
+    # v7.3 (third review): the override belongs to THIS assessment -- its key
+    # carries the input signature, so a new assessment asks again.
     _patho_now = current_patho_result()
     _g0 = treatment_gate(_patho_now)
-    _override = bool(_g0 and st.session_state.get(f"treat_override_chk_{_g0['category']}"))
+    _override = bool(_g0 and st.session_state.get(treat_override_key()))
     _res = run_analysis(_patient, page.organism_type, page.culture_type,
                         {**getattr(page, "sir_map_raw", page.sir_map), **page.aux_tests},
                         drugs=page.final_drugs, carbapenemase_type=page._carb_type_now,
@@ -86,8 +115,7 @@ def run_case_analysis(page):
         # COMPLICATED UTI, not a pyelonephritis.
         st.info("🫘 cUTI (قسطرة / حصوة / دعامة / nephrostomy) بلا حمى ولا ألم خاصرة — ليست "
                 "التهاب حويضة. أدوية المثانة فقط (Nitrofurantoin، Fosfomycin الفموي، Norfloxacin) "
-                "في قائمة الحذر: IDSA cUTI 2025 يعتبرها «غير مناسبة عادةً» للـ cUTI. لو فيه حمى أو "
-                "ألم خاصرة اختر «التهاب حويضة» من UTI syndrome.")
+                "في قائمة الحذر: IDSA cUTI 2025 يعتبرها «غير مناسبة عادةً» للـ cUTI.")
     page.allowed              = _res["allowed"]
     page.warned               = _res["warned"]
     page.banned               = _res["banned"]

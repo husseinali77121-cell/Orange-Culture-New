@@ -221,12 +221,15 @@ def render_patient(page):
         # v7.2 (second external review): under 2 months the urine rules split by
         # DAYS (first week / 8-60 days, AAP 2021) -- months alone cannot place them.
         page.age_days = None
-        if page.age_months < 2:
+        # v7.3 (third review): up to 2 months -- "2 months" is 60 or 61+ days, and
+        # AAP 2021 (8-60 days) vs AAP 2011 (2-24 months) splits exactly there.
+        if page.age_months <= 2:
             page.age_days = st.number_input(
-                "Age (days)", min_value=0, max_value=60,
-                value=14 if page.age_months == 0 else 45, step=1,
+                "Age (days)", min_value=0, max_value=91,
+                value={0: 14, 1: 45}.get(page.age_months, 75), step=1,
                 key=f"age_days_{page._fh}_{page.age_months}",
-                help="لعتبات البول عند الرضيع: الأسبوع الأول خارج AAP، و8–60 يوم = AAP 2021.")
+                help="لعتبات البول عند الرضيع: الأسبوع الأول خارج AAP، 8–60 يوم = AAP 2021 "
+                     "(للرضيع المحموم)، وبعد 60 يوم = AAP 2011.")
         # v7.2: the caption said "any colony count is significant" for every
         # infant -- the engine applies the AAP catheter / SPA figure with pyuria.
         st.caption(f"👶 رضيع {page.age_months} شهر -- يُقيَّم إكلينيكياً كعمر 0 سنة. "

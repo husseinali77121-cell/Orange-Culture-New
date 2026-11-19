@@ -66,7 +66,7 @@ def _render_patho_result(patho_result: dict) -> None:
     if "MW_ADEQUATE" in flags:
         st.success("🧪 **Specimen quality: Adequate** -- Murray-Washington (WBC≥25, Epi<10/LPF).")
     if "SIRS_HIGH" in flags:
-        st.error("🌡️ **SIRS ≥3 criteria -- Sepsis probable**")
+        st.warning("🌡️ **SIRS ≥3 -- marked systemic inflammatory response** -- الـ sepsis يحتاج خلل وظيفي في الأعضاء (Sepsis-3 / SOFA)، مش معايير SIRS لوحدها")
     if "CSF_ALWAYS_SIGNIFICANT" in flags:
         st.error("🧠 **Sterile site (CSF) -- growth of this organism is clinically significant**")
     if "CSF_SKIN_FLORA" in flags:

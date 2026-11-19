@@ -154,3 +154,10 @@ def current_patho_result():
     if st.session_state.get("patho_stale"):
         return None
     return st.session_state.get("patho_result")
+
+
+def treat_override_key() -> str:
+    """v7.3 (third review): the physician's "show the options anyway" belongs to ONE
+    assessment. The key carries the signature of the inputs that produced it, so a
+    new assessment (other inputs) starts unticked and asks again."""
+    return "treat_override_chk_" + str(st.session_state.get("patho_sig") or "none")[:16]
