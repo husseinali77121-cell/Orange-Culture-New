@@ -170,9 +170,11 @@ AUDIT: Dict[str, Dict[str, str]] = {
         "severity 'warning'). CLSI has no statement either way. Kept: it catches "
         "transcription and reading errors."),
     "hier_amp_vs_amc": _e(
-        "Logic, not a breakpoint: adding an inhibitor cannot lower activity. No CLSI "
-        "counterpart is needed and none contradicts it."),
-    "hier_pip_vs_tzp": _e("Same logic as hier_amp_vs_amc."),
+        "Logic, not a breakpoint: adding an inhibitor does not lower activity. No CLSI "
+        "counterpart is needed and none contradicts it. v7.3: a verify flag (warning), "
+        "as the registry row says."),
+    "hier_pip_vs_tzp": _e("Same logic as hier_amp_vs_amc; the CLSI pip-tazo and "
+                          "piperacillin breakpoints differ, so verify (warning)."),
     "hier_mem_vs_etp": _e(
         "Mechanism logic (ertapenem is the most labile carbapenem). CLSI uses the same "
         "fact for carbapenemase screening; no contradiction."),
@@ -184,7 +186,8 @@ AUDIT: Dict[str, Dict[str, str]] = {
     "hier_pen_vs_cro_pneumococcus": _c(
         "CLSI M100 Ed36 Table 2G",
         "CLSI: penicillin-susceptible pneumococci can be considered susceptible to "
-        "ceftriaxone."),
+        "ceftriaxone. v7.3: a verify flag -- a non-meningitis penicillin S (MIC <= 2) "
+        "with a meningitis ceftriaxone R is possible."),
     "hier_pen_vs_ctx_pneumococcus": _c("CLSI M100 Ed36 Table 2G",
                                        "Same for cefotaxime."),
     "QC003": _e(

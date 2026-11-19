@@ -741,10 +741,11 @@ RULES: Dict[str, Dict[str, Any]] = {
 
     # ── Internal consistency (ast_consistency) ───────────────────────────────
     "equiv_oxa_fox": {
-        "assertion": "Oxacillin and cefoxitin are surrogate readings of the same "
-                     "mecA/mecC mechanism in staphylococci; discordance between "
-                     "them means one disk is wrong, and cefoxitin is the more "
-                     "reliable predictor.",
+        "assertion": "Oxacillin and cefoxitin both report methicillin resistance "
+                     "(mecA/mecC) in staphylococci; a split is a discrepancy to "
+                     "resolve before release (mecC strains typically read cefoxitin-R "
+                     "/ oxacillin-S) and cefoxitin, the CLSI mecA surrogate, takes "
+                     "precedence. Confirmation must detect mecC as well as mecA.",
         "source": "CLSI_M100", "locus": "M100 Ed36 Table 2C — cefoxitin as mecA surrogate",
         "verified": "secondary", "checked_by": _AI, "checked_on": "2026-07-27",
         "countersigned_by": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03",
@@ -810,20 +811,22 @@ RULES: Dict[str, Dict[str, Any]] = {
         "note": 'DOWNGRADED to a verify-flag this round. Sulbactam and clavulanate differ in potency and carry different breakpoints and dosing, so a split result is unusual rather than impossible. v7.2: the code now emits it as a warning and the Arabic text no longer calls it a laboratory error.',
     },
     "hier_amp_vs_amc": {
-        "assertion": "Ampicillin S with amoxicillin-clavulanate R is impossible — "
-                     "adding a beta-lactamase inhibitor cannot reduce activity.",
+        "assertion": "Ampicillin S with amoxicillin-clavulanate R is unexpected — "
+                     "adding a beta-lactamase inhibitor does not normally reduce "
+                     "activity; it is verified (repeat / MIC) before reporting.",
         "source": "EUCAST_EXPERT", "locus": "beta-lactam hierarchy",
         "verified": "secondary", "checked_by": _AI, "checked_on": "2026-07-22",
         "countersigned_by": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03",
-        "note": 'Adding a beta-lactamase inhibitor cannot reduce activity, so the pattern indicates a testing error. Kept as a verify-flag.',
+        "note": 'Adding a beta-lactamase inhibitor cannot reduce activity, so the pattern indicates a testing error. Kept as a verify-flag. v7.3 (third external review): the engine now emits it as a warning; it had raised a hard error against this row.',
     },
     "hier_pip_vs_tzp": {
-        "assertion": "Piperacillin S with piperacillin-tazobactam R is impossible, "
-                     "for the same reason.",
+        "assertion": "Piperacillin S with piperacillin-tazobactam R is unexpected, "
+                     "for the same reason, and is verified (repeat / MIC); the two "
+                     "carry different breakpoints.",
         "source": "EUCAST_EXPERT", "locus": "beta-lactam hierarchy",
         "verified": "secondary", "checked_by": _AI, "checked_on": "2026-07-22",
         "countersigned_by": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03",
-        "note": 'Same logic as hier_amp_vs_amc. Rare tazobactam inoculum effects are described, so verify rather than declare impossible.',
+        "note": 'Same logic as hier_amp_vs_amc. Rare tazobactam inoculum effects are described, so verify rather than declare impossible. v7.3: emitted as a warning, as this row says (it was an error).',
     },
     "hier_mem_vs_etp": {
         "recheck": "EUCAST v16.1 -- carbapenem breakpoints under active review after a second consultation; re-read when it closes.",
@@ -839,7 +842,9 @@ RULES: Dict[str, Dict[str, Any]] = {
     },
     "hier_tet_vs_doxy": {
         "assertion": "Tetracycline S predicts doxycycline/minocycline S; the reverse "
-                     "combination is a reading error.",
+                     "combination is a reading error. v7.3: applied only to the groups "
+                     "whose CLSI tables carry the note (Enterobacterales, Acinetobacter, "
+                     "staphylococci, enterococci, streptococci).",
         "source": "EUCAST_EXPERT", "locus": "tetracycline interpretive rules",
         "verified": "source", "checked_by": _AI, "checked_on": "2026-07-22",
         "countersigned_by": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03",
