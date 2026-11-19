@@ -6,9 +6,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from cdss.common.renal import (
-    resolve_crcl,
-)
 from cdss.common.specimen import (
     classify_specimen,
 )
@@ -60,29 +57,27 @@ def suggest_severity(
 
     # ── Specimen-specific logic ────────────────────────────────────────────
     if _cat == "urine":
-        # IDSA: complicated UTI = male, pregnant, elderly, renal, catheter
-        if sex == "Male":
-            reasons_moderate.append("Male UTI -> complicated (IDSA cUTI 2025)")
+        # v7.1 (review 2026-11-19): IDSA cUTI 2025 defines a complicated UTI by
+        # infection beyond the bladder (fever, systemic signs, bacteraemia, flank
+        # pain) or a urinary catheter, intermittent catheterisation, stent or
+        # nephrostomy -- and says diabetes, immunocompromise, male sex and
+        # urologic abnormalities "no longer automatically make a UTI
+        # complicated". This block called male, age >= 65, renal impairment,
+        # diabetes and reflux "complicated (IDSA cUTI 2025)". They still shape
+        # the choice of agent (renal dosing, prostate penetration) and the
+        # duration (men: 7 days) -- elsewhere, not as "complicated".
         if is_preg:
-            reasons_moderate.append("Pregnancy -> complicated UTI")
-        if age >= 65:
-            reasons_moderate.append("Age ≥ 65 -> complicated UTI")
-        _eff, _meas = resolve_crcl(cl_cr, is_renal)
-        if is_renal and _eff is not None and _eff < 60:
-            reasons_moderate.append(
-                f"Renal impairment (CrCl {_eff:.0f}"
-                f"{'' if _meas else ', assumed'}) -> complicated")
-        # v6.7: structural / functional abnormality makes a UTI complicated
-        # (IDSA cUTI 2025) -- obstruction, stone, stent, reflux, neurogenic bladder.
-        if any(k in " ".join(hf) for k in ["catheter", "urologic", "diabetes", "obstruction",
-                                           "stone", "stent", "reflux", "renal abnormality",
-                                           "neurogenic", "parapleg", "quadripleg", "tetrapleg"]):
-            reasons_moderate.append("Host risk factor (DM / catheter / urologic anomaly)")
-        if any(k in " ".join(syms) for k in ["fever", "flank pain", "costovertebral"]):
-            reasons_moderate.append("Upper UTI symptoms -> pyelonephritis")
+            reasons_moderate.append("Pregnancy -> managed as its own category (IDSA ASB 2019 / ACOG)")
+        if any(k in " ".join(hf) for k in ["catheter", "stent", "stone", "nephrostomy",
+                                           "conduit"]):
+            reasons_moderate.append("Urinary catheter / stent / stone -> complicated UTI "
+                                    "(IDSA cUTI 2025)")
+        if any(k in " ".join(syms) for k in ["fever", "flank", "loin", "costovertebral"]):
+            reasons_moderate.append("Upper UTI / systemic signs -> complicated UTI (IDSA cUTI 2025)")
         if not reasons_moderate and not reasons_severe:
-            if sex == "Female" and age < 65 and not is_preg and not is_renal:
-                reasons_mild.append("Young healthy female -> uncomplicated cystitis (IDSA/ESCMID 2011)")
+            reasons_mild.append("No sign beyond the bladder and no catheter -> cystitis "
+                                "(IDSA cUTI 2025: male sex, age, diabetes and renal impairment "
+                                "do not by themselves make a UTI complicated)")
 
     elif _cat == "sputum":
         # CURB-65 proxy: Age ≥65, renal, altered mentation

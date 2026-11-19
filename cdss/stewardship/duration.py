@@ -33,17 +33,46 @@ from cdss.common.specimen import (
 # not a real citation.
 TREATMENT_DURATION_DB: Dict[str, Any] = {
     "UTI_uncomplicated_female": {
-        "label": "Uncomplicated cystitis (Female)",
+        "label": "Uncomplicated cystitis",
         "days": (1, 7), "standard": 5, "iv_days": 0, "po_days": 5,
         "notes": "Agent-dependent: Nitrofurantoin 5d | TMP-SMX 3d | Fosfomycin 3 g single dose | "
-                 "beta-lactam 3-7d.",
-        "follow_up_culture": False, "ref": "IDSA/ESCMID uncomplicated cystitis 2011",
+                 "aminoglycoside single dose | beta-lactam 3-7d.",
+        "follow_up_culture": False,
+        "ref": "IDSA/ESCMID uncomplicated cystitis 2011 · IDSA AMR Guidance 2026",
+    },
+    # v7.1 (review 2026-11-19): IDSA cUTI 2025 -- male sex does not by itself
+    # make a UTI complicated. Afebrile UTI in men: 7 days (Drekonja, JAMA 2021).
+    "UTI_male": {
+        "label": "UTI in men (no sign beyond the bladder)",
+        "days": (7, 14), "standard": 7, "iv_days": 0, "po_days": 7,
+        "notes": "7d (non-inferior to 14d in afebrile men, Drekonja JAMA 2021). Fever, perineal / "
+                 "pelvic pain or recurrence -> consider prostatitis (10-14d, an agent that "
+                 "reaches the prostate: FQ or TMP-SMX).",
+        "follow_up_culture": False, "ref": "IDSA cUTI Guideline 2025 · Drekonja 2021 (JAMA)",
+    },
+    # v7.1: pregnancy had no row and fell to "Complicated UTI (incl. men,
+    # catheter-associated)" through the severity flag.
+    "UTI_pregnancy": {
+        "label": "Cystitis / asymptomatic bacteriuria in pregnancy",
+        "days": (5, 7), "standard": 7, "iv_days": 0, "po_days": 7,
+        "notes": "5-7d of a targeted agent (ACOG 2023; IDSA ASB 2019: 4-7d), then a test-of-cure "
+                 "culture. Nitrofurantoin: avoid in the first trimester when an alternative exists "
+                 "and at term; TMP-SMX: avoid in the first trimester and near term.",
+        "follow_up_culture": True, "ref": "ACOG Clinical Consensus 2023 · IDSA ASB 2019",
+    },
+    "Pyelonephritis_pregnancy": {
+        "label": "Pyelonephritis in pregnancy",
+        "days": (10, 14), "standard": 14, "iv_days": 2, "po_days": 12,
+        "notes": "IV until clinically improving (afebrile 24-48h), then oral to a total of 14d "
+                 "(ACOG 2023). No fluoroquinolones or tetracyclines. Consider suppression for the "
+                 "rest of the pregnancy.",
+        "follow_up_culture": True, "ref": "ACOG Clinical Consensus 2023",
     },
     "UTI_complicated": {
-        "label": "Complicated UTI (incl. men, catheter-associated)",
+        "label": "Complicated UTI",
         "days": (5, 14), "standard": 7, "iv_days": 0, "po_days": 7,
-        "notes": "7d if prompt response (FQ 5-7d) -- men included. 10-14d only for delayed "
-                 "response or an unresolved urological source. Oral step-down once improving.",
+        "notes": "7d if prompt response (FQ 5-7d). 10-14d only for delayed response or an "
+                 "unresolved urological source. Oral step-down once improving.",
         "follow_up_culture": False, "ref": "IDSA cUTI Guideline 2025",
     },
     "Pyelonephritis_outpatient": {
@@ -353,6 +382,7 @@ def get_treatment_duration(
     *,
     is_cath: bool = False,
     primary: Optional[Dict[str, Any]] = None,
+    is_preg: bool = False,
 ) -> Dict[str, Any]:
     """Treatment Duration Engine -- IDSA AMR Guidance 2026 | Sanford Guide 2025
 
@@ -371,20 +401,33 @@ def get_treatment_duration(
 
     key = None
     if _cat == "urine":
-        if is_cath and (severity != "mild" or any(k in synd for k in ["pyelonephritis", "upper",
-                                                                     "kidney", "pyelo"])):
+        # v7.1 (review 2026-11-19), IDSA cUTI 2025: a catheter (indwelling,
+        # suprapubic or intermittent), a stent or a nephrostomy makes the UTI
+        # complicated -- with or without a severity flag; male sex, age >= 65,
+        # renal impairment and an MDR isolate do not by themselves (MDR: same
+        # duration once on an active agent, IDSA AMR 2026). Pregnancy has its own
+        # rows (ACOG 2023).
+        _upper = any(k in synd for k in ["pyelonephritis", "upper", "kidney", "pyelo"])
+        if is_preg and is_cath and severity != "severe":
+            key = "UTI_catheter"                 # + the pregnancy note below
+        elif is_preg:
+            key = "Pyelonephritis_pregnancy" if (_upper or severity == "severe") else "UTI_pregnancy"
+        elif is_cath:
             key = "Pyelonephritis_inpatient" if severity == "severe" else "UTI_catheter"
-        elif any(k in synd for k in ["pyelonephritis", "upper", "kidney", "pyelo"]):
+        elif _upper:
             # Syndrome explicitly says pyelonephritis
             key = "Pyelonephritis_inpatient" if severity == "severe" else "Pyelonephritis_outpatient"
         elif severity == "severe":
             # Severe UTI without explicit syndrome -> treat as pyelonephritis/inpatient
             key = "Pyelonephritis_inpatient"
-        elif severity == "moderate" or sex == "Male" or age >= 65 or is_renal or has_mdr:
-            # Complicated: male, elderly, renal impaired, MDR, or moderate severity
+        elif severity == "moderate":
+            # Stent / stone / immunosuppression, or the clinician's own grading
             key = "UTI_complicated"
+        elif sex == "Male":
+            key = "UTI_male"
         else:
-            # Mild + female + young + no complicating factors -> uncomplicated
+            # No sign beyond the bladder, no device -> uncomplicated cystitis
+            # (an older woman, renal impairment or an MDR isolate included)
             key = "UTI_uncomplicated_female"
     elif _cat == "sputum":
         if any(k in synd for k in ["hap", "vap", "hospital", "ventil"]):
@@ -453,11 +496,25 @@ def get_treatment_duration(
     d = TREATMENT_DURATION_DB[key].copy()
     mn, mx = d["days"]
     notes_extra = []
+    # v7.1 (review 2026-11-19): ATS/IDSA CAP 2019 -- 7 days (not 5) when the
+    # pneumonia is due to MRSA or P. aeruginosa; the same for Acinetobacter and
+    # other MDR non-fermenters. A CRAB sputum was given "CAP -- Mild, 5 days".
+    if key in ("CAP_mild", "CAP_moderate") and (
+            has_mrsa or has_mdr or any(k in org for k in ("mrsa", "pseudomonas", "acinetobacter",
+                                                          "stenotrophomonas"))):
+        d["standard"] = 7
+        mn, mx = 7, max(mx, 7)
+        notes_extra.append("MRSA / P. aeruginosa / Acinetobacter: 7 days (ATS/IDSA CAP 2019); "
+                           "consider whether this is a hospital-acquired pneumonia (ATS/IDSA 2016: "
+                           "7 days).")
     if has_mdr:
         # 2026-11-10: was `mx = max(mx, 14)`. Once an ACTIVE agent is given,
         # duration does not differ for resistant organisms (IDSA AMR 2026).
         notes_extra.append("MDR organism: same duration as for a susceptible isolate once on an "
                            "active agent (IDSA AMR 2026); the clock starts at active therapy.")
+    if is_preg and key == "UTI_catheter":
+        notes_extra.append("Pregnancy: no fluoroquinolones or tetracyclines; 14 days if "
+                           "pyelonephritis (ACOG 2023); test-of-cure culture.")
     if is_renal: notes_extra.append("Renal impairment: monitor drug levels closely.")
     if age > 65:  notes_extra.append("Elderly: monitor for toxicity; shorter courses if responding.")
     if notes_extra:

@@ -74,6 +74,20 @@ _DTR_PA_PNEUMONIA: Tier = [("Ceftolozane + Tazobactam",),
 _DTR_PA_INVASIVE: Tier = [_DTR_PA_NOVEL]
 _CRAB: Tier = [("Sulbactam + Durlobactam",)]
 _STENO: Tier = [("Cefiderocol",)]
+# v7.1 (review 2026-11-19): with no resistance mechanism the cystitis order was
+# AWaRe -> route -> priority -> NAME, so amoxicillin-clavulanate led a pan-S
+# E. coli cystitis (alphabetically ahead of nitrofurantoin), and the IV
+# aminoglycosides came before oral fosfomycin. IDSA/ESCMID 2011: nitrofurantoin,
+# TMP-SMX, fosfomycin and pivmecillinam first; beta-lactams are second line.
+# Enterococcal cystitis: amoxicillin / ampicillin, nitrofurantoin, fosfomycin.
+_CYSTITIS: Tier = [("Nitrofurantoin", "Trimethoprim/Sulfamethoxazole", "Fosfomycin",
+                    "Pivmecillinam")]
+_CYSTITIS_ENTEROCOCCUS: Tier = [("Ampicillin", "Amoxicillin", "Nitrofurantoin", "Fosfomycin")]
+# MSSA: an anti-staphylococcal beta-lactam is the treatment (IDSA SSTI 2014; for
+# bacteraemia cefazolin or an anti-staphylococcal penicillin). Without this,
+# clindamycin led an MSSA wound and TMP-SMX an MSSA bacteraemia.
+_MSSA_INVASIVE: Tier = [("Cefazolin", "Oxacillin")]
+_MSSA_SKIN: Tier = [("Cephalexin", "Cefadroxil", "Cephradine", "Cefazolin", "Oxacillin")]
 _MRSA_BY_SITE: Dict[str, Tier] = {
     "blood":  [("Vancomycin", "Daptomycin")],
     "sputum": [("Vancomycin", "Linezolid")],
@@ -130,7 +144,8 @@ def _site_kind(culture_type: str, uti_syndrome: Optional[str]) -> Tuple[str, str
 
 def guideline_tiers(organism: str, culture_type: str, phenotypes: List[Dict],
                     carbapenemase_type: Optional[str] = None,
-                    uti_syndrome: Optional[str] = None) -> Tier:
+                    uti_syndrome: Optional[str] = None,
+                    sir_map: Optional[Dict[str, str]] = None) -> Tier:
     """The guideline's preferred agents for this mechanism and site, as ordered
     groups of equal standing. Empty when no guideline order applies."""
     ph = {p.get("phenotype", "") for p in (phenotypes or [])}
@@ -166,7 +181,26 @@ def guideline_tiers(organism: str, culture_type: str, phenotypes: List[Dict],
                 return list(tier)
     if site == "blood" and ("pneumoniae" in org_l and "strep" in org_l or "pneumococc" in org_l):
         return list(_STREP_PNEUMO_BLOOD)
+    if _is_mssa(org_l, sir_map):
+        if kind == "invasive":
+            return list(_MSSA_INVASIVE)
+        if site in ("wound", "pus"):
+            return list(_MSSA_SKIN)
+    if kind == "cystitis":
+        if "enterococc" in org_l:
+            return list(_CYSTITIS_ENTEROCOCCUS)
+        return list(_CYSTITIS)
     return []
+
+
+def _is_mssa(org_l: str, sir_map: Optional[Dict[str, str]]) -> bool:
+    """S. aureus with oxacillin (or its cefoxitin surrogate) S and none R."""
+    if not sir_map or not any(k in org_l for k in ("staphylococcus aureus", "s. aureus", "mssa")):
+        return False
+    if "mrsa" in org_l:
+        return False
+    vals = [str(sir_map.get(d) or "").upper()[:1] for d in ("Oxacillin", "Cefoxitin")]
+    return "S" in vals and "R" not in vals
 
 
 # IDSA AMR Guidance 2026 ALTERNATIVES (v7.0, review 2026-11-19). They rank
@@ -196,10 +230,11 @@ def guideline_alternatives(organism: str, culture_type: str, phenotypes: List[Di
 
 def guideline_preferred(organism: str, culture_type: str, phenotypes: List[Dict],
                         carbapenemase_type: Optional[str] = None,
-                        uti_syndrome: Optional[str] = None) -> List[str]:
+                        uti_syndrome: Optional[str] = None,
+                        sir_map: Optional[Dict[str, str]] = None) -> List[str]:
     """Flat list of the guideline-preferred agents (membership and display)."""
     return [d for g in guideline_tiers(organism, culture_type, phenotypes,
-                                       carbapenemase_type, uti_syndrome) for d in g]
+                                       carbapenemase_type, uti_syndrome, sir_map) for d in g]
 
 
 def route_label(item: Dict, culture_type: str) -> str:
@@ -249,7 +284,8 @@ def rank_sensitive_antibiotics(
     ph_names = [p.get("phenotype", "") for p in phenotypes]
     _sir_rank   = {"S": 0, "I": 1}          # الأصغر = أفضل
     _aware_rank = {"Access": 0, "Watch": 1, "Reserve": 2}
-    _tiers = guideline_tiers(organism, culture_type, phenotypes, carbapenemase_type, uti_syndrome)
+    _tiers = guideline_tiers(organism, culture_type, phenotypes, carbapenemase_type, uti_syndrome,
+                             sir_map)
     _group_of = {}
     for _i, _g in enumerate(_tiers):
         for _d in _g:

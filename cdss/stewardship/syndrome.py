@@ -17,9 +17,11 @@ from cdss.common.specimen import (
 INFECTION_SYNDROMES = {
     ("Urine", None): {
         "syndrome":  "Urinary Tract Infection (UTI)",
+        # v7.1 (review 2026-11-19): "age > 65 -> Complicated UTI" removed. IDSA
+        # cUTI 2025: age, diabetes, male sex and urologic abnormalities do not
+        # by themselves make a UTI complicated; a catheter does.
         "classify":  lambda age, is_preg, is_cath: (
             "Catheter-associated UTI (CA-UTI)" if is_cath else
-            "Complicated UTI" if age > 65 else
             "Pregnancy-associated UTI" if is_preg else
             "Uncomplicated UTI"
         ),
@@ -28,6 +30,20 @@ INFECTION_SYNDROMES = {
         # first-line list. Bladder-only agents do not reach the kidney or the
         # bloodstream (IDSA cUTI 2025 · IDSA AMR Guidance 2026).
         "first_choice_by_sub": {
+            # v7.1: TMP-SMX was listed for pregnancy without its timing limits,
+            # and a pregnant pyelonephritis was given the fluoroquinolone list.
+            "Pregnancy-associated UTI": ["Nitrofurantoin (avoid 1st trimester if an alternative "
+                                         "exists, and at term)", "Cephalexin",
+                                         "Amoxicillin-Clavulanate / Amoxicillin (if S)",
+                                         "Fosfomycin"],
+            "Pyelonephritis in pregnancy": ["Ceftriaxone", "Cefepime",
+                                            "Ampicillin + Gentamicin",
+                                            "ESBL: Meropenem / Ertapenem"],
+            "Catheter-associated UTI in pregnancy": ["Ceftriaxone", "Cefepime",
+                                                     "Ampicillin + Gentamicin",
+                                                     "ESBL: Meropenem / Ertapenem"],
+            "UTI in men": ["Trimethoprim/Sulfamethoxazole", "Ciprofloxacin / Levofloxacin",
+                           "Nitrofurantoin (cystitis without prostatic involvement)"],
             "Complicated UTI": ["Ceftriaxone", "Ciprofloxacin / Levofloxacin",
                                 "Trimethoprim/Sulfamethoxazole (if S)",
                                 "ESBL: Ertapenem / Meropenem"],
@@ -43,10 +59,28 @@ INFECTION_SYNDROMES = {
                      "Catheter-associated UTI (CA-UTI)": (
                          "7 أيام عند الاستجابة السريعة — 10-14 للاستجابة البطيئة؛ غيّر القسطرة إن "
                          "مرّ عليها ≥ 2 أسبوع وخذ العينة من القسطرة الجديدة (IDSA CA-UTI)"),
-                     "Pregnancy-associated UTI": "5-7 أيام"},
+                     "Pregnancy-associated UTI": "5-7 أيام (ACOG 2023) ثم مزرعة متابعة",
+                     "Pyelonephritis in pregnancy": ("وريدي حتى التحسن ثم فموي — إجمالي 14 يوم "
+                                                     "(ACOG 2023)"),
+                     "Catheter-associated UTI in pregnancy": (
+                         "7 أيام عند الاستجابة السريعة — 10-14 للبطيئة (IDSA CA-UTI)؛ 14 يوم لو "
+                         "التهاب حويضة (ACOG 2023). غيّر القسطرة إن مرّ عليها ≥ 2 أسبوع"),
+                     "UTI in men": ("7 أيام (Drekonja 2021) — 10-14 لو اشتباه بروستاتا "
+                                    "(حمى، ألم بالحوض أو العجان، تكرار)")},
         "escalation": "لو فشل الخط الأول أو CrCl < 45 (Nitrofurantoin) -> حسب الحساسية: Cefixime / Ciprofloxacin",
         # v7.0: the cystitis escalation line was printed for a febrile CA-UTI too
         "escalation_by_sub": {
+            "Catheter-associated UTI in pregnancy": (
+                "غيّر/انزع القسطرة أولاً؛ لا Fluoroquinolones ولا Tetracyclines في الحمل؛ ESBL -> "
+                "Meropenem / Ertapenem."),
+            "Pyelonephritis in pregnancy": ("لا Fluoroquinolones ولا Tetracyclines في الحمل؛ ESBL -> "
+                                            "Meropenem / Ertapenem؛ اعمل سونار لو مفيش تحسن خلال "
+                                            "48-72 ساعة (ACOG 2023)."),
+            "UTI in men": ("حمى / ألم بالحوض أو العجان -> فكّر في prostatitis: FQ أو TMP-SMX "
+                           "10-14 يوم؛ تدهور -> وريدي حسب الحساسية."),
+            "Pregnancy-associated UTI": ("حسب الحساسية: Cephalexin / Amoxicillin-Clavulanate؛ "
+                                         "حمى أو ألم الخاصرة -> التهاب حويضة: Ceftriaxone وريدي "
+                                         "(ACOG 2023)."),
             "Complicated UTI": ("تدهور / sepsis -> وريدي حسب الحساسية؛ ESBL -> Ertapenem / Meropenem؛ "
                                 "CRE -> حسب نوع الكاربابينيميز (IDSA 2026). اعمل تصوير لو مفيش تحسن "
                                 "خلال 48-72 ساعة."),
@@ -153,10 +187,10 @@ def get_infection_syndrome(
     """
     يعيد السياق السريري للعدوى -- يدعم مطابقة مرنة لأسماء العينات.
 
-    `sex` added 2026-11-11 (round 4): a urinary infection in a man is a
-    complicated UTI (IDSA cUTI 2025) -- suggest_severity() and the duration
-    engine already said so, while this panel, which never knew the sex, called
-    it "Uncomplicated UTI" with the 1-7 day cystitis course on the same screen.
+    `sex` added 2026-11-11 (round 4) so the card agrees with the duration
+    engine for a man. v7.1: IDSA cUTI 2025 says male sex does not by itself make
+    a UTI complicated, so a man's afebrile UTI is "UTI in men" (7 days, consider
+    the prostate) -- not "Complicated UTI", not the 1-7 day cystitis course.
     """
     # Try exact match first
     syndrome_data = INFECTION_SYNDROMES.get((specimen, None))
@@ -183,13 +217,20 @@ def get_infection_syndrome(
         return None
 
     sub_type = syndrome_data["classify"](age, is_preg, is_cath)
-    if (sub_type == "Uncomplicated UTI"
-            and str(sex or "").strip().lower() in ("male", "m", "ذكر")):
-        sub_type = "Complicated UTI"
     # v7.0: the RESOLVED syndrome (fever / flank pain -> upper UTI) decides too;
     # this card said "Uncomplicated UTI" while the engine treated pyelonephritis.
-    if uti_upper and sub_type in ("Uncomplicated UTI", "Pregnancy-associated UTI"):
+    # v7.1: a pregnant pyelonephritis keeps its own card (no fluoroquinolones).
+    if is_preg and sub_type == "Catheter-associated UTI (CA-UTI)":
+        sub_type = "Catheter-associated UTI in pregnancy"     # no fluoroquinolone list
+    if uti_upper and sub_type == "Pregnancy-associated UTI":
+        sub_type = "Pyelonephritis in pregnancy"
+    elif uti_upper and sub_type == "Uncomplicated UTI":
         sub_type = "Complicated UTI"
+    # v7.1 (IDSA cUTI 2025): male sex alone no longer makes it "complicated";
+    # a UTI in a man has its own card (7 days, think of the prostate).
+    if (sub_type == "Uncomplicated UTI"
+            and str(sex or "").strip().lower() in ("male", "m", "ذكر")):
+        sub_type = "UTI in men"
     duration  = syndrome_data["duration"].get(sub_type, "حسب الاستجابة السريرية")
     first = (syndrome_data.get("first_choice_by_sub") or {}).get(
         sub_type, syndrome_data["first_choice"])
