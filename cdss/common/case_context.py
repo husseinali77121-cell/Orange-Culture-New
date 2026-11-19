@@ -74,10 +74,14 @@ class CaseContext:
 
     @property
     def cuti_device(self) -> bool:
-        """A device that makes a UTI complicated (IDSA cUTI 2025): an indwelling,
-        suprapubic or intermittent catheter, or a nephrostomy / conduit (v7.1)."""
+        """A device or structural factor that makes a UTI complicated (IDSA cUTI
+        2025): an indwelling, suprapubic or intermittent catheter, a nephrostomy /
+        conduit (v7.1), v7.2: an obstruction / stone / stent -- the factor the
+        severity engine already called complicated."""
         c = (self.collection_method or "").lower()
-        return self.is_urine and (self.is_cath or "nephrostomy" in c or "conduit" in c)
+        _obstr = any(k in str(h).lower() for h in self.host_factors
+                     for k in ("obstruction", "stone", "stent"))
+        return self.is_urine and (self.is_cath or "nephrostomy" in c or "conduit" in c or _obstr)
 
     @property
     def ventilated(self) -> bool:
