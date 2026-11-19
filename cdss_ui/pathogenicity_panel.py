@@ -16,7 +16,7 @@ from cdss.organisms.pathogenicity import URINE_SYMPTOMS
 from cdss.organisms.pathogenicity import WOUND_SIGNS
 from cdss.organisms.pathogenicity import WOUND_TYPES
 from cdss.organisms.pathogenicity import assess_pathogenicity
-from cdss.organisms.pathogenicity import gram_options_for
+from cdss.organisms.pathogenicity import gram_choice_in, gram_options_for
 from cdss_ui.patho_view import _render_patho_result
 from cdss_ui.resistance_panels import render_resistance_profile
 
@@ -57,9 +57,18 @@ def render_pathogenicity(page):
                 )
                 st.session_state.patho_culture_purity = patho_purity
 
+                _gram_opts = gram_options_for(page.organism_type)
+                # v7.0: a choice remembered from another organism (or a pre-v7.0
+                # "Rods" label) is mapped or dropped, never kept out of sight.
+                if "patho_gram_sel" in st.session_state:
+                    _g_keep = gram_choice_in(st.session_state["patho_gram_sel"], _gram_opts)
+                    if _g_keep is None:
+                        del st.session_state["patho_gram_sel"]
+                    else:
+                        st.session_state["patho_gram_sel"] = _g_keep
                 patho_gram = st.selectbox(
                     "Gram Stain",
-                    gram_options_for(page.organism_type),
+                    _gram_opts,
                     key="patho_gram_sel",
                     help="Gram-variable = نتيجة صبغة وليست نوع بكتيريا: Acinetobacter، "
                          "Gardnerella، مزارع قديمة، أو خطأ إزالة اللون."
@@ -82,6 +91,8 @@ def render_pathogenicity(page):
                     help="عتبة عدّ المستعمرات تختلف حسب طريقة الجمع: midstream / قسطرة "
                          "(≥10³ مع أعراض) / SPA (أي نمو) — IDSA 2009 و AAP."
                 )
+                # v7.0: the one case record (cdss.common.case_context) reads this
+                st.session_state.patho_collection = patho_collection
 
             # ── Urine symptoms ─────────────────────────────────────────
             patho_symptoms = st.multiselect(
@@ -181,9 +192,16 @@ def render_pathogenicity(page):
                         ["Pure growth", "Mixed growth"],
                         key="np_purity_sel")
                 with np_c2:
+                    _np_gram_opts = gram_options_for(page.organism_type)
+                    if "np_gram_sel" in st.session_state:
+                        _np_keep = gram_choice_in(st.session_state["np_gram_sel"], _np_gram_opts)
+                        if _np_keep is None:
+                            del st.session_state["np_gram_sel"]
+                        else:
+                            st.session_state["np_gram_sel"] = _np_keep
                     np_gram = st.selectbox(
                         "Gram Stain",
-                        gram_options_for(page.organism_type),
+                        _np_gram_opts,
                         key="np_gram_sel",
                         help="Gram-variable = نتيجة صبغة وليست نوع بكتيريا: Acinetobacter، "
                              "Gardnerella، مزارع قديمة، أو خطأ إزالة اللون.")

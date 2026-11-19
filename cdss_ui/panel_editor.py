@@ -9,6 +9,7 @@ from typing import Dict
 import streamlit as st
 
 from cdss.formulary.abx_guidelines import ABX_GUIDELINES
+from cdss.therapy.clsi_categories import canonical_panel, sdd_drugs
 
 
 def render_panel_editor(page):
@@ -17,7 +18,9 @@ def render_panel_editor(page):
     # AST Input Panel -- OCR + Manual Entry موحّد
     # ══════════════════════════════════════════════════════
     ocr_sir_map = page.payload["sir_map"]
-    sir_options = ["S", "I", "R"]
+    # v6.9 (CLSI M100, decision D4): SDD is a result of its own. It is offered
+    # for every drug; the note says when CLSI does not define it for the pair.
+    sir_options = ["S", "SDD", "I", "R"]
 
     st.markdown("**📊 نتائج المزرعة -- S / I / R**")
     st.caption("✅ من OCR تلقائياً -- عدّل أي قيمة خطأ أو أضف مضاد فاته الـ OCR")
@@ -40,7 +43,7 @@ def render_panel_editor(page):
             col_d = no_sir_cols[idx_d % 3]
             assign = col_d.selectbox(
                 f"⚠️ {drug_no_sir}",
-                ["--", "S", "I", "R"],
+                ["--"] + sir_options,
                 key=f"no_sir_{drug_no_sir}_{page.file_hash[:8]}",
                 help=f"OCR وجد '{drug_no_sir}' في النص -- حدد النتيجة أو اتركها"
             )
@@ -136,7 +139,7 @@ def render_panel_editor(page):
                     cur = st.session_state.sir_map_edited.get(drug, ocr_sir_map[drug])
                     if cur not in sir_options:
                         cur = "S"
-                    label_icons = {"S": "🟢", "I": "🟡", "R": "🔴"}
+                    label_icons = {"S": "🟢", "SDD": "🟠", "I": "🟡", "R": "🔴"}
                     # 4-column: icon+name | selectbox | delete btn
                     _c1, _c2, _c3 = col.columns([4, 3, 1])
                     _c1.markdown(f"<small>{label_icons.get(cur,'')} **{drug}**</small>",
@@ -171,7 +174,7 @@ def render_panel_editor(page):
                     cur = st.session_state.sir_map_edited.get(drug, "S")
                     if cur not in sir_options:
                         cur = "S"
-                    label_icons = {"S": "🟢", "I": "🟡", "R": "🔴"}
+                    label_icons = {"S": "🟢", "SDD": "🟠", "I": "🟡", "R": "🔴"}
                     _c1, _c2, _c3 = col.columns([4, 3, 1])
                     _c1.markdown(f"<small>{label_icons.get(cur,'')} **{drug}**</small>",
                                  unsafe_allow_html=True)
@@ -215,7 +218,16 @@ def render_panel_editor(page):
         st.rerun()
 
     # sir_map = كل الأدوية (OCR + manual) مع نتائجها -- بعد الحذف
-    page.sir_map = dict(edited_sir)
+    # Every panel on the page reads S / I / R: an SDD is shown to them as the I
+    # it is interpreted as. The raw panel (with SDD) goes to run_analysis(),
+    # which names the SDD regimen; sdd_drugs drives the [SDD] tags.
+    page.sir_map_raw = dict(edited_sir)
+    page.sdd_drugs = sorted(sdd_drugs(edited_sir))          # what the laboratory wrote
+    # v7.0: what the program READS as SDD -- adds an "I" on a CLSI no-I pair
+    # (cefepime / pip-tazo in Enterobacterales ...). Tags use this one; the QC
+    # check uses sdd_drugs to ask the laboratory for the correction.
+    page.sdd_read = sorted(sdd_drugs(edited_sir, getattr(page, "organism_type", "") or ""))
+    page.sir_map = canonical_panel(edited_sir)
 
     # final_drugs = كل الأدوية التي أُدخلت نتائجها
     page.final_drugs = list(page.sir_map.keys())
@@ -228,7 +240,7 @@ def render_panel_editor(page):
         st.caption(
             f"📊 إجمالي: {len(page.sir_map)} مضاد &nbsp;|&nbsp; "
             f"🟢 Sensitive: {s_count} &nbsp;|&nbsp; "
-            f"🟡 Intermediate: {i_count} &nbsp;|&nbsp; "
+            f"🟡 Intermediate / SDD: {i_count} &nbsp;|&nbsp; "
             f"🔴 Resistant: {r_count}"
         )
 

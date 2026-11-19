@@ -12,8 +12,16 @@ from cdss.common.util import get_route_label
 from cdss.stewardship.ranking import rank_sensitive_antibiotics
 from cdss.stewardship.ranking import route_label
 from cdss.stewardship.syndrome import get_infection_syndrome
+from cdss.therapy.clsi_categories import result_label
 from cdss.therapy.notes import warned_note_for
 from cdss.therapy.tables import preg_status_of
+
+
+def _sir_tag(page, name):
+    """" [S]" / " [SDD]" / "" -- the result as entered (CLSI SDD shown as SDD)."""
+    if not page.sir_map or name not in page.sir_map:
+        return ""
+    return f" [{result_label(name, page.sir_map[name], getattr(page, 'sdd_read', None) or getattr(page, 'sdd_drugs', ()))}]"
 
 
 def render_recommendations(page):
@@ -25,6 +33,7 @@ def render_recommendations(page):
             carbapenemase_type=getattr(page, "_carb_type_now", None),
             uti_syndrome=getattr(page, "_uti_syn_now", None),
         )
+        page.ranked = ranked          # v7.0: the duration panel reads the top agent's route
         with st.expander("🏆 Smart Antibiotic Ranking", expanded=False):
             st.caption("مرتب حسب: نتيجة المزرعة ← المفضّل في الإرشادات للآلية والموقع (IDSA 2026) "
                        "← WHO AWaRe ← طريق الإعطاء (لا أفضلية للفموي في الدم/السائل النخاعي) ← الأولوية. "
@@ -49,8 +58,12 @@ def render_recommendations(page):
         organism=page.organism_type,
         age=page.age,
         is_preg=page.is_preg,
-        is_cath=False,
+        # v7.0: a URINARY catheter from the case record -- only for urine (for
+        # blood / sputum is_cath means a line / a ventilator).
+        is_cath=bool(getattr(getattr(page, "case", None), "is_cath", False)
+                     and getattr(page.case, "is_urine", False)),
         sex=page.sex,
+        uti_upper=(getattr(page, "_uti_syn_now", "") == "upper"),
     )
     if page.syndrome_info:
         with st.expander(f"🏥 Infection Syndrome: {page.syndrome_info['syndrome']}", expanded=False):
@@ -117,18 +130,30 @@ def render_recommendations(page):
             _others = [w for w in page.warned if w.get("warning_reason") != "intermediate_culture"]
             if _interm:
                 _names = ", ".join(
-                    w['name'] + (f" [{page.sir_map[w['name']]}]" if page.sir_map and w['name'] in page.sir_map else "")
+                    w['name'] + _sir_tag(page, w['name'])
                     for w in _interm
                 )
                 st.warning(
-                    f"⚠ Intermediate (I) on culture -- use only if no better option: **{_names}**"
+                    f"⚠ Intermediate (I) / SDD on culture (CLSI M100) -- use only if no "
+                    f"susceptible option fits: **{_names}**"
                 )
+                # v6.9: what the I / SDD is worth for THIS agent at THIS site
+                # (CLSI: urine-concentrated, higher dose, or the SDD regimen).
+                for w in _interm:
+                    if w.get("warning_reason") == "intermediate_culture":
+                        st.caption(f"**{w['name']}{_sir_tag(page, w['name'])}** -- "
+                                   f"{warned_note_for(w, 'ar')}")
             for item in _others:
-                sir_tag = (f" [{page.sir_map[item['name']]}]"
-                           if page.sir_map and item['name'] in page.sir_map else "")
+                sir_tag = _sir_tag(page, item['name'])
                 # One resolver, not an if/else that fell through to
                 # renal_note for every reason it did not name explicitly.
                 _note = warned_note_for(item, "ar")
+                # v6.9: a second caution (e.g. the AAP paediatric quinolone
+                # note on a drug already warned for renal dosing) is shown too,
+                # not lost behind the reason that won the slot.
+                _extra = str(item.get("clinical_note") or "").strip()
+                if _extra and _note and _extra not in _note:
+                    _note = f"{_note}  \n🧭 {_extra}"
                 if _note:
                     st.warning(f"**{item['name']}{sir_tag}** -- {_note}")
                 else:
@@ -148,9 +173,11 @@ def render_recommendations(page):
                                                            "hepatic_adjustment")):
                     st.error(
                         f"⚠️ **{item['name']}: تعارض في اتجاه الجرعة.** "
-                        "النتيجة **I** — وتعريف EUCAST لها *Susceptible, "
-                        "Increased exposure*: الدواء يعمل فقط بجرعة أعلى أو "
-                        "تسريب ممتد. لكن حالة المريض تفرض **خفض** الجرعة. "
+                        + ("النتيجة **SDD** — حسب CLSI حسّاس فقط بنظام تعرّض أعلى "
+                           if item.get("culture_sdd") else
+                           "النتيجة **I** — حسب CLSI فعّال فقط حيث يتركّز الدواء (مثل "
+                           "البول) أو بجرعة أعلى من المعتادة ")
+                        + "، لكن حالة المريض تفرض **خفض** الجرعة. "
                         "لا تُعدّل الجرعة بناءً على أحد العاملين وحده — "
                         "اختر بديلاً حسّاساً (S) إن وُجد، أو استشر "
                         "الصيدلة الإكلينيكية لضبط الجرعة بمتابعة TDM."
@@ -159,8 +186,7 @@ def render_recommendations(page):
     if page.allowed:
         st.success(f"🟢 {len(page.allowed)} Recommended Option(s)")
         for item in page.allowed:
-            sir_badge = (f" [{page.sir_map[item['name']]}]"
-                         if page.sir_map and item['name'] in page.sir_map else "")
+            sir_badge = _sir_tag(page, item['name'])
             preg_flag = " 🤰" if (page.is_preg and preg_status_of(item) == "Warn") else ""
             aware_val = item.get("aware", "Unknown")
             color_val = AWARE_COLORS.get(aware_val, aware_val)

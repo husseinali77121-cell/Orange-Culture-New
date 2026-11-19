@@ -23,6 +23,7 @@ from cdss.resistance.mdr import mdr_display_label
 from cdss.resistance.mdr import classify_mdr
 from cdss.resistance.mechanism import predict_esbl
 from cdss.resistance.phenotypes import detect_resistance_phenotypes
+from cdss.therapy.clsi_categories import canonical_panel
 from cdss_ui.panel_editor import current_aux_tests
 
 
@@ -35,7 +36,7 @@ def render_resistance_profile(page):
         )
 
         # sir_map may not be defined yet at this render point — read from session_state
-        _sir_map_now = st.session_state.get("sir_map_edited") or {}
+        _sir_map_now = canonical_panel(st.session_state.get("sir_map_edited") or {})
         _mdr_r  = classify_mdr(page.organism_type, _sir_map_now) if _sir_map_now else {"level": None}
         _esbl_r = predict_esbl(page.organism_type, _sir_map_now) if _sir_map_now else {"probability": None}
         _ph_r   = detect_resistance_phenotypes(page.organism_type, _sir_map_now) if _sir_map_now else []
@@ -137,7 +138,7 @@ def render_ast_quality_check(page):
             "فحص آلي لاتساق نتائج الـ AST: intrinsic resistance · phenotype "
             "consistency · cross-resistance · biological plausibility · QC rules"
         )
-        _qc_sir = st.session_state.get("sir_map_edited") or {}
+        _qc_sir = canonical_panel(st.session_state.get("sir_map_edited") or {})
         if not _qc_sir:
             st.info("أدخل نتائج S/I/R أولاً لتشغيل فحص الجودة.")
         else:
@@ -168,6 +169,7 @@ def render_ast_quality_check(page):
                     sir_map={**_qc_sir, **current_aux_tests(page.file_hash)},
                     esbl_result=_qc_esbl, mdr_result=_qc_mdr,
                     skip_categories=_qa_skip,
+                    sdd=getattr(page, "sdd_drugs", None),
                 )
                 if not _qc_issues:
                     st.success("✅ لا توجد تعارضات -- النتائج متسقة داخلياً "
@@ -246,10 +248,17 @@ def render_ast_quality_check(page):
                                 f"⚠️ Panel incomplete -- "
                                 f"{len(_pc_missing)} مضاد متوقع غير مُختبَر"
                             )
+                        _pc_reflex = getattr(_pc, "reflex_missing", {}) or {}
+                        if _pc_reflex:
+                            st.error(
+                                "🔴 **ناقص (حرج — نتيجة أخرى تستلزمه):** " +
+                                " · ".join(f"{d} ({why})" for d, why in _pc_reflex.items())
+                            )
                         if _pc.missing_primary:
                             st.markdown(
                                 "**ناقص (أساسي):** " +
-                                " · ".join(f"⚠️ {d}" for d in _pc.missing_primary)
+                                " · ".join(f"⚠️ {d}" for d in _pc.missing_primary
+                                           if d not in _pc_reflex)
                             )
                         if _pc.missing_supplemental:
                             st.markdown(
@@ -346,7 +355,8 @@ def render_ast_qc(page):
     """Right column: AST quality control and its PDF."""
     # ── AST Quality Control Checker ───────────────────────────────────
     if page.sir_map:
-        qc_issues    = run_ast_qc(page.organism_type, page.sir_map, specimen=page.culture_type)
+        qc_issues    = run_ast_qc(page.organism_type, page.sir_map, specimen=page.culture_type,
+                               sdd=getattr(page, "sdd_drugs", None))
         qa_confidence = compute_qa_confidence(qc_issues, page.sir_map, page.organism_type)
 
         with st.expander(
@@ -355,7 +365,7 @@ def render_ast_qc(page):
             + (f" -- {len(qc_issues)} Issue(s)" if qc_issues else ""),
             expanded=bool(qc_issues)
         ):
-            st.caption("تحقق تلقائي من منطقية نتائج المزرعة وفق EUCAST Expert Rules")
+            st.caption("تحقق تلقائي من منطقية نتائج المزرعة وفق CLSI M100 Ed36 و EUCAST Expert Rules")
 
             # Confidence score box
             st.markdown(
@@ -467,6 +477,7 @@ def render_ast_qc(page):
                     patient_ref=(st.session_state.get("patient_name_final", "")
                                  or st.session_state.get("patient_name_ocr", "")
                                  or ""),
+                    sdd=getattr(page, "sdd_drugs", None),
                 )
                 if _qa_pdf:
                     st.download_button(

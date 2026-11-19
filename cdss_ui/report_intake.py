@@ -7,6 +7,8 @@ shared between sections (see cdss_ui.app.main).
 """
 import streamlit as st
 
+from cdss.ocr.ocr_parsing import ocr_name_warnings
+
 from cdss.common.util import make_file_hash
 from cdss.ocr.extract import extract_all_data_cached
 from cdss_ui.state import reset_patient_state
@@ -51,6 +53,10 @@ def load_report(page):
         st.session_state.sir_map_edited = dict(page.payload["sir_map"])
 
     st.image(file_bytes, caption="Preview", use_container_width=True)
+    # v7.0: misnamed drugs in the laboratory template (e.g. "Sulphamethazone")
+    for _nw in (page.payload.get("name_warnings")
+                or ocr_name_warnings(raw_text or "")):
+        st.warning(f"✏️ {_nw}")
 
     with st.expander("📝 النص المستخرج من التقرير (OCR)", expanded=False):
         st.text_area("Extracted Text", raw_text, height=220, label_visibility="collapsed")

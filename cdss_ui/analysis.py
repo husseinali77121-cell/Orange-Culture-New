@@ -7,6 +7,7 @@ shared between sections (see cdss_ui.app.main).
 """
 import streamlit as st
 
+from cdss.common.case_context import build_case_context
 from cdss.common.clinical_utils import Patient
 from cdss.common.patient_checks import validate_patient_context
 from cdss.common.specimen import classify_specimen
@@ -34,12 +35,24 @@ def run_case_analysis(page):
     # ONE call instead of two inlined ones. run_analysis() is this same
     # pipeline exposed as a pure function, so a test can walk exactly the
     # path the clinician walks — see its docstring for why that matters.
+    # v7.0: ONE record of the case facts (review 2026-11-19: the pathogenicity
+    # panel said Foley + quadriplegia while the image said Mid-Stream and the
+    # syndrome card assumed no catheter). Every later section reads page.case.
+    _is_urine_now = classify_specimen(page.culture_type) == "urine"
+    page.case = build_case_context(
+        page.culture_type,
+        list(st.session_state.get("patho_host_factors" if _is_urine_now else "np_host_sel")
+             or []),
+        st.session_state.get("patho_collection", "") if _is_urine_now else "",
+    )
     _patient = Patient(
         age_years=page.age, age_months=page.age_months, sex=page.sex,
         is_pregnant=page.is_preg, is_renal=page.is_renal, cl_cr=page.cl_cr,
         is_hepatic=page.is_hepatic, child_pugh=page._child_pugh_now,
         current_meds=list(page.current_meds or []),
         allergies=list(page.allergies or []),
+        host_factors=list(page.case.host_factors),
+        collection_method=page.case.collection_method,
     )
     page._carb_type_now = normalize_carbapenemase_type(page.carbapenemase_choice)
     page._uti_syn_now = resolve_uti_syndrome(page.uti_syndrome_choice,
@@ -47,8 +60,9 @@ def run_case_analysis(page):
     st.session_state["carb_type_now"] = page._carb_type_now
     # page.aux_tests (D-test / penicillinase) ride in the panel; run_analysis()
     # hands them to the therapy rules and strips them for every other step.
+    # The RAW panel (SDD kept): the therapy engine names the CLSI SDD regimen.
     _res = run_analysis(_patient, page.organism_type, page.culture_type,
-                        {**page.sir_map, **page.aux_tests},
+                        {**getattr(page, "sir_map_raw", page.sir_map), **page.aux_tests},
                         drugs=page.final_drugs, carbapenemase_type=page._carb_type_now,
                         uti_syndrome=page._uti_syn_now)
     if page._uti_syn_now == "upper" and classify_specimen(page.culture_type) == "urine":

@@ -32,7 +32,7 @@ from cdss.reports.report_service import generate_report
 from cdss.stewardship.combination import get_combination_therapy
 from cdss.stewardship.duration import get_treatment_duration
 from cdss.stewardship.hepatic import get_hepatic_recommendations
-from cdss.stewardship.ranking import rank_sensitive_antibiotics
+from cdss.stewardship.ranking import rank_sensitive_antibiotics, route_label
 
 
 def prepare_report_inputs(page):
@@ -60,17 +60,36 @@ def prepare_report_inputs(page):
     ]
     preferred_names = [item['name'] for item in preferred_sorted]
     # للصورة: نضيف badge [A] أو [W] بجانب الاسم
-    page.preferred_with_badge = [
-        (f"{item['name']} [A]" if item.get('aware') == 'Access'
-         else f"{item['name']} [W]" if item.get('aware') == 'Watch'
-         else f"{item['name']} [NR]" if item.get('aware') == 'Not Recommended'
-         else item['name'])
-        for item in preferred_sorted
-    ]
+    # v7.0 (review 2026-11-19): the column was titled "Preferred oral options"
+    # and listed gentamicin IV/IM. It is the ranked list for this site; each
+    # entry now carries its route next to the AWaRe tag.
+    def _img_pref(item):
+        _aw = {"Access": "A", "Watch": "W", "Not Recommended": "NR"}.get(item.get("aware"), "")
+        _rt = "PO" if route_label(item, page.culture_type) == "PO" else "IV"
+        return f"{item['name']} [{_aw + ' · ' if _aw else ''}{_rt}]"
+    page.preferred_with_badge = [_img_pref(item) for item in preferred_sorted]
     # النقطة ٣: use_caution يشمل warned + preg_warn
     preg_caution_names = [item['name'] for item in page.preg_warn_items]
+    # v7.0: each caution carries WHY (the column was a bare list of names).
+    _CAUTION_TAG = {
+        "fq_low_level": "(FQ low-level R)", "esbl_bli_uti_only": "(ESBL: alternative)",
+        "intermediate_culture": "(I)", "renal_adjustment": "(Renal dose)",
+        "hepatic_adjustment": "(Hepatic dose)", "no_breakpoint": "(No breakpoint)",
+        "legacy_breakpoint": "(Old criterion)", "organism_caution": "(Organism)",
+        "possible_carbapenemase": "(Carbapenemase?)", "safety_gate": "(Site / host)",
+        "allergy": "(Allergy)", "interaction": "(Interaction)", "pregnancy": "(Pregnancy)",
+        "ampc_sdd": "(SDD dose)", "ampc_cefepime": "(AmpC)", "child_fq": "(Pediatric)",
+        "uti_upper": "(Cystitis only)", "novel_agent": "(Novel agent)",
+        "idsa_new_agent": "(IDSA 2026 note)",
+    }
+    def _caution(item):
+        _r = item.get("warning_reason") or item.get("category") or ""
+        _t = _CAUTION_TAG.get(_r, "")
+        if _r == "intermediate_culture" and item.get("name") in (getattr(page, "sdd_read", None) or ()):
+            _t = "(SDD)"
+        return f"{item['name']} {_t}".strip()
     page.use_caution_names  = uniq_keep_order(
-        [item['name'] for item in page.warned if item['name'] not in page.reserve_names]
+        [_caution(item) for item in page.warned if item['name'] not in page.reserve_names]
         + preg_caution_names
     )
     # Build banned names WITH reason tag for the image (same logic as PDF)
@@ -88,12 +107,20 @@ def prepare_report_inputs(page):
         if cat in ("child","pediatric"):             return "(Pediatric)"
         if cat == "renal":                           return "(Renal)"
         if cat == "organism":
-            _bl = any(k in _cl for k in ("penicillin","cephalosporin","carbapenem"))
+            # v7.0: aztreonam (a monobactam) is hydrolysed by ESBLs -- it was
+            # tagged "(Intrinsic R)" for an ESBL Klebsiella.
+            _bl = any(k in _cl for k in ("penicillin","cephalosporin","carbapenem","monobactam",
+                                         "beta-lactam","β-lactam"))
             if _img_mrsa and _bl:          return "(MRSA)"
             if _img_carbapenemase and _bl: return "(Carbapenemase)"
             if _img_esbl_like and _bl:     return "(ESBL)"
-            return "(Intrinsic R)"
-        return "(Avoid)"
+            if "intrinsic" in str(bd.get("reason_short","") + bd.get("reason_detail","")).lower():
+                return "(Intrinsic R)"
+            return "(Organism)"
+        return {"uti_upper": "(Cystitis only)", "no_breakpoint": "(No breakpoint)",
+                "specimen": "(Site)", "safety_gate": "(Site / host)", "hepatic": "(Hepatic)",
+                "allergy": "(Allergy)", "neonate": "(Neonate)", "cross_resistance": "(Cross-R)",
+                "interaction": "(Interaction)", "intrinsic": "(Intrinsic R)"}.get(cat, "(Avoid)")
     _seen_ban = set()
     page.banned_names = []
     for item in page.banned:
@@ -119,6 +146,35 @@ def prepare_report_inputs(page):
     _guide_fl = [it.get("name", "") for it in ranked if it.get("_guideline_preferred")]
     if _guide_fl:
         page.first_line_l = _guide_fl
+    # v7.0 (review 2026-11-19): the CLINICAL STRATEGY box printed "--" whenever
+    # no generic first-line agent survived. It now says what to DO: the agent
+    # (and whether it is a guideline alternative), the tests another result
+    # requires, and the case facts that change management.
+    page.strategy_l = [f"First-line: {', '.join(page.first_line_l[:2])}"] if page.first_line_l else []
+    if not page.first_line_l and ranked:
+        _top = ranked[0]
+        _rt = "PO" if route_label(_top, page.culture_type) == "PO" else "IV"
+        page.strategy_l.append(
+            f"{'IDSA alternative' if _top.get('_guideline_alternative') else 'Best available'}: "
+            f"{_top.get('name', '')} [{_rt}]")
+    try:
+        from cdss.astqc.phenotype_plausibility import check_plausibility as _cp
+        _pl = _cp(page.organism_type, page.sir_map, getattr(page, "sdd_drugs", None))
+    except Exception:
+        _pl = []
+    if any(f["id"].startswith("PL1") for f in _pl):
+        page.strategy_l.append("Verify ID + AST (implausible phenotype)")
+    _reflex = [r for f in _pl for r in (f.get("reflex") or [])
+               if not r.startswith("MIC:") and r not in (page.sir_map or {})]
+    if _reflex:
+        _short = {"Carbapenemase test (mCIM / eCIM)": "mCIM/eCIM"}
+        page.strategy_l.append("Test now: " + ", ".join(dict.fromkeys(_short.get(r, r) for r in _reflex)))
+    _case = getattr(page, "case", None)
+    if _case is not None and _case.is_urine and _case.is_cath:
+        page.strategy_l.append("Replace catheter (>= 2 wk) + re-culture")
+    if (_case is not None and _case.low_muscle_mass and not page.is_renal
+            and any(it.get("tdm_note") for it in page.allowed + page.warned)):
+        page.strategy_l.append("TDM: levels, not CrCl (low muscle mass)")
 
     page.notes: List[str] = []
     if page.is_renal:
@@ -153,7 +209,8 @@ def render_final_checklist(page):
     _ck_items = build_final_checklist(
         page.organism_type, page.culture_type, page.sir_map,
         allowed=page.allowed, warned=page.warned, banned=page.banned,
-        qc_issues=(run_ast_qc(page.organism_type, page.sir_map, specimen=page.culture_type)
+        qc_issues=(run_ast_qc(page.organism_type, page.sir_map, specimen=page.culture_type,
+                               sdd=getattr(page, "sdd_drugs", None))
                    if page.sir_map else []),
         gram_stain=_gram_ck,
         patho_result=st.session_state.get("patho_result"),
@@ -232,7 +289,8 @@ def render_text_report(page):
         f"|{page.pus_cells_text}|{page.rbcs_text}|{str(sorted(page.sir_map.items()))}"
         f"|{_bsig(page.allowed)}|{_bsig(page.warned)}|{_bsig(page.banned)}|{_bsig(page.preg_warn_items)}"
         f"|{sorted(page.interactions_alerts or [])}"
-        f"|{page.show_commercial}|{page._lab}|{page._city}|{_patho_sig}".encode()
+        f"|{page.show_commercial}|{page._lab}|{page._city}|{_patho_sig}"
+        f"|{getattr(page, 'case', None)!r}".encode()
     ).hexdigest()[:16]
 
     if st.session_state.get("_rpt_hash") != page._rpt_input_hash:
@@ -253,6 +311,7 @@ def render_text_report(page):
             lab_city=page._city,
             patho_assessment=st.session_state.get("patho_result"),
             show_commercial_names=page.show_commercial,
+            case=getattr(page, "case", None),
         )
         st.session_state._rpt_text = _new_report
         st.session_state._rpt_hash = page._rpt_input_hash
@@ -330,6 +389,9 @@ def render_pdf_export(page):
                 syndrome=duration_syndrome_key(page.syndrome_info, page._uti_syn_now, page.culture_type),
                 age=page.age, sex=page.sex, is_renal=page.is_renal,
                 phenotypes=page.phenotypes, severity=_sev_pdf,
+                is_cath=bool(getattr(getattr(page, "case", None), "is_cath", False)
+                             and getattr(page.case, "is_urine", False)),
+                primary=(getattr(page, "ranked", None) or [None])[0],
             ) if _pdf_dur else None
             # organism= restored 2026-08-21 -- see the matching note on
             # the UI call site above. Same missing-organism defect, same
@@ -432,7 +494,7 @@ def render_summary_image(page):
         _esbl_sig  = (f"{(page.esbl_result or {}).get('probability','')}"
                       f":{(page.esbl_result or {}).get('mechanism','')}")
         _lists_sig = "|".join([
-            ",".join(page.first_line_l),
+            ",".join(page.first_line_l), ",".join(page.strategy_l),
             ",".join(page.preferred_with_badge),
             ",".join(page.use_caution_names),
             ",".join(page.banned_names),
@@ -449,6 +511,8 @@ def render_summary_image(page):
             f"|{st.session_state.get('referring_physician','')}"
             f"|{st.session_state.get('culture_condition','Aerobic')}"
             f"|{st.session_state.get('microbiologist','')}"
+            f"|{page.is_hepatic}|{getattr(page, 'case', None)!r}"
+            f"|{page.mdr_result.get('provisional', False)}"
             .encode()
         ).hexdigest()[:16]
 
@@ -461,7 +525,7 @@ def render_summary_image(page):
                     age=page.age, age_months=page.age_months, sex=page.sex, weight=page.weight,
                     cl_cr=page.cl_cr, is_renal=page.is_renal, is_preg=page.is_preg,
                     organism=page.organism_type, specimen=page.culture_type,
-                    first_line=page.first_line_l,
+                    first_line=page.strategy_l or page.first_line_l,
                     preferred=page.preferred_with_badge,
                     use_caution=page.use_caution_names,
                     contraindicated=page.banned_names,
@@ -479,6 +543,8 @@ def render_summary_image(page):
                     referring_physician=st.session_state.get("referring_physician",""),
                     culture_condition=st.session_state.get("culture_condition","Aerobic"),
                     microbiologist=st.session_state.get("microbiologist",""),
+                    sir_map=page.sir_map, is_hepatic=page.is_hepatic,
+                    case=getattr(page, "case", None),
                 )
                 st.session_state._img_bytes = _new_img
                 st.session_state._img_hash  = _img_input_hash
