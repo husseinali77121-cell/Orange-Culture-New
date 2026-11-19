@@ -31,7 +31,8 @@ def test_susceptible_passes_the_panel_rules():
 
 # ── age ─────────────────────────────────────────────────────────────────────
 @pytest.mark.parametrize("name,age_years,banned", [
-    ("Ciprofloxacin", 10, True),       # fluoroquinolone under 18
+    ("Ciprofloxacin", 10, False),      # v6.9 (AAP 2016): a caution, not a ban
+    ("Moxifloxacin", 10, True),        # no paediatric data: still banned under 18
     ("Ciprofloxacin", 18, False),
     ("Tetracycline", 6, True),         # tooth staining: under 8
     ("Tetracycline", 12, False),       # from 8 years an ordinary agent
@@ -43,6 +44,18 @@ def test_child_rule(name, age_years, banned):
     assert (out.banned is not None) == banned
     if banned:
         assert out.banned["category"] == "child"
+
+
+def test_child_quinolone_is_an_aap_caution():
+    """v6.9, decision D3 (AAP 2016): ciprofloxacin / levofloxacin in a child are a
+    caution carrying the AAP note -- not a ban, and not a plain recommendation."""
+    for name in ("Ciprofloxacin", "Levofloxacin"):
+        out = apply(age.rule_child, context(age=10), drug(name))
+        assert out.banned is None
+        level, text, reason, _all = out._post_notes[name]
+        assert level == "warn" and reason == "child_fq" and "AAP 2016" in text
+    adult = apply(age.rule_child, context(age=30), drug("Ciprofloxacin"))
+    assert "Ciprofloxacin" not in adult._post_notes
 
 
 def test_neonate_ceftriaxone_is_banned_and_unknown_months_is_a_caution():

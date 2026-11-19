@@ -29,9 +29,11 @@ def test_notes_merge_and_warn_beats_allow():
     out.note("X", "allow", "first", "organism_note")
     out.note("X", "warn", "second", "allergy")
     out.note("X", "allow", "third", "novel_agent")
-    level, text, reason = notes["X"]
+    level, text, reason, every = notes["X"]
     assert level == "warn" and reason == "allergy"
     assert all(t in text for t in ("first", "second", "third"))
+    # v6.9: every reason is kept, so the English report prints each note.
+    assert every == ("organism_note", "allergy", "novel_agent")
 
 
 def test_a_repeated_note_is_not_duplicated():

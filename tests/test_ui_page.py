@@ -163,3 +163,17 @@ def test_secrets_are_read_on_every_run_not_once_per_process():
         fake_streamlit.secrets.clear()
         fake_streamlit.secrets.update(saved)
         auth.refresh_secrets()
+
+
+def test_an_sdd_result_reaches_the_screen_as_sdd_with_its_regimen():
+    """v6.9 (decision D4): an OCR'd SDD is kept, offered, read as I by every panel,
+    and shown on screen as [SDD] with the regimen its CLSI breakpoint assumes."""
+    pl = payload("E. coli", "Urine", {
+        "Ampicillin": R, "Ceftriaxone": S, "Meropenem": S, "Gentamicin": S,
+        "Piperacillin + Tazobactam": "SDD", "Nitrofurantoin": S})
+    traces, state, errors = run_page(pl, runs=2)
+    assert not errors, errors
+    assert state["sir_map_edited"]["Piperacillin + Tazobactam"] == "SDD"
+    text = rendered_text(traces[-1])
+    assert "[SDD]" in text
+    assert "4.5 g IV q6h" in text
