@@ -73,6 +73,37 @@ class CaseContext:
                 or any("urinary catheter" in str(h).lower() for h in self.host_factors))
 
     @property
+    def cuti_device(self) -> bool:
+        """A device that makes a UTI complicated (IDSA cUTI 2025): an indwelling,
+        suprapubic or intermittent catheter, or a nephrostomy / conduit (v7.1)."""
+        c = (self.collection_method or "").lower()
+        return self.is_urine and (self.is_cath or "nephrostomy" in c or "conduit" in c)
+
+    @property
+    def ventilated(self) -> bool:
+        return any(k in str(h).lower() for h in self.host_factors
+                   for k in ("tracheostomy", "ventilat"))
+
+    @property
+    def central_line(self) -> bool:
+        return any(k in str(h).lower() for h in self.host_factors
+                   for k in ("central line", "picc"))
+
+    def syndrome_device(self) -> bool:
+        """The device the syndrome card asks about, for THIS specimen (v7.1):
+        urine -> urinary catheter (CA-UTI), sputum -> ventilator / tracheostomy
+        (HAP/VAP), blood -> central line (CRBSI). The card's is_cath was read
+        for urine only, so HAP/VAP and CRBSI could never be named."""
+        cat = classify_specimen(self.specimen)
+        if cat == "urine":
+            return self.is_cath
+        if cat == "sputum":
+            return self.ventilated
+        if cat == "blood":
+            return self.central_line
+        return False
+
+    @property
     def spinal_cord_injury(self) -> bool:
         return any(k in str(h).lower() for h in self.host_factors
                    for k in ("quadripleg", "tetrapleg", "parapleg", "spinal cord", "cervical cord"))
