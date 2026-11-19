@@ -116,22 +116,27 @@ EQUIVALENCE_RULES: List[Dict[str, Any]] = [
         "organisms": ["staphylococc", "staph"],
         "a": "oxacillin", "a_exclude": [],
         "b": "cefoxitin", "b_exclude": [],
-        "reason_ar": ("Oxacillin و Cefoxitin قراءتان لآلية واحدة (mecA/mecC). "
-                      "اختلافهما على نفس العزلة يعني أن أحد القرصين خاطئ — "
-                      "ولا يمكن معرفة أيهما من التقرير. Cefoxitin هو المؤشّر "
-                      "الأدق لـ mecA ويُقدَّم عند التعارض."),
-        "reason_en": ("Oxacillin and cefoxitin are two readings of one mechanism "
-                      "(mecA/mecC). Disagreement on the same isolate means one "
-                      "disk is wrong, and the report gives no way to tell which. "
-                      "Cefoxitin is the more reliable mecA surrogate and takes "
-                      "precedence."),
-        "fix_ar": ("أعِد القرصين. عند استمرار التعارض اعتمد Cefoxitin، أو أكِّد "
-                   "بـ PBP2a latex agglutination أو mecA PCR. بلِّغ كل "
-                   "البيتا-لاكتام كمقاوم حتى الحسم."),
-        "fix_en": ("Repeat both disks. If the split persists, follow cefoxitin, "
-                   "or confirm with PBP2a latex agglutination or mecA PCR. "
-                   "Report all beta-lactams as resistant until resolved."),
-        "reference": "CLSI M100 Ed36 — cefoxitin as the mecA surrogate",
+        # v7.3: not always "one disk is wrong" (mecC, BORSA); confirmation covers mecC.
+        "reason_ar": ("Oxacillin و Cefoxitin مؤشّران لنفس المقاومة (mecA/mecC) واختلافهما على "
+                      "نفس العزلة تعارض لازم يتحل — مش دايماً معناه إن قرص غلط: سلالات mecC "
+                      "غالباً Cefoxitin-R مع Oxacillin-S، وسلالات حدّية (BORSA/MODSA) ممكن "
+                      "تعمل العكس. Cefoxitin هو المؤشّر المعتمد لـ mecA في CLSI ويُقدَّم عند "
+                      "التعارض."),
+        "reason_en": ("Oxacillin and cefoxitin both report methicillin resistance "
+                      "(mecA/mecC); a split on one isolate is a discrepancy to resolve - "
+                      "not necessarily a faulty disk: mecC strains typically read "
+                      "cefoxitin-R with oxacillin-S, and borderline (BORSA / MODSA) "
+                      "strains can split the other way. Cefoxitin is the CLSI mecA "
+                      "surrogate and takes precedence."),
+        "fix_ar": ("أعِد الاختبار من مستعمرة نقية (ويُفضَّل MIC). عند استمرار التعارض: PBP2a "
+                   "بكِت يكشف PBP2c/mecC (أغلب كِتات PBP2a لا تكشف mecC) أو PCR لـ mecA و mecC "
+                   "معاً — PCR لـ mecA وحده لا ينفي mecC. بلِّغ البيتا-لاكتام كمقاومة حتى الحسم "
+                   "حسب سياسة المعمل."),
+        "fix_en": ("Repeat from a pure colony (MIC preferred). If the split persists: a PBP2a "
+                   "test whose kit detects PBP2c / mecC (most PBP2a latex kits miss it), or "
+                   "PCR for BOTH mecA and mecC - a mecA-only PCR does not exclude mecC. Report "
+                   "beta-lactams as resistant until resolved, per laboratory policy."),
+        "reference": "CLSI M100 Ed36 — cefoxitin as the mecA surrogate · EUCAST detection of resistance mechanisms v2.0 (mecC)",
         # error: the split decides every beta-lactam on the sheet and must be
         # resolved before release (borderline / mecC strains are why, not a reason
         # to report it as it stands).
@@ -142,9 +147,7 @@ EQUIVALENCE_RULES: List[Dict[str, Any]] = [
         "organisms": ENTEROBACTERALES,
         "a": "cefotaxime", "a_exclude": _INHIBITORS,
         "b": "ceftriaxone", "b_exclude": _INHIBITORS,
-        # v7.2 (second external review): "verify", not "error". Identical CLSI
-        # criteria make a split UNEXPECTED, but an MIC one dilution either side of
-        # the breakpoint, or a disk-zone reading, produces it without a lab fault.
+        # v7.2: "verify" -- an MIC at the breakpoint or a zone reading can split them.
         "severity": "warning",
         "reason_ar": ("Cefotaxime و Ceftriaxone سيفالوسبورينان من الجيل الثالث "
                       "بنفس الـ breakpoints ضد الـ Enterobacterales، "
@@ -202,14 +205,17 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
         "organisms": ENTEROBACTERALES,
         "better": "ampicillin", "better_exclude": _INHIBITORS,
         "worse": "amoxicillin", "worse_needle_extra": "clav",
-        "reason_ar": ("Ampicillin حسّاس بينما Amoxicillin/Clavulanate مقاوم — "
-                      "غير منطقي: إضافة مثبّط بيتا-لاكتاماز لا يمكن أن تقلّل "
-                      "فاعلية الدواء."),
-        "reason_en": ("Ampicillin susceptible while amoxicillin-clavulanate is "
-                      "resistant is not possible: adding a beta-lactamase "
-                      "inhibitor cannot reduce activity."),
-        "fix_ar": "أعِد اختبار القرصين. غالباً خطأ قراءة أو قرص تالف.",
-        "fix_en": "Repeat both disks. Usually a reading error or a degraded disk.",
+        # v7.3 (third review): "verify", as the signed registry row says.
+        "severity": "warning",
+        "reason_ar": ("Ampicillin حسّاس بينما Amoxicillin/Clavulanate مقاوم — نمط غير متوقَّع: "
+                      "إضافة مثبّط بيتا-لاكتاماز لا تقلّل الفاعلية عادةً، فالأغلب خطأ قراءة أو "
+                      "قرص تالف — أعِد الاختبار (MIC لو متاح) قبل الإبلاغ."),
+        "reason_en": ("Ampicillin susceptible while amoxicillin-clavulanate is resistant is "
+                      "unexpected: adding a beta-lactamase inhibitor does not normally reduce "
+                      "activity, so a reading error or a degraded disk is likely - repeat (MIC "
+                      "if available) before reporting."),
+        "fix_ar": "أعِد اختبار القرصين (أو MIC). غالباً خطأ قراءة أو قرص تالف.",
+        "fix_en": "Repeat both disks (or by MIC). Usually a reading error or a degraded disk.",
         "reference": "EUCAST Expert Rules v3.1 (2016) — beta-lactam hierarchy (logic; no CLSI counterpart needed)",
     },
     {
@@ -217,13 +223,18 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
         "organisms": [],
         "better": "piperacillin", "better_exclude": _INHIBITORS,
         "worse": "piperacillin", "worse_needle_extra": "tazobactam",
-        "reason_ar": ("Piperacillin حسّاس بينما Piperacillin/Tazobactam مقاوم — "
-                      "غير منطقي لنفس السبب: المثبّط لا يقلّل الفاعلية."),
-        "reason_en": ("Piperacillin susceptible while piperacillin-tazobactam is "
-                      "resistant is not possible — the inhibitor cannot reduce "
-                      "activity."),
-        "fix_ar": "أعِد اختبار القرصين.",
-        "fix_en": "Repeat both disks.",
+        # v7.3: "verify", as the registry says (inoculum effect; different breakpoints).
+        "severity": "warning",
+        "reason_ar": ("Piperacillin حسّاس بينما Piperacillin/Tazobactam مقاوم — نمط غير متوقَّع "
+                      "(المثبّط لا يقلّل الفاعلية عادةً). الـ breakpoints مختلفة بين الاتنين "
+                      "(Pip-Tazo اتخفّض في CLSI للـ Enterobacterales)، فراجِع الـ MIC وأعِد "
+                      "الاختبار قبل الإبلاغ."),
+        "reason_en": ("Piperacillin susceptible while piperacillin-tazobactam is resistant is "
+                      "unexpected (the inhibitor does not normally reduce activity). The two "
+                      "carry different breakpoints (CLSI lowered pip-tazo for "
+                      "Enterobacterales), so check the MICs and repeat before reporting."),
+        "fix_ar": "أعِد اختبار القرصين وراجِع الـ MIC.",
+        "fix_en": "Repeat both disks and check the MICs.",
         "reference": "EUCAST Expert Rules v3.1 (2016) — beta-lactam hierarchy (logic; no CLSI counterpart needed)",
     },
     {
@@ -252,7 +263,11 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
     },
     {
         "id": "hier_tet_vs_doxy",
-        "organisms": [],
+        # v7.3: only the groups whose CLSI tables carry the predictive note (it ran
+        # for every organism); each table still needs Dr. Tarek's reading.
+        "organisms": ENTEROBACTERALES + ["acinetobacter", "staphylococc", "staph",
+                                         "mrsa", "mssa", "enterococc", "vre",
+                                         "streptococc", "pneumococc"],
         "better": "tetracycline", "better_exclude": ["oxytetracycline"],
         "worse": "doxycycline", "worse_needle_extra": "",
         "reason_ar": ("Tetracycline حسّاس بينما Doxycycline مقاوم — يخالف قاعدة "
@@ -284,20 +299,24 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
                       "teicoplanin-susceptible. The reverse does not occur."),
         "fix_ar": "أعِد اختبار الجليكوببتيدات بـ MIC على مستعمرة نقية وأكّد التعريف.",
         "fix_en": "Repeat both glycopeptides by an MIC method on a pure colony and confirm the identification.",
-        "reference": "EUCAST Expert Rules v3.2 — glycopeptides in enterococci (mechanism logic) · CLSI M100 Ed36 Table 2D",
+        "reference": "Glycopeptide resistance phenotypes in enterococci (VanA / VanB / VanC; mechanism logic, read from a secondary summary) · EUCAST Breakpoint Tables v16.1 Enterococcus · CLSI M100 Ed36 Table 2D",
     },
     {
         "id": "hier_pen_vs_cro_pneumococcus",
         "organisms": ["streptococcus pneumoniae", "pneumococc"],
         "better": "penicillin", "better_exclude": ["piperacillin", "benzathine", "non-mening", "nonmening", "oral"],
         "worse": "ceftriaxone", "worse_needle_extra": "",
-        "reason_ar": ("Penicillin حسّاس بينما Ceftriaxone مقاوم في S. pneumoniae — "
-                      "المكورة الرئوية الحسّاسة للبنسلين تُعتبر حسّاسة للسيفالوسبورينات "
-                      "الممتدة والكاربابينيمات (CLSI M100 Ed36 Table 2G)."),
-        "reason_en": ("Penicillin susceptible with ceftriaxone resistant in "
-                      "S. pneumoniae: a penicillin-susceptible pneumococcus is "
-                      "susceptible to the extended-spectrum cephalosporins and "
-                      "carbapenems (CLSI M100 Ed36 Table 2G predictive rule)."),
+        # v7.3: "verify" -- non-meningitis penicillin S vs meningitis cephalosporin R.
+        "severity": "warning",
+        "reason_ar": ("Penicillin حسّاس بينما Ceftriaxone مقاوم في S. pneumoniae — غير متوقَّع "
+                      "لو الاتنين مقروءين بنفس نوع الـ breakpoint، لكنه ممكن لو البنسلين مقروء "
+                      "بمعيار غير السحايا (MIC ≤ 2) والسيفترياكسون بمعيار السحايا: راجِع الـ "
+                      "MIC ونوع الـ breakpoint."),
+        "reason_en": ("Penicillin susceptible with ceftriaxone resistant in S. pneumoniae is "
+                      "unexpected when both are read with the same kind of breakpoint, but "
+                      "possible when penicillin is read with the non-meningitis criterion "
+                      "(MIC <= 2) and ceftriaxone with the meningitis one: check the MICs and "
+                      "the breakpoints applied."),
         "fix_ar": ("أعِد الاختبار بـ MIC (لا يُعتمد على القرص للبيتا-لاكتام في المكورة "
                    "الرئوية) وتأكّد من نقطة القطع المستخدمة (سحايا أم غير سحايا)."),
         "fix_en": ("Repeat by MIC (disk diffusion is not used for beta-lactams in "
@@ -309,10 +328,15 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
         "organisms": ["streptococcus pneumoniae", "pneumococc"],
         "better": "penicillin", "better_exclude": ["piperacillin", "benzathine", "non-mening", "nonmening", "oral"],
         "worse": "cefotaxime", "worse_needle_extra": "",
-        "reason_ar": ("Penicillin حسّاس بينما Cefotaxime مقاوم في S. pneumoniae — "
-                      "نفس القاعدة التنبّؤية: لا يُتوقّع هذا النمط."),
-        "reason_en": ("Penicillin susceptible with cefotaxime resistant in "
-                      "S. pneumoniae contradicts the same predictive rule."),
+        # v7.3: "verify" -- non-meningitis penicillin S vs meningitis cephalosporin R.
+        "severity": "warning",
+        "reason_ar": ("Penicillin حسّاس بينما Cefotaxime مقاوم في S. pneumoniae — غير متوقَّع "
+                      "بنفس نوع الـ breakpoint، وممكن مع معيار غير السحايا للبنسلين ومعيار "
+                      "السحايا للسيفوتاكسيم: راجِع الـ MIC ونوع الـ breakpoint."),
+        "reason_en": ("Penicillin susceptible with cefotaxime resistant in S. pneumoniae is "
+                      "unexpected with the same kind of breakpoint, and possible with the "
+                      "non-meningitis penicillin and the meningitis cefotaxime criteria: check "
+                      "the MICs and the breakpoints applied."),
         "fix_ar": "أعِد الاختبار بـ MIC وتأكّد من نقطة القطع المستخدمة.",
         "fix_en": "Repeat by MIC and check which breakpoint was applied.",
         "reference": "CLSI M100 Ed36 Table 2G · EUCAST Clinical Breakpoint Tables v16.1 — S. pneumoniae",
@@ -434,7 +458,8 @@ EXCEPTIONAL_PHENOTYPES: List[Dict[str, Any]] = [
                       "prolonged therapy."),
         "fix_ar": "أكِّد بـ MIC وراجع تاريخ علاج المريض باللينيزوليد.",
         "fix_en": "Confirm by MIC and review prior linezolid exposure.",
-        "reference": "CLSI M100 Ed36 Table 2A (tetracycline predicts doxycycline / minocycline)",
+        # v7.3: this reference was a copy of the tetracycline rule's.
+        "reference": "CLSI M100 Ed36 Appendix A (linezolid-resistant: confirm ID and AST) · EUCAST Breakpoint Tables v16.1 — oxazolidinones",
     },
     {
         "id": "rare_colistin_disc",
@@ -474,14 +499,16 @@ def _worse_than(a: Optional[str], b: Optional[str]) -> bool:
 def check_consistency(organism: str, sir_map: Dict[str, str]) -> List[Dict[str, Any]]:
     """Find results on this panel that contradict each other.
 
-    Severity is set PER RULE (v7.2, second external review). `error` = a
-    logical impossibility (an inhibitor cannot reduce activity; the CLSI
-    predictive rules) or a split that decides every beta-lactam on the sheet
-    (oxacillin / cefoxitin): one printed result is wrong and the panel is not
-    released until it is resolved. `warning` ("verify") = two agents expected to
-    agree that need not always (cefotaxime / ceftriaxone near the breakpoint,
-    amoxicillin-clavulanate / ampicillin-sulbactam), or an unusual direction a
-    rare mechanism produces (meropenem-R / ertapenem-S): confirm, preferably by MIC.
+    Severity is set PER RULE (v7.2, second external review) and must match the
+    confidence the registry row states (v7.3, third review). `error` = a split
+    that decides every beta-lactam on the sheet (oxacillin / cefoxitin), the
+    CLSI tetracycline predictive note, and a glycopeptide pattern no mechanism
+    produces (vancomycin-S / teicoplanin-R in enterococci): not released until
+    resolved. `warning` ("verify") = results expected to agree that need not
+    always: cefotaxime / ceftriaxone, amoxicillin-clavulanate / ampicillin-
+    sulbactam, ampicillin / amoxicillin-clavulanate, piperacillin / pip-tazo
+    (different breakpoints), meropenem-R / ertapenem-S, and the pneumococcal
+    penicillin / cephalosporin pairs (meningitis vs non-meningitis criteria).
     Unusual combinations are warnings; exceptional phenotypes carry no severity.
     """
     if not sir_map or not organism:
@@ -617,25 +644,6 @@ def format_issue(issue: Dict[str, Any], lang: str = "ar") -> Dict[str, str]:
     }
 
 
-# ── 3. Corrections to AST_QC_RULES that live in clinical_data.py ─────────────
-# TEMPORARY. These override rules whose text is wrong at source. Fix
-# clinical_data.py and delete the entry — an override layer that outlives its
-# cause becomes a second, invisible source of truth.
-# QC_RULE_OVERRIDES was DELETED 2026-08-03 (40 lines).
-#
-# It existed to patch QC006's text at runtime: the original wording told
-# laboratories to "avoid ALL cephalosporins even if S in the AST" and attributed
-# that to EUCAST, which says the opposite — the current Enterobacterales
-# cephalosporin breakpoints detect the clinically important mechanisms, isolates
-# are REPORTED AS TESTED, and the presence of an ESBL does not by itself change
-# the categorisation. That is a real correction and it is still in force.
-#
-# But it was applied AT SOURCE: run_ast_qc() now emits the corrected message and
-# the corrected `fix` text directly, so the override table overrode nothing and
-# no code ever read it. A dead override for a live correction is worse than no
-# override — a reader finds it, believes the patch happens here, and looks in
-# the wrong place when the text needs changing again.
-#
-# The clinical reasoning survives in run_ast_qc()'s QC006 entry, which is where
-# the text actually lives.
-
+# ── 3. QC_RULE_OVERRIDES was deleted 2026-08-03: the QC006 correction (EUCAST:
+# cephalosporins are reported as tested; an ESBL alone does not re-categorise)
+# lives at source, in run_ast_qc()'s QC006 entry.
