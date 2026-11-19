@@ -717,7 +717,13 @@ ABX_GUIDELINES = {
             "Sulfonylureas (خافضات السكر — هبوط سكر)",
             "Azathioprine (آزاثيوبرين — تثبيط نخاع)",
         ],
-        "aliases": ["septra","sutrim","bactrim","co-trimoxazole","tmp-smx"],
+        # v7.0: lab templates print the sulfonamide under wrong names --
+        # "Sulphamethazone" (≈ sulfamethazine, a different, veterinary sulfa).
+        # The disk is still SXT; ocr_parsing.ocr_name_warnings() says so.
+        "aliases": ["septra","sutrim","bactrim","co-trimoxazole","tmp-smx",
+                    "sulphamethoxazole","sulfamethoxazole trimethoprim",
+                    "trimethoprim sulphamethoxazole","sulphamethazone","sulfamethazone",
+                    "sulfamethazine","sulphamethazine"],
         "organisms": ["E. coli","Klebsiella spp.","Proteus mirabilis","Staphylococcus aureus",
                       "Stenotrophomonas maltophilia","Shigella spp.","Salmonella spp."],
         "specimen_notes": {
@@ -820,9 +826,10 @@ ABX_GUIDELINES = {
         "priority": 2, "class": "Tetracycline (Oral/IV)",
         "note": (
             "WHO AWaRe: الفموي Watch والوريدي Reserve. "
-            "✅ التتراسيكلين الوحيد الفعّال ضد Acinetobacter و Serratia — "
-            "EUCAST تنص صراحةً أن مقاومتهما الجوهرية للتتراسيكلين والدوكسيسيكلين "
-            "لا تمتد للمينوسيكلين. خيار ضمن توليفة في IDSA AMR Guidance لـ "
+            "✅ التتراسيكلين المفضّل ضد Acinetobacter و Serratia: CLSI M100 Ed36 ألغى "
+            "breakpoints التتراسيكلين والدوكسيسيكلين لـ Acinetobacter وأبقى المينوسيكلين، "
+            "و EUCAST يعتبر S. marcescens مقاومة جوهرياً للتتراسيكلين والدوكسيسيكلين "
+            "لا للمينوسيكلين. خيار ضمن توليفة في IDSA AMR Guidance لـ "
             "Stenotrophomonas و CRAB (يُفضّل مع دواء ثانٍ في العدوى الشديدة)."
         ),
         "renal_limit": 0, "renal_note": "🟢 آمن كلوياً نسبياً (إخراج كبدي أساساً).", "renal_note_en": "🟢 relatively renally safe (primarily hepatic excretion).",
@@ -1891,6 +1898,211 @@ ABX_GUIDELINES.update({
             "Wound Swab": "🛡️ عدوى جلد ونسيج رخو.",
             "Pus": "🛡️ عدوى عظم ومفصل — جرعة يومية واحدة تسهّل العلاج المنزلي.",
             "CSF": "⛔ نفاذية سحائية رديئة — لا يُستخدم للسحايا.",
+        },
+    },
+})
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  THE FIVE AGENTS OF IDSA AMR GUIDANCE 2026 — added v6.9 (2026-11-14)
+# ═══════════════════════════════════════════════════════════════════════════
+#  Decision D5 of the v6.8 decisions document (lab owner, 2026-11-14): add the
+#  agents IDSA 2026 places in the ESBL-E / AmpC-E / CRE algorithms that this
+#  formulary could not read. Every number below is from the product label /
+#  SmPC named in its `dose_owner_approved` line; the IDSA position is quoted
+#  from the guidance (idsociety.org/practice-guideline/amr-guidance, read
+#  2026-11-19):
+#    Q1.1 ESBL-E cystitis  preferred: single-dose aminoglycoside, gepotidacin,
+#                          nitrofurantoin, PIVMECILLINAM, SULOPENEM, TMP-SMX;
+#                          alternative: oral fosfomycin (E. coli); fallback:
+#                          FQ, CEFEPIME-ENMETAZOBACTAM, carbapenems.
+#    Q1.2 ESBL-E cUTI      preferred: TMP-SMX / FQ; when precluded,
+#                          CEFEPIME-ENMETAZOBACTAM or a carbapenem; alternative:
+#                          IV FOSFOMYCIN, aminoglycosides, pip-tazo; oral
+#                          sulopenem only after initial clinical improvement.
+#    ESBL-E invasive       carbapenem preferred; cefepime-enmetazobactam an
+#                          alternative ("data outside the urinary tract remain
+#                          limited").
+#    CRE cystitis          pivmecillinam alternative if KPC is unlikely (0% of
+#                          174 KPC producers S); gepotidacin alternative.
+#    IV fosfomycin         "only in combination with another active agent"
+#                          outside cUTI.
+#  Breakpoints: CLSI M100 covers mecillinam (E. coli, uUTI). Sulopenem,
+#  gepotidacin, cefepime-enmetazobactam and IV fosfomycin are read by FDA STIC
+#  criteria (FDA: "not included in the recognized CLSI standard"); the organism
+#  scope of each is enforced by rules/new_agents.py.
+#  AWaRe (WHO 2025 list, aware.essentialmeds.org): pivmecillinam Access,
+#  gepotidacin Watch, fosfomycin injection Reserve. Sulopenem and
+#  cefepime-enmetazobactam are not yet classified -- treated as Reserve, as
+#  sulbactam-durlobactam is.
+#  DOSES: owner-approved from the labels; NOT countersigned -- they join
+#  Dr. Tarek's queue like every row added after his signature.
+# ═══════════════════════════════════════════════════════════════════════════
+_D5 = ("2026-11-14 · checked against the product label named in the note · "
+       "AI-assisted source check (Claude) · released on the lab owner's decision D5 — "
+       "NOT a clinician countersignature")
+ABX_GUIDELINES.update({
+    "Pivmecillinam": {
+        "priority": 1, "class": "Penicillin — amidinopenicillin (Oral)",
+        "note": ("🎯 (Pivya / Selexid) Oral — لالتهاب المثانة البسيط فقط. IDSA 2026: **مفضّل** لـ "
+                 "ESBL-E cystitis، بديل في AmpC-E، وبديل في CRE إذا كان KPC غير مرجّح "
+                 "(mecillinam حسّاس في 0% من منتجي KPC). ليس للـ pyelonephritis أو العدوى "
+                 "الغازية. يُختبر معملياً كـ Mecillinam — CLSI M100: breakpoints لـ E. coli "
+                 "(uUTI) فقط. الجرعة (FDA label): 185 mg × 3 يومياً 3–7 أيام؛ الجرعة "
+                 "الأوروبية الشائعة 400 mg × 3 يومياً."),
+        # No renal band: the label gives no adjustment. Its carnitine caution is
+        # about prolonged use; a 3-7 day course is not refused for CrCl alone.
+        "renal_limit": 0,
+        "renal_note": ("لا تعديل جرعة (FDA label). نقص الكارنيتين (المجموعة pivalate) يخص "
+                       "الاستخدام الطويل؛ مع قصور كلوي شديد وكتلة عضلية قليلة فكّر في بديل."),
+        "renal_note_en": ("No dose adjustment (FDA label). Carnitine depletion (pivalate moiety) "
+                          "is a risk of prolonged use; with severe renal impairment and low "
+                          "muscle mass consider an alternative."),
+        "dose_owner_approved": _D5 + " (Pivya prescribing information, FDA 2024)",
+        "hepatic_caution": False, "aware": "Access", "high_po": True,
+        "preg_status": "Safe",
+        "preg_note": ("Pivmecillinam في الحمل: دراستا أترابية (42,223 تعرّضاً في الثلث الأول) بلا "
+                      "زيادة في التشوهات الكبرى (FDA label 2024)، ومستخدم كخط أول في دول الشمال. "
+                      "قرب الولادة قد يعطي نتيجة إيجابية كاذبة لـ isovaleric acidemia في فحص "
+                      "حديثي الولادة."),
+        "child_safe": False,
+        "child_note": "FDA: الأمان والفاعلية غير مُثبتين في الأطفال (نقص كارنيتين مع الاستخدام الطويل).",
+        "interacts_with": ["Valproic acid (مضادات الصرع)", "Methotrexate (ميثوتريكسات)"],
+        "aliases": ["pivya", "selexid", "mecillinam", "pivmecillinam hydrochloride",
+                    "amdinocillin pivoxil", "amdinocillin"],
+        "organisms": ["E. coli", "Proteus mirabilis"],
+        "specimen_notes": {
+            "Urine": "🎯 التهاب مثانة بسيط فقط — ليس للـ pyelonephritis أو الـ cUTI (IDSA 2026).",
+        },
+    },
+    "Sulopenem": {
+        "priority": 3, "class": "Carbapenem — oral penem (+ probenecid)",
+        "note": ("🎯 (Orlynvah: sulopenem etzadroxil 500 mg + probenecid 500 mg) Oral — قرص "
+                 "مرتين يومياً مع الأكل × 5 أيام. FDA: التهاب مثانة بسيط في البالغات **عند "
+                 "محدودية أو انعدام البدائل الفموية**؛ ليس لـ cUTI. IDSA 2026: مفضّل لـ ESBL-E "
+                 "cystitis، وبديل لـ ESBL-E cUTI **بعد التحسن الإكلينيكي فقط** (تنزيل فموي). "
+                 "كاربابينيم فموي — احفظه لمن ليس له بديل. breakpoints: FDA STIC (E. coli، "
+                 "K. pneumoniae، P. mirabilis) — ليست ضمن CLSI M100. لا يُختبر على منتجي "
+                 "الكاربابينيميز."),
+        "renal_limit": 15,
+        "renal_note": ("المعتاد: قرص (500 mg / 500 mg) q12h × 5 أيام، بلا تعديل مع CrCl ≥15. "
+                       "CrCl <15 أو غسيل كلوي: غير موصى به (FDA label)."),
+        "renal_note_en": ("Usual: one tablet (500 mg / 500 mg) q12h for 5 days, unchanged at "
+                          "CrCl >=15. CrCl <15 or haemodialysis: not recommended (FDA label)."),
+        "dose_owner_approved": _D5 + " (Orlynvah prescribing information, FDA 2024)",
+        "hepatic_caution": False, "aware": "Reserve", "high_po": True,
+        "preg_status": "Caution",
+        "preg_note": ("Sulopenem: لا بيانات بشرية في الحمل؛ في الفئران بجرعات ~23 ضعفاً سُجّل "
+                      "شقّ حنك مع سمية للأم. Probenecid: لا خطر محدد عبر عقود. يُستخدم فقط إذا "
+                      "لم يوجد بديل أوثق."),
+        "child_safe": False,
+        "child_note": "FDA: غير مُثبت في الأطفال (سمية كلوية في صغار الجرذان).",
+        "interacts_with": ["NSAIDs (مسكنات الألم)", "Methotrexate (ميثوتريكسات)",
+                           "Sulfonylureas (خافضات السكر)"],
+        "aliases": ["orlynvah", "sulopenem etzadroxil", "sulopenem-probenecid",
+                    "sulopenem etzadroxil/probenecid", "sulopenem etzadroxil and probenecid"],
+        "organisms": ["E. coli", "Klebsiella spp.", "Proteus mirabilis"],
+        "specimen_notes": {
+            "Urine": "🎯 التهاب مثانة بسيط؛ في cUTI فقط كتنزيل فموي بعد التحسن (IDSA 2026).",
+        },
+    },
+    "Gepotidacin": {
+        "priority": 2, "class": "Triazaacenaphthylene — topoisomerase inhibitor (Oral)",
+        "note": ("🎯 (Blujepa) Oral — 1500 mg مرتين يومياً بعد الأكل × 5 أيام. FDA: التهاب مثانة "
+                 "بسيط في الإناث ≥12 سنة ووزن ≥40 kg (E. coli، K. pneumoniae، C. freundii، "
+                 "S. saprophyticus، E. faecalis). IDSA 2026: **مفضّل** لـ ESBL-E cystitis؛ في "
+                 "AmpC-E لا يُقترح بلا اختبار حساسية مؤكد؛ في CRE بديل (بيانات محدودة). صنف "
+                 "جديد — يحتفظ بنشاطه غالباً مع مقاومة الفلوروكينولون. ⚠️ إطالة QTc وتثبيط "
+                 "acetylcholinesterase. تجنّبه مع مثبطات CYP3A4 القوية وأدوية QT. breakpoints: "
+                 "FDA STIC — ليست ضمن CLSI M100."),
+        "renal_limit": 30,
+        "renal_note": ("المعتاد: 1500 mg q12h × 5 أيام، بلا تعديل مع eGFR ≥30. eGFR <30 أو غسيل: "
+                       "تجنّب (FDA label — تعرّض أعلى وخطر QTc)."),
+        "renal_note_en": ("Usual: 1500 mg q12h for 5 days, unchanged at eGFR >=30. eGFR <30 or "
+                          "dialysis: avoid (FDA label — higher exposure, QTc risk)."),
+        "dose_owner_approved": _D5 + " (Blujepa prescribing information, FDA 2025)",
+        "hepatic_caution": True, "aware": "Watch", "high_po": True,
+        "preg_status": "Warn",
+        "preg_note": ("تحذير حمل — Gepotidacin: لا بيانات بشرية؛ في الحيوان نقص وزن الأجنة وزيادة "
+                      "الامتصاص المتأخر بتعرّض أقل من جرعة الإنسان (FDA label). يوجد سجل حمل. "
+                      ">>> القرار النهائي للطبيب المعالج حصراً. <<<"),
+        "child_safe": False, "child_min_age": 12,
+        "child_note": "FDA: مسموح للإناث ≥12 سنة ووزن ≥40 kg (uUTI). أصغر من ذلك غير مُثبت.",
+        "interacts_with": ["QT-prolonging drugs (أدوية تطيل QT)",
+                           "Digoxin (ديجوكسين — ارتفاع المستوى)",
+                           "Neuromuscular blocking agents (مرخيات العضلات)"],
+        "aliases": ["blujepa", "gepotidacin mesylate"],
+        "organisms": ["E. coli", "Klebsiella spp.", "Citrobacter freundii",
+                      "Staphylococcus saprophyticus", "Enterococcus faecalis"],
+        "specimen_notes": {
+            "Urine": "🎯 التهاب مثانة بسيط فقط — ليس للـ pyelonephritis (IDSA 2026).",
+        },
+    },
+    "Cefepime + Enmetazobactam": {
+        "priority": 8, "class": "Cephalosporin + Beta-lactamase Inhibitor (IV)",
+        "note": ("🛡️ (Exblifep) IV — 2.5 g (2 g / 0.5 g) q8h بتسريب ساعتين × 7 أيام (حتى 14 "
+                 "مع تجرثم الدم). FDA: cUTI و pyelonephritis في البالغين. IDSA 2026: لـ ESBL-E "
+                 "cUTI **مفضّل** (مع الكاربابينيم) إذا تعذّر TMP-SMX / FQ؛ في العدوى الغازية "
+                 "خارج البول **بديل** (بيانات محدودة)؛ في AmpC-E يُحفظ لمن معه ESBL مرافق. "
+                 "Enmetazobactam لا يُعتمد عليه أمام الكاربابينيميز. breakpoints: FDA STIC — "
+                 "ليست ضمن CLSI M100."),
+        "renal_limit": 60,
+        "renal_note": ("eGFR ≥130: 2.5 g q8h بتسريب 4 ساعات. eGFR 60-129: 2.5 g q8h (ساعتان). "
+                       "eGFR 30-59: 1.25 g q8h. eGFR 15-29: 1.25 g q12h. eGFR <15 أو غسيل: "
+                       "تحميل 1.25 g ثم 0.625 g q24h (بعد الغسيل). FDA label (Exblifep)."),
+        "renal_note_en": ("eGFR >=130: 2.5 g q8h as a 4-h infusion. eGFR 60-129: 2.5 g q8h "
+                          "(2 h). eGFR 30-59: 1.25 g q8h. eGFR 15-29: 1.25 g q12h. eGFR <15 or "
+                          "HD: 1.25 g loading then 0.625 g q24h (after dialysis). FDA label "
+                          "(Exblifep)."),
+        "dose_owner_approved": _D5 + " (Exblifep prescribing information, FDA 2024, Table 1)",
+        "hepatic_caution": False, "aware": "Reserve", "high_po": False,
+        "preg_status": "Caution",
+        "preg_note": ("لا بيانات بشرية للتوليفة؛ بيانات السيفالوسبورينات (منها Cefepime) مطمئنة. "
+                      "Enmetazobactam: نقص وزن الأجنة في الحيوان بجرعات عالية بلا تشوهات."),
+        "child_safe": False,
+        "child_note": "FDA: غير مُثبت أقل من 18 سنة.",
+        "interacts_with": [],
+        "aliases": ["exblifep", "cefepime-enmetazobactam", "cefepime/enmetazobactam",
+                    "fep-enmet", "fpe-enm"],
+        "organisms": ["E. coli", "Klebsiella spp.", "Proteus mirabilis",
+                      "Enterobacter cloacae", "Pseudomonas aeruginosa"],
+        "specimen_notes": {
+            "Urine": "🛡️ ESBL-E cUTI / pyelonephritis — مفضّل إذا تعذّر TMP-SMX / FQ (IDSA 2026).",
+            "Blood": "🛡️ تجرثم دم من مصدر بولي (حتى 14 يوماً)؛ خارج البول بيانات محدودة.",
+        },
+    },
+    "Fosfomycin IV": {
+        "priority": 9, "class": "Phosphonic Acid (IV)",
+        "note": ("🛡️ (Fomicyt / Infectofos — fosfomycin disodium) IV — 12–24 g يومياً على 2–3 "
+                 "جرعات (لا تتجاوز 8 g للجرعة). IDSA 2026: **بديل** لـ ESBL-E cUTI (خاصة E. coli) "
+                 "وبديل لـ CRE cUTI؛ خارج المسالك **في توليفة مع دواء فعّال آخر فقط** — لا "
+                 "يُستخدم منفرداً (مقاومة سريعة). ⚠️ حمل صوديوم ~0.32 g لكل 1 g (≈ 14 mmol) "
+                 "ونقص بوتاسيوم — راقب الأملاح. لا breakpoints لـ IV في CLSI؛ FDA STIC و EUCAST "
+                 "(E. coli من مصدر بولي)."),
+        "renal_limit": 40,
+        "renal_note": ("المعتاد (CrCl ≥40): 12–24 g يومياً على 2–3 جرعات. تحت 40 تُخفض الجرعة اليومية: "
+                       "70% عند 40، 60% عند 30، "
+                       "40% عند 20، 20% عند 10، مع مضاعفة الجرعة الأولى (حد 8 g). غسيل متقطع: 2 g "
+                       "بعد كل جلسة. SmPC (Fomicyt)."),
+        "renal_note_en": ("Usual (CrCl >=40): 12-24 g a day in 2-3 doses. Below 40 reduce the "
+                          "daily dose: 70 % at 40, "
+                          "60 % at 30, 40 % at 20, 20 % at 10, with the first dose doubled (max "
+                          "8 g). Intermittent HD: 2 g after each session. SmPC (Fomicyt)."),
+        "dose_owner_approved": _D5 + " (Fomicyt SmPC, medicines.org.uk/emc/product/100356)",
+        "hepatic_caution": False, "aware": "Reserve", "high_po": False,
+        "preg_status": "Warn",
+        "preg_note": ("تحذير حمل — Fosfomycin IV: يعبر المشيمة ولا بيانات للاستخدام الوريدي في "
+                      "الحمل (SmPC) — يُتجنب إلا إذا رجحت الفائدة. >>> القرار النهائي للطبيب "
+                      "المعالج حصراً. <<<"),
+        "child_safe": True,
+        "child_note": "SmPC: كل الأعمار بالجرعة حسب الوزن (1–12 سنة: 200–400 mg/kg/يوم) — بيانات محدودة.",
+        "interacts_with": ["Warfarin (مضادات التخثر)"],
+        "aliases": ["fosfomycin iv", "iv fosfomycin", "fosfomycin intravenous",
+                    "fosfomycin disodium", "fosfomycin sodium", "fomicyt", "infectofos",
+                    "zolyd", "contepo"],
+        "organisms": ["E. coli"],
+        "specimen_notes": {
+            "Urine": "🛡️ cUTI بـ ESBL-E أو CRE — بديل (IDSA 2026).",
+            "Blood": "⚠️ في توليفة مع دواء فعّال آخر فقط (IDSA 2026).",
         },
     },
 })
