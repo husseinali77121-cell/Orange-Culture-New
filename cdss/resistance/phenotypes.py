@@ -35,8 +35,8 @@ PHENOTYPE_RULES = {
         "derived": True, "organisms": [], "markers": [],
         "icon": "🟠", "label": "AmpC β-lactamase (predicted)",
         "detail": "مقاومة للجيل الثالث مع نمط AmpC (كروموسومي مُفرط أو بلازميدي).",
-        "action": ("Cefepime إذا S (MIC ≤ 2)؛ Carbapenem إذا SDD/I أو حالة حرجة "
-                   "(IDSA 2026). لا Ceftriaxone ولا Pip-Tazo للعدوى الغازية."),
+        "action": ("Cefepime إذا MIC ≤ 8 (S، أو SDD بجرعة 2 g q8h)؛ Carbapenem إذا Cefepime R أو "
+                   "ثبت جين ESBL أو حالة حرجة (IDSA 2026). لا Ceftriaxone ولا Pip-Tazo للعدوى الغازية."),
         "isolation": False,
     },
     "STENO": {
@@ -85,7 +85,7 @@ PHENOTYPE_RULES = {
         # "Citrobacter spp." and neither string is a substring of the other, so
         # the species profile added earlier that day matched nothing.
         "organisms": ["Klebsiella spp.", "E. coli", "Escherichia coli",
-                      "Enterobacter cloacae", "Enterobacter spp.",
+                      "Enterobacter cloacae", "Enterobacter spp.", "Klebsiella aerogenes",
                       "Proteus mirabilis", "Proteus vulgaris", "Proteus spp.",
                       "Klebsiella pneumoniae", "Klebsiella oxytoca",
                       "Serratia marcescens", "Serratia spp.", "Citrobacter spp.",
