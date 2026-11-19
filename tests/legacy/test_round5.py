@@ -165,8 +165,11 @@ _PC = Patient(age_years=50, is_hepatic=True, child_pugh="C")
 r = A.run_analysis(_PC, "E. coli", "Urine", _esbl)
 for _d in ("Cefoperazone", "Cefoperazone + Sulbactam"):
     _b, _it = bucket_of(r, _d)
-    check(f"ESBL cystitis + Child-Pugh C: {_d} is BANNED (hepatic), not a caution",
-          _b == "banned" and _it.get("category") == "hepatic", (_b, _it.get("category")))
+    # v7.0: cefoperazone-sulbactam has no breakpoint anywhere, so that ban comes
+    # first now (the walk stops at the first ban); either way it is never a caution.
+    _ok_cat = ("hepatic",) if _d == "Cefoperazone" else ("hepatic", "no_breakpoint")
+    check(f"ESBL cystitis + Child-Pugh C: {_d} is BANNED ({'/'.join(_ok_cat)}), not a caution",
+          _b == "banned" and _it.get("category") in _ok_cat, (_b, _it.get("category")))
 r = A.run_analysis(_PC, "E. coli", "Urine",
                    {"Ertapenem": "R", "Meropenem": "S", "Cefoperazone": "S"})
 check("possible carbapenemase + Child-Pugh C: Cefoperazone is banned",

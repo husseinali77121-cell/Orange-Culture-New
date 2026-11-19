@@ -353,7 +353,15 @@ _KNOWN = {"renal_adjustment", "hepatic_adjustment", "safety_gate", "neonate",
           # 2026-11-10 review: these all resolve through `clinical_note`.
           "novel_agent", "organism_caution", "allergy", "uti_upper",
           "aminoglycoside_pseudomonas", "colistin", "penicillinase_unconfirmed",
-          "no_breakpoint", "ampc_sdd", "ampc_cefepime"}
+          "no_breakpoint", "ampc_sdd", "ampc_cefepime",
+          # v6.9 (decision D3, AAP 2016): ciprofloxacin / levofloxacin in a child
+          "child_fq",
+          # v6.9 (decision D5): the IDSA 2026 agents
+          "idsa_new_agent", "label_population",
+          # v7.0 (EUCAST audit): cefoperazone read by the old CLSI criterion
+          "legacy_breakpoint",
+          # v7.0: ofloxacin / norfloxacin beside a non-susceptible quinolone
+          "fq_low_level"}
 _unhandled = sorted(str(r) for r in _reasons_seen if r and r not in _KNOWN)
 check("every warning_reason the engine emits has a resolver branch",
       not _unhandled, f"unhandled: {_unhandled}")

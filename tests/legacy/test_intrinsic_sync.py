@@ -119,20 +119,27 @@ check("amp-sulbactam is NOT intrinsic in clinical_data", "Ampicillin/Sulbactam" 
 check("amp-sulbactam is NOT intrinsic in ast_reportability", "Ampicillin/Sulbactam" not in acine_rp)
 check("cefoperazone-sulbactam is NOT intrinsic (active option)",
       "Cefoperazone + Sulbactam" not in acine and "Cefoperazone + Sulbactam" not in acine_rp)
-# EUCAST v3.3 Table 2 fn.2: "Acinetobacter is intrinsically resistant to
-# tetracycline and doxycycline but not to minocycline and tigecycline."
-# An earlier version of this file asserted the OPPOSITE for doxycycline, which
-# would have locked in an engine that offered an intrinsically inactive agent.
-check("tetracycline IS intrinsic for Acinetobacter", "Tetracycline" in acine)
-check("doxycycline IS intrinsic for Acinetobacter", "Doxycycline" in acine)
+# v6.9 (2026-11-14, decision D1 -- CLSI M100 Ed36 everywhere). Until v6.8
+# these checks held the EUCAST v3.3 fn.2 reading (tetracycline / doxycycline
+# intrinsic). CLSI does not call them intrinsic, and Ed36 REMOVED their
+# Acinetobacter breakpoints: they are now a no-breakpoint pair -- still never
+# offered as therapy, but reported as "no interpretive criteria", not as R.
+# Cefotaxime / ceftriaxone have CLSI breakpoints and left the intrinsic list.
+_nobp = {d for r in RP.NO_BREAKPOINT_RULES if RP._org_matches("Acinetobacter baumannii", r["organisms"])
+         for d in DRUGS if RP._drug_matches(d, r["drugs"], r["exclude"])}
+check("tetracycline is NOT intrinsic for Acinetobacter under CLSI", "Tetracycline" not in acine)
+check("doxycycline is NOT intrinsic for Acinetobacter under CLSI", "Doxycycline" not in acine)
+check("tetracycline / doxycycline are a CLSI Ed36 no-breakpoint pair",
+      {"Tetracycline", "Doxycycline"} <= _nobp, sorted(_nobp))
 check("minocycline is NOT intrinsic for Acinetobacter (it is the active one)",
       "Minocycline" not in acine)
-check("tetracycline IS intrinsic in ast_reportability too",
-      "Tetracycline" in acine_rp)
-check("doxycycline IS intrinsic in ast_reportability too",
-      "Doxycycline" in acine_rp)
+check("minocycline keeps its breakpoints", "Minocycline" not in _nobp)
+check("tetracycline / doxycycline are not intrinsic in ast_reportability either",
+      not ({"Tetracycline", "Doxycycline"} & acine_rp))
 check("minocycline stays reportable in ast_reportability",
       "Minocycline" not in acine_rp)
+check("cefotaxime / ceftriaxone are reportable for Acinetobacter (CLSI Table 2B-2)",
+      not ({"Cefotaxime", "Ceftriaxone"} & (acine | acine_rp)))
 
 # EUCAST v3.3 Table 2 fn.7 is NARROWER for S. maltophilia: tetracycline only.
 _steno = canon_for("Stenotrophomonas maltophilia")
@@ -143,10 +150,15 @@ check("doxycycline is NOT intrinsic for S. maltophilia (active agent)",
 check("doxycycline stays reportable for S. maltophilia in ast_reportability",
       "Doxycycline" not in _steno_rp)
 
-# Serratia: same footnote shape as Acinetobacter (fn.5).
+# Serratia: v7.0 EUCAST audit (decision D1). EUCAST v3.3 Table 1 fn.5 makes
+# tetracycline / doxycycline intrinsic; CLSI M100 Appendix B1 does not, so they
+# are reported as tested and carry a treatment caution in the organism profile.
 _serr = canon_for("Serratia marcescens")
-check("tetracycline+doxycycline intrinsic for Serratia",
-      {"Tetracycline", "Doxycycline"} <= _serr)
+check("tetracycline+doxycycline reported as tested for Serratia (CLSI, not EUCAST fn.5)",
+      not ({"Tetracycline", "Doxycycline"} & _serr))
+from cdss.organisms.organism_profile import ORGANISM_PROFILE as _OP_S   # noqa: E402
+check("...and the Serratia profile carries the EUCAST caution for both",
+      {"Tetracycline", "Doxycycline"} <= set(_OP_S["Serratia marcescens"].get("caution", {})))
 check("minocycline/tigecycline NOT intrinsic for Serratia",
       not ({"Minocycline", "Tigecycline"} & _serr))
 

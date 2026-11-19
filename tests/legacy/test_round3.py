@@ -218,8 +218,10 @@ pa = P("Urine", "E. coli", "10^5", "Pure growth", ["Fever (> 38°C)"], "20", "",
 INP = {"Gram stain": "Organisms بدون WBCs", "Host factors": [PG.HOST_SCI_PARA]}
 har = A.generate_patho_report_pdf(pa, "E. coli", "Urine", inputs=INP, lang="ar", return_html=True)
 hen = A.generate_patho_report_pdf(pa, "E. coli", "Urine", inputs=INP, lang="en", return_html=True)
+# v7.0: Arabic lines carry bidi isolates (LRI/PDI) around their English runs
+_har_plain = har.replace("\u2066", "").replace("\u2069", "")
 check("Arabic PDF prints every recommendation and every note",
-      all(A._esc(t) in har for t in pa["recommendations"] + pa["notes"]))
+      all(A._esc(t) in _har_plain for t in pa["recommendations"] + pa["notes"]))
 check("Arabic PDF prints the factors, threshold and references",
       all(A._esc(t) in har for t in pa["factors_pos"] + pa["factors_neg"]) and A._esc(pa["threshold"]) in har
       and "IDSA" in har)
@@ -239,10 +241,10 @@ print("\n[6] Gram-stain entry gate")
 ec = PG.gram_options_for("E. coli"); sa = PG.gram_options_for("Staphylococcus aureus")
 check("E. coli: Gram-positive choices are not offered", not [o_ for o_ in ec if "Positive" in o_], ec)
 check("E. coli: Gram-negative rods, Gram-variable and the neutral choices are offered",
-      "WBCs + Gram Negative Rods" in ec and any("Variable" in o_ for o_ in ec) and "مش متعملة" in ec)
+      "WBCs + Gram Negative Bacilli" in ec and any("Variable" in o_ for o_ in ec) and "مش متعملة" in ec)
 check("S. aureus: Gram-negative choices are not offered", not [o_ for o_ in sa if "Negative" in o_], sa)
 check("Acinetobacter: rods, cocci and Gram-variable all remain (coccobacillus)",
-      {"WBCs + Gram Negative Rods", "WBCs + Gram Negative Cocci / Diplococci"} <= set(PG.gram_options_for("Acinetobacter spp.")))
+      {"WBCs + Gram Negative Bacilli", "WBCs + Gram Negative Cocci / Diplococci"} <= set(PG.gram_options_for("Acinetobacter spp.")))
 check("anaerobes / unknown names keep the full list",
       len(PG.gram_options_for("Anaerobes (لاهوائيات)")) == len(PG.GRAM_STAIN_OPTIONS)
       and len(PG.gram_options_for("Something new")) == len(PG.GRAM_STAIN_OPTIONS))

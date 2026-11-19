@@ -311,7 +311,9 @@ check("OCR: S. saprophyticus maps to its own profile",
 print("\n[M] Medium-severity and text fixes")
 # ═══════════════════════════════════════════════════════════════════════════
 b, _ = where(run("Klebsiella spp.", "Urine", {"Fosfomycin": "S"}, WOMAN), "Fosfomycin")
-check("fosfomycin outside E. coli is a caution (no breakpoint)", b == "warned")
+# v7.0: the QC panel calls this result "no breakpoint -- do not base a treatment
+# decision on it"; the advisory now agrees (review finding: flags did not propagate).
+check("fosfomycin outside E. coli is not a treatment option (no breakpoint)", b == "banned")
 check("MDR Gram-negative set no longer counts nitrofurans",
       "Nitrofurans" not in A.MDR_CATEGORIES_GRAM_NEG and "Glycylcyclines" in A.MDR_CATEGORIES_GRAM_NEG)
 check("staph MDR set counts daptomycin / ceftaroline / teicoplanin",
