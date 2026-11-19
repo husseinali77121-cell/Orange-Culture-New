@@ -45,6 +45,10 @@ def init_session_state() -> None:
         "patho_blood_source":     "",
         "patho_wound_type":       "",
         "patho_result":           None,
+        # v7.2: signature of the inputs that produced patho_result, and whether
+        # the inputs on screen still match it (see current_patho_result()).
+        "patho_sig":              None,
+        "patho_stale":            False,
         # ─── Clinical Engines v4 ──────────────────────────────────────────
         "severity_level":          "moderate",  # overwritten by auto-suggest
         "last_patho_specimen":     "",   # tracks specimen that generated patho_result
@@ -104,7 +108,7 @@ _PATIENT_WIDGET_KEYS = (
     "patho_symp_urine", "patho_host_sel",
     "np_purity_sel", "np_gram_sel", "np_sirs_ms", "np_bsrc_sel", "np_spwbc",
     "np_spepi", "np_symp_gi", "np_wtype_sel", "np_symp_wound", "np_symp_resp",
-    "np_host_sel",
+    "np_host_sel", "np_resp_sub_sel", "np_resp_cfu",
     "sev_sel_ui", "sw_drug_sel", "sw_days_num", "sw_i_chk", "sw_o_chk", "sw_b_chk",
     "de_h_num", "de_i_chk",
 )
@@ -115,6 +119,7 @@ _PATIENT_STATE_KEYS = (
     "patho_culture_purity", "patho_symptoms", "patho_urinalysis", "patho_gram_stain",
     "patho_host_factors", "patho_collection", "patho_sputum_pus", "patho_sputum_epi", "patho_sirs",
     "patho_blood_source", "patho_wound_type", "patho_result", "patho_pdf_ctx",
+    "patho_sig", "patho_stale",
     "last_patho_specimen", "severity_level", "child_pugh_class", "carb_type_now",
     "days_on_iv", "clinical_improving_48h", "tolerating_oral", "bacteremia_resolved",
     "hours_on_treatment", "de_clinical_improving",
@@ -127,6 +132,25 @@ def reset_patient_state() -> None:
     for _k in _PATIENT_WIDGET_KEYS + _PATIENT_STATE_KEYS:
         st.session_state.pop(_k, None)
     for _k in [k for k in list(st.session_state.keys())
-               if str(k).startswith("severity_manual_")]:
+               if str(k).startswith(("severity_manual_", "treat_override_chk_"))]:
         st.session_state.pop(_k, None)
     init_session_state()          # re-seed the data keys with their defaults
+
+
+# ── The pathogenicity result the rest of the page may use (v7.2) ────────────
+# Second external review (2026-11-19): the result was kept after the inputs
+# that produced it changed (symptoms ticked, the collection method corrected)
+# and flowed into the checklist, the text report and the PDF as if current.
+def patho_signature(kwargs: dict) -> str:
+    """A stable hash of the assess_pathogenicity() arguments."""
+    import hashlib
+    import json
+    return hashlib.md5(json.dumps(kwargs, sort_keys=True, default=str,
+                                  ensure_ascii=False).encode()).hexdigest()
+
+
+def current_patho_result():
+    """The pathogenicity result, or None when it is stale or was never calculated."""
+    if st.session_state.get("patho_stale"):
+        return None
+    return st.session_state.get("patho_result")

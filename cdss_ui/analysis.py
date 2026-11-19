@@ -17,6 +17,8 @@ from cdss.resistance.mdr import classify_mdr
 from cdss.resistance.mechanism import predict_esbl
 from cdss.therapy.therapy_rules import normalize_carbapenemase_type
 from cdss.therapy.therapy_rules import resolve_uti_syndrome
+from cdss.organisms.pathogenicity import treatment_gate
+from cdss_ui.state import current_patho_result
 
 
 def run_case_analysis(page):
@@ -63,17 +65,29 @@ def run_case_analysis(page):
     # page.aux_tests (D-test / penicillinase) ride in the panel; run_analysis()
     # hands them to the therapy rules and strips them for every other step.
     # The RAW panel (SDD kept): the therapy engine names the CLSI SDD regimen.
+    # v7.2 (second external review 2026-11-19): a "do not treat" pathogenicity
+    # verdict (asymptomatic bacteriuria, contaminant, colonisation, rejected
+    # sputum) reaches the advice. Only a CURRENT result counts (not one left
+    # over from other inputs); the physician's override is per verdict.
+    _patho_now = current_patho_result()
+    _g0 = treatment_gate(_patho_now)
+    _override = bool(_g0 and st.session_state.get(f"treat_override_chk_{_g0['category']}"))
     _res = run_analysis(_patient, page.organism_type, page.culture_type,
                         {**getattr(page, "sir_map_raw", page.sir_map), **page.aux_tests},
                         drugs=page.final_drugs, carbapenemase_type=page._carb_type_now,
-                        uti_syndrome=page._uti_syn_now)
+                        uti_syndrome=page._uti_syn_now,
+                        pathogenicity=_patho_now, treat_override=_override)
+    page.treatment_gate = _res.get("treatment_gate")
     if page._uti_syn_now == "upper" and classify_specimen(page.culture_type) == "urine":
-        st.info("🫘 التهاب حويضة / cUTI"
-                + (" (قسطرة بولية / nephrostomy — IDSA cUTI 2025)"
-                   if page.case.cuti_device and "حويضة" not in str(page.uti_syndrome_choice)
-                   else "")
-                + " — Nitrofurantoin و Fosfomycin الفموي و Norfloxacin "
-                "مُستبعدة (لا تصل لنسيج الكلى).")
+        st.info("🫘 التهاب حويضة / إنتان بولي (حمى أو ألم خاصرة) — Nitrofurantoin و Fosfomycin "
+                "الفموي و Norfloxacin مُستبعدة (لا تصل لنسيج الكلى) — IDSA cUTI 2025.")
+    elif page._uti_syn_now == "cuti" and classify_specimen(page.culture_type) == "urine":
+        # v7.2 (second external review): a catheter / stone / stent alone is a
+        # COMPLICATED UTI, not a pyelonephritis.
+        st.info("🫘 cUTI (قسطرة / حصوة / دعامة / nephrostomy) بلا حمى ولا ألم خاصرة — ليست "
+                "التهاب حويضة. أدوية المثانة فقط (Nitrofurantoin، Fosfomycin الفموي، Norfloxacin) "
+                "في قائمة الحذر: IDSA cUTI 2025 يعتبرها «غير مناسبة عادةً» للـ cUTI. لو فيه حمى أو "
+                "ألم خاصرة اختر «التهاب حويضة» من UTI syndrome.")
     page.allowed              = _res["allowed"]
     page.warned               = _res["warned"]
     page.banned               = _res["banned"]

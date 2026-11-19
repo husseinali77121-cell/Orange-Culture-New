@@ -25,6 +25,7 @@ from cdss.formulary.commercial_names import COMMERCIAL_NAMES
 from cdss.health import PANEL_COMPLETENESS_AVAILABLE
 from cdss.health import _check_panel_completeness_ext
 from cdss.organisms.organism_profile import ORGANISM_PROFILE
+from cdss.organisms.pathogenicity import gate_suppresses
 from cdss.pipeline import duration_syndrome_key
 from cdss.reports.report_service import generate_decision_tree_image
 from cdss.reports.report_service import generate_pdf_html_report
@@ -33,6 +34,7 @@ from cdss.stewardship.combination import get_combination_therapy
 from cdss.stewardship.duration import get_treatment_duration
 from cdss.stewardship.hepatic import get_hepatic_recommendations
 from cdss.stewardship.ranking import rank_sensitive_antibiotics, route_label
+from cdss_ui.state import current_patho_result
 
 
 def prepare_report_inputs(page):
@@ -46,6 +48,12 @@ def prepare_report_inputs(page):
         carbapenemase_type=getattr(page, "_carb_type_now", None),
         uti_syndrome=getattr(page, "_uti_syn_now", None),
     )
+    # v7.2 (second external review): a "do not treat" verdict withholds the
+    # treatment lists from the image too (the AST and the "avoid" list stay).
+    _gate = getattr(page, "treatment_gate", None)
+    _withheld = gate_suppresses(_gate)
+    if _withheld:
+        ranked = []
 
     # بناء قوائم الصورة
     page.reserve_names = uniq_keep_order([
@@ -92,6 +100,9 @@ def prepare_report_inputs(page):
         [_caution(item) for item in page.warned if item['name'] not in page.reserve_names]
         + preg_caution_names
     )
+    if _withheld:
+        page.reserve_names = []
+        page.use_caution_names = []
     # Build banned names WITH reason tag for the image (same logic as PDF)
     _esbl_prob_img    = page.esbl_result.get("probability","low") if page.esbl_result else "low"
     _img_esbl_like    = _esbl_prob_img in ("high","ampc")
@@ -151,6 +162,10 @@ def prepare_report_inputs(page):
     # (and whether it is a guideline alternative), the tests another result
     # requires, and the case facts that change management.
     page.strategy_l = [f"First-line: {', '.join(page.first_line_l[:2])}"] if page.first_line_l else []
+    if _withheld:
+        page.strategy_l = [f"NO ANTIBIOTIC: {_gate['short_en']}"]
+    elif _gate:
+        page.strategy_l.insert(0, "Physician override: treat despite " + _gate["short_en"])
     if not page.first_line_l and ranked:
         _top = ranked[0]
         _rt = "PO" if route_label(_top, page.culture_type) == "PO" else "IV"
@@ -177,6 +192,10 @@ def prepare_report_inputs(page):
         page.strategy_l.append("TDM: levels, not CrCl (low muscle mass)")
 
     page.notes: List[str] = []
+    if _withheld:
+        page.notes.append(f"No antibiotic treatment indicated -- {_gate['reason_en']}")
+    elif _gate:
+        page.notes.append(f"Shown at the physician's request although: {_gate['reason_en']}")
     if page.is_renal:
         page.notes.append(f"Renal impairment: CrCl {crcl_label(page.cl_cr, page.is_renal)} "
                      f"-- dose adjustment required.")
@@ -188,8 +207,9 @@ def prepare_report_inputs(page):
         page.notes.append(f"{len(page.banned)} contraindicated / ineffective antibiotics.")
     if page.warned:
         page.notes.append(f"{len(page.warned)} antibiotics need caution or dose adjustment.")
-    page.notes.append("Treatment guided by severity and local resistance patterns.")
-    page.notes.append("De-escalate based on culture & sensitivity.")
+    if not _withheld:
+        page.notes.append("Treatment guided by severity and local resistance patterns.")
+        page.notes.append("De-escalate based on culture & sensitivity.")
 
 
 def render_final_checklist(page):
@@ -213,7 +233,7 @@ def render_final_checklist(page):
                                sdd=getattr(page, "sdd_drugs", None))
                    if page.sir_map else []),
         gram_stain=_gram_ck,
-        patho_result=st.session_state.get("patho_result"),
+        patho_result=current_patho_result(),
         panel_result=_panel_ck,
         preg_warn=page.preg_warn_items,
     )
@@ -266,7 +286,7 @@ def render_text_report(page):
     # otherwise present in this hash — so a score-only key leaves the report
     # stale whenever those change while the numeric score stays the same.
     _patho_sig = json.dumps(
-        st.session_state.get("patho_result") or {},
+        [current_patho_result() or {}, getattr(page, "treatment_gate", None)],
         sort_keys=True, default=str, ensure_ascii=False,
     )
     # FIX 2026-11-11 (round 4): the buckets were hashed by their LENGTH.
@@ -309,9 +329,10 @@ def render_text_report(page):
             rbcs=page.rbcs_text,
             lab_name=page._lab,
             lab_city=page._city,
-            patho_assessment=st.session_state.get("patho_result"),
+            patho_assessment=current_patho_result(),
             show_commercial_names=page.show_commercial,
             case=getattr(page, "case", None),
+            treatment_gate=getattr(page, "treatment_gate", None),
         )
         st.session_state._rpt_text = _new_report
         st.session_state._rpt_hash = page._rpt_input_hash
@@ -393,7 +414,7 @@ def render_pdf_export(page):
                              and getattr(page.case, "is_urine", False)),
                 primary=(getattr(page, "ranked", None) or [None])[0],
                 is_preg=bool(page.is_preg),
-            ) if _pdf_dur else None
+            ) if (_pdf_dur and not gate_suppresses(getattr(page, "treatment_gate", None))) else None
             # organism= restored 2026-08-21 -- see the matching note on
             # the UI call site above. Same missing-organism defect, same
             # consequence (Colistin/Proteus-class intrinsic annotation
@@ -404,7 +425,7 @@ def render_pdf_export(page):
                 is_renal=page.is_renal, cl_cr=page.cl_cr, is_hepatic=page.is_hepatic,
                 organism=page.organism_type,
                 carbapenemase_type=st.session_state.get("carb_type_now"),
-            ) if _pdf_combo else None
+            ) if (_pdf_combo and not gate_suppresses(getattr(page, "treatment_gate", None))) else None
             _hep_for_pdf   = (get_hepatic_recommendations(page.allowed, _cp_pdf)
                               if page.is_hepatic else None)
             with st.spinner("جاري توليد التقرير PDF..."):
@@ -428,7 +449,7 @@ def render_pdf_export(page):
                         rbcs=page.rbcs_text,
                         lab_name=page._lab,
                         lab_city=page._city,
-                        patho_assessment=(st.session_state.get("patho_result")
+                        patho_assessment=(current_patho_result()
                                           if _pdf_patho else None),
                         duration_data=_dur_for_pdf,
                         combo_suggestions=_combo_for_pdf,
@@ -438,6 +459,7 @@ def render_pdf_export(page):
                         lang=_pdf_lang,
                         carbapenemase_type=getattr(page, "_carb_type_now", None),
                         uti_syndrome=getattr(page, "_uti_syn_now", None),
+                        treatment_gate=getattr(page, "treatment_gate", None),
                     )
                     if _new_pdf:
                         st.session_state._pdf_bytes = _new_pdf

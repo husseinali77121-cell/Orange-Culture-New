@@ -155,7 +155,19 @@ def render_microscopy(page):
     # Organism guidance
     if page.organism_type in ORGANISM_PROFILE:
         op = ORGANISM_PROFILE[page.organism_type]
-        with st.expander("📌 Organism Guidance", expanded=True):
+        # v7.2 (second external review): this card is the organism's GENERIC
+        # guidance; read alone it looked like advice for this isolate (a "first
+        # line" agent the AST shows R). It says so, and marks R / I agents.
+        _ast_now = dict(st.session_state.get("sir_map_edited") or {})
+
+        def _mark(names):
+            return ", ".join(f"{n} ⚠️({_ast_now[n]} في هذه المزرعة)"
+                             if _ast_now.get(n) in ("R", "I") else n for n in names)
+
+        with st.expander("📌 General organism guidance — NOT adjusted to this isolate's AST",
+                         expanded=True):
+            st.caption("معلومات عامة عن الكائن (قبل نتيجة الحساسية). العلاج لهذه العينة: "
+                       "قسم التوصيات (Smart Antibiotic Ranking / Recommended Options).")
             st.info(op.get("note", ""))
             spec_ctx = (op.get("specimen_context") or {}).get(page.culture_type, "")
             if spec_ctx:
@@ -163,15 +175,15 @@ def render_microscopy(page):
             _t_first_line = _drop_intrinsic(
                 _hide_urine_only(op.get("first_line"), page.culture_type), page.organism_type)
             if _t_first_line:
-                st.write("**First-line:**", ", ".join(_t_first_line))
+                st.write("**First-line (generic):**", _mark(_t_first_line))
             _t_second_line = _drop_intrinsic(
                 _hide_urine_only(op.get("second_line"), page.culture_type), page.organism_type)
             if _t_second_line:
-                st.write("**Second-line:**", ", ".join(_t_second_line))
+                st.write("**Second-line (generic):**", _mark(_t_second_line))
             _t_third_line = _drop_intrinsic(
                 _hide_urine_only(op.get("third_line"), page.culture_type), page.organism_type)
             if _t_third_line:
-                st.write("**Third-line:**", ", ".join(_t_third_line))
+                st.write("**Third-line (generic):**", _mark(_t_third_line))
             if op.get("avoid"):
                 st.error("**Avoid:** " + ", ".join(op["avoid"]))
             if page.culture_type == "Urine" and op.get("urine_note"):
@@ -206,10 +218,23 @@ def render_patient(page):
             "Age (months)", min_value=0, max_value=11,
             value=safe_int(_ocr_months, 6), step=1, key=f"age_months_{page._fh}")
         page.age = 0
-        st.caption(f"👶 رضيع {page.age_months} شهر -- يُقيَّم إكلينيكياً كعمر 0 "
-                   f"(Infant < 1 yr: أي عدد مستعمرات ذو دلالة).")
+        # v7.2 (second external review): under 2 months the urine rules split by
+        # DAYS (first week / 8-60 days, AAP 2021) -- months alone cannot place them.
+        page.age_days = None
+        if page.age_months < 2:
+            page.age_days = st.number_input(
+                "Age (days)", min_value=0, max_value=60,
+                value=14 if page.age_months == 0 else 45, step=1,
+                key=f"age_days_{page._fh}_{page.age_months}",
+                help="لعتبات البول عند الرضيع: الأسبوع الأول خارج AAP، و8–60 يوم = AAP 2021.")
+        # v7.2: the caption said "any colony count is significant" for every
+        # infant -- the engine applies the AAP catheter / SPA figure with pyuria.
+        st.caption(f"👶 رضيع {page.age_months} شهر -- يُقيَّم إكلينيكياً كعمر 0 سنة. "
+                   "بول الرضيع: ≥ 5×10⁴ CFU/mL من قسطرة/SPA مع pyuria (AAP)؛ "
+                   "SPA أي نمو؛ عينة midstream/كيس تحتاج تأكيداً.")
     else:
         page.age_months = None
+        page.age_days = None
         page.age = st.number_input("Age (years)", min_value=0, max_value=120,
                                value=safe_int(page.patient.get("Age"), 25),
                                key=f"age_years_{page._fh}")
@@ -356,8 +381,8 @@ def render_patient(page):
     page.uti_syndrome_choice = st.selectbox(
         "🫘 UTI syndrome (urine only)", list(UTI_SYNDROME_OPTIONS),
         key=f"uti_syndrome_input_{page._fh}",
-        help="تلقائي: حمى أو ألم الخاصرة ← التهاب حويضة/cUTI. Nitrofurantoin و Fosfomycin "
-             "الفموي و Norfloxacin لا تصلح للحويضة.")
+        help="تلقائي: حمى أو ألم الخاصرة ← التهاب حويضة (أدوية المثانة ممنوعة)؛ قسطرة / حصوة / "
+             "دعامة بلا حمى ← cUTI (أدوية المثانة بحذر)؛ غير ذلك ← التهاب مثانة.")
 
 
 def render_lab_fields(page):

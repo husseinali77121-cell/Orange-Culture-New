@@ -7,6 +7,7 @@ shared between sections (see cdss_ui.app.main).
 """
 import streamlit as st
 
+from cdss.organisms.pathogenicity import gate_suppresses
 from cdss.pipeline import duration_syndrome_key
 from cdss.stewardship.combination import get_combination_therapy
 from cdss.stewardship.deescalation import evaluate_deescalation
@@ -26,6 +27,11 @@ def render_stewardship(page):
     # CLINICAL ENGINES UI -- v4.0
     # ════════════════════════════════════════════════════════════
     st.divider()
+    # v7.2: no treatment indicated -> no duration, switch or escalation advice.
+    if gate_suppresses(getattr(page, "treatment_gate", None)):
+        st.info("⏱️ مدة العلاج / التبديل للفموي / التصعيد: غير منطبقة — لا علاج مُوصى به حسب "
+                "تقييم الـ Pathogenicity (إلا لو اخترت عرض الخيارات بطلب الطبيب).")
+        return
 
     # ── ① Treatment Duration ─────────────────────────────────
     with st.expander("⏱️ Treatment Duration", expanded=False):

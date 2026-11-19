@@ -8,9 +8,11 @@ shared between sections (see cdss_ui.app.main).
 import streamlit as st
 
 from cdss.common.specimen import classify_specimen
+from cdss.organisms.pathogenicity import BLOOD_SET_OPTIONS
 from cdss.organisms.pathogenicity import HOST_FACTORS_OTHER
 from cdss.organisms.pathogenicity import HOST_FACTORS_URINE
 from cdss.organisms.pathogenicity import RESPIRATORY_SIGNS
+from cdss.organisms.pathogenicity import RESP_SPECIMEN_SUBTYPES
 from cdss.organisms.pathogenicity import URINE_COLLECTION_METHODS
 from cdss.organisms.pathogenicity import URINE_SYMPTOMS
 from cdss.organisms.pathogenicity import WOUND_SIGNS
@@ -19,14 +21,54 @@ from cdss.organisms.pathogenicity import assess_pathogenicity
 from cdss.organisms.pathogenicity import gram_choice_in, gram_options_for
 from cdss_ui.patho_view import _render_patho_result
 from cdss_ui.resistance_panels import render_resistance_profile
+from cdss_ui.state import patho_signature
 
 
 def _patho_age(page) -> float:
     """Age in years with the months the UI collects for infants (v7.1): the
-    pathogenicity rules split under 2 months / 2-24 months (AAP 2021 / 2011)."""
+    pathogenicity rules split under 2 months / 2-24 months (AAP 2021 / 2011).
+    v7.2: the days, when entered for an infant under 2 months (first week /
+    8-60 days)."""
     from cdss.common.clinical_utils import resolve_age_years
-    a = resolve_age_years(page.age, getattr(page, "age_months", None))
+    _days = getattr(page, "age_days", None)
+    _m = getattr(page, "age_months", None)
+    if _days is not None and _m is not None and _m < 2:
+        try:
+            return float(_days) / 365.25
+        except (TypeError, ValueError):
+            pass
+    a = resolve_age_years(page.age, _m)
     return float(a if a is not None else (page.age or 0))
+
+
+def _age_label(page) -> str:
+    """The age as the clinician entered it (days / months / years)."""
+    if getattr(page, "age_days", None) is not None and getattr(page, "age_months", None) is not None:
+        return f"{page.age_days} days"
+    if getattr(page, "age_months", None) is not None:
+        return f"{page.age_months} months"
+    return f"{page.age} years"
+
+
+def _calc_and_track(kwargs: dict, clicked: bool) -> bool:
+    """Run the engine on a click; mark a kept result stale when the inputs moved.
+
+    v7.2 (second external review 2026-11-19): a result calculated for other
+    inputs (symptoms ticked later, the collection method corrected) stayed on
+    screen and flowed into the gate, the checklist and the reports as current.
+    Returns True when the shown result is current.
+    """
+    _sig = patho_signature(kwargs)
+    if clicked:
+        st.session_state.patho_result = assess_pathogenicity(**kwargs)
+        st.session_state.patho_sig = _sig
+    _res = st.session_state.get("patho_result")
+    _stale = bool(_res) and st.session_state.get("patho_sig") != _sig
+    st.session_state.patho_stale = _stale
+    if _stale:
+        st.warning("⚠️ المدخلات اتغيرت بعد آخر حساب — النتيجة القديمة لم تعد تُستخدم في التوصيات "
+                   "ولا قائمة المراجعة ولا التقارير. اضغط «احسب Pathogenicity Score» تاني.")
+    return bool(_res) and not _stale
 
 
 def render_pathogenicity(page):
@@ -39,6 +81,8 @@ def render_pathogenicity(page):
     # Clear stale patho_result when specimen changes
     if st.session_state.get("last_patho_specimen","") != page.culture_type:
         st.session_state.patho_result = None
+        st.session_state.patho_sig = None
+        st.session_state.patho_stale = False
         st.session_state.last_patho_specimen = page.culture_type
         # Reset specimen-specific symptoms to avoid stale defaults
         st.session_state.patho_symptoms = []
@@ -126,30 +170,30 @@ def render_pathogenicity(page):
             )
             st.session_state.patho_host_factors = patho_host
 
-            if st.button("🔬 احسب Pathogenicity Score", use_container_width=True, key="patho_calc_btn"):
-                # FIX 2026-11-11 (round 4): the engine read pregnancy only
-                # from this multiselect, never from the sidebar flag, so a
-                # pregnant patient's asymptomatic bacteriuria >= 10^5 came
-                # back "do NOT treat" -- IDSA 2019 says treat it -- unless
-                # "Pregnant" was ticked a second time here.
-                if page.is_preg and "Pregnant" not in patho_host:
-                    patho_host = list(patho_host) + ["Pregnant"]
-                patho_kwargs = dict(
-                    specimen=page.culture_type,
-                    organism=page.organism_type,
-                    colony_count_text=page.colony_count,
-                    culture_purity=patho_purity,
-                    symptoms=patho_symptoms,
-                    pus_cells_text=page.pus_cells_text,
-                    urinalysis_result=patho_urinalysis,
-                    gram_stain=patho_gram,
-                    age=_patho_age(page),
-                    sex=page.sex,
-                    host_factors=patho_host,
-                    collection_method=patho_collection,
-                )
-                patho_result = assess_pathogenicity(**patho_kwargs)
-                st.session_state.patho_result = patho_result
+            # FIX 2026-11-11 (round 4): the engine read pregnancy only from
+            # this multiselect, never from the sidebar flag, so a pregnant
+            # patient's asymptomatic bacteriuria >= 10^5 came back "do NOT
+            # treat" -- IDSA 2019 says treat it -- unless "Pregnant" was ticked
+            # a second time here.
+            if page.is_preg and "Pregnant" not in patho_host:
+                patho_host = list(patho_host) + ["Pregnant"]
+            patho_kwargs = dict(
+                specimen=page.culture_type,
+                organism=page.organism_type,
+                colony_count_text=page.colony_count,
+                culture_purity=patho_purity,
+                symptoms=patho_symptoms,
+                pus_cells_text=page.pus_cells_text,
+                urinalysis_result=patho_urinalysis,
+                gram_stain=patho_gram,
+                age=_patho_age(page),
+                sex=page.sex,
+                host_factors=patho_host,
+                collection_method=patho_collection,
+            )
+            _clicked = st.button("🔬 احسب Pathogenicity Score", use_container_width=True,
+                                 key="patho_calc_btn")
+            if _clicked:
                 st.session_state.patho_pdf_ctx = {
                     "panel": "urine", "organism": page.organism_type, "specimen": page.culture_type,
                     "inputs": {
@@ -161,13 +205,12 @@ def render_pathogenicity(page):
                         "Gram stain": patho_kwargs.get("gram_stain"),
                         "Symptoms": patho_kwargs.get("symptoms"),
                         "Host factors": patho_kwargs.get("host_factors"),
-                        "Age / Sex": f"{patho_kwargs.get('age')} / {patho_kwargs.get('sex')}",
+                        "Age / Sex": f"{_age_label(page)} / {patho_kwargs.get('sex')}",
                     }}
 
-            # ── Display Result (persists after button) ────────────────────
-            patho_result = st.session_state.get("patho_result")
-            if patho_result:
-                _render_patho_result(patho_result)
+            # ── Display Result (persists after button, only while current) ──
+            if _calc_and_track(patho_kwargs, _clicked):
+                _render_patho_result(st.session_state.get("patho_result"))
 
     # ═══════════════════════════════════════════════════════════════════════
     # الفرع (ب): Resistance Profile -- لكل المزارع غير البول
@@ -187,7 +230,9 @@ def render_pathogenicity(page):
                 "stool":  "هل ممرض معوي حقيقي أم flora طبيعي؟",
                 "wound":  "هل ممرض جرح حقيقي؟ -- نوع الجرح + العلامات الموضعية",
                 "pus":    "هل ممرض حقيقي؟ -- نوع الجرح + العلامات الموضعية",
-                "csf":    "عينة من موقع معقم -- أي نمو مرضي بالضرورة",
+                # v7.2 (second external review): "any growth is pathogenic" contradicted
+                # the engine, which reads skin flora without a shunt as a likely contaminant.
+                "csf":    "CSF موقع معقم: ممرض معروف = ذو دلالة؛ فلورا الجلد بدون shunt/EVD قد تكون تلوثاً",
             }[_pcat]
             with st.expander("🧫 Pathogenicity Assessment", expanded=False):
                 st.caption(_pcap)
@@ -218,22 +263,45 @@ def render_pathogenicity(page):
                 np_sirs = []; np_blood_source = ""
                 np_sputum_wbc = ""; np_sputum_epi = ""
                 np_wound_type = ""; np_symptoms = []
+                np_spec = page.culture_type; np_cfu = page.colony_count
 
                 if _pcat == "blood":
+                    # v7.2 (second external review): SIRS is not sepsis (Sepsis-3), and
+                    # bottles are not sets -- several bottles of one venepuncture are one
+                    # draw. "Multiple bottles positive" was scored as independent sets.
                     np_sirs = st.multiselect(
-                        "SIRS Criteria (≥2 = SIRS · ≥3 = sepsis probable)",
+                        "SIRS criteria (≥2 = SIRS criteria met · sepsis = infection + organ "
+                        "dysfunction, Sepsis-3)",
                         ["Temp > 38°C or < 36°C",
                          "Heart rate > 90 / min",
                          "Resp rate > 20 / min (or PaCO₂ < 32)",
                          "WBC > 12k or < 4k (or > 10% bands)"],
                         key="np_sirs_ms")
+                    if st.session_state.get("np_bsrc_sel") not in (None, *BLOOD_SET_OPTIONS):
+                        # a pre-v7.2 "bottles" label: bottles are not sets -- ask again
+                        st.session_state["np_bsrc_sel"] = BLOOD_SET_OPTIONS[0]
                     np_blood_source = st.selectbox(
-                        "عدد الزجاجات الإيجابية",
-                        ["مش محدد", "Single bottle positive",
-                         "Multiple bottles positive"],
-                        key="np_bsrc_sel")
+                        "المجموعات (sets) الإيجابية — لا الزجاجات",
+                        BLOOD_SET_OPTIONS,
+                        key="np_bsrc_sel",
+                        help="المجموعة = سحبة واحدة (وخز واحد) مهما كان عدد الزجاجات. CoNS وفلورا "
+                             "الجلد تُعتبر حقيقية فقط بنفس الكائن في مجموعتين مسحوبتين بشكل منفصل.")
 
                 elif _pcat == "sputum":
+                    _cl = page.culture_type.lower()
+                    if not any(k in _cl for k in ("throat", "pharyn", "tonsil")):
+                        # v7.2: the threshold depends on the specimen (BAL 10^4,
+                        # PSB 10^3, ETA 10^5 / semi-quantitative); only "Sputum" existed.
+                        np_sub = st.selectbox("نوع العينة التنفسية", RESP_SPECIMEN_SUBTYPES,
+                                              key="np_resp_sub_sel")
+                        if np_sub != RESP_SPECIMEN_SUBTYPES[0]:
+                            np_spec = f"{page.culture_type} — {np_sub}"
+                            np_cfu = st.text_input(
+                                "العدّ الكمّي / شبه الكمّي",
+                                placeholder="مثال: 10^4 CFU/mL أو moderate growth",
+                                key="np_resp_cfu",
+                                help="BAL ≥ 10⁴ · PSB ≥ 10³ · ETA ≥ 10⁵ أو moderate/heavy growth "
+                                     "(ATS/IDSA 2016).")
                     sp_c1, sp_c2 = st.columns(2)
                     with sp_c1:
                         np_sputum_wbc = st.text_input(
@@ -277,39 +345,39 @@ def render_pathogenicity(page):
                     help="Paraplegia / Quadriplegia: قرح الفراش (مسحة سطحية = استعمار) وضعف "
                          "السعال في الإصابات العنقية يغيّران تفسير المزرعة.")
 
-                if st.button("🔬 احسب Pathogenicity Score",
-                             use_container_width=True, key="np_calc_btn"):
-                    st.session_state.patho_result = assess_pathogenicity(
-                        specimen=page.culture_type,
-                        organism=page.organism_type,
-                        colony_count_text=page.colony_count,
-                        culture_purity=np_purity,
-                        symptoms=np_symptoms,
-                        pus_cells_text="",
-                        urinalysis_result="",
-                        gram_stain=np_gram,
-                        age=_patho_age(page), sex=page.sex,
-                        host_factors=np_host,
-                        sputum_pus_cells=np_sputum_wbc,
-                        sputum_epithelial=np_sputum_epi,
-                        sirs_criteria=np_sirs,
-                        blood_source=np_blood_source,
-                        wound_type=np_wound_type,
-                    )
+                np_kwargs = dict(
+                    specimen=np_spec,
+                    organism=page.organism_type,
+                    colony_count_text=np_cfu,
+                    culture_purity=np_purity,
+                    symptoms=np_symptoms,
+                    pus_cells_text="",
+                    urinalysis_result="",
+                    gram_stain=np_gram,
+                    age=_patho_age(page), sex=page.sex,
+                    host_factors=np_host,
+                    sputum_pus_cells=np_sputum_wbc,
+                    sputum_epithelial=np_sputum_epi,
+                    sirs_criteria=np_sirs,
+                    blood_source=np_blood_source,
+                    wound_type=np_wound_type,
+                )
+                _np_clicked = st.button("🔬 احسب Pathogenicity Score",
+                                        use_container_width=True, key="np_calc_btn")
+                if _np_clicked:
                     st.session_state.patho_pdf_ctx = {
-                        "panel": "other", "organism": page.organism_type, "specimen": page.culture_type,
+                        "panel": "other", "organism": page.organism_type, "specimen": np_spec,
                         "inputs": {
-                            "Colony count": page.colony_count, "Culture purity": np_purity,
+                            "Colony count": np_cfu, "Culture purity": np_purity,
                             "Gram stain": np_gram, "Signs / symptoms": np_symptoms,
-                            "SIRS criteria": np_sirs, "Positive bottles": np_blood_source,
+                            "SIRS criteria": np_sirs, "Positive independent sets": np_blood_source,
                             "Sputum WBC / LPF": np_sputum_wbc,
                             "Sputum epithelial / LPF": np_sputum_epi,
                             "Wound type": np_wound_type, "Host factors": np_host,
-                            "Age / Sex": f"{page.age} / {page.sex}",
+                            "Age / Sex": f"{_age_label(page)} / {page.sex}",
                         }}
 
-                _npr = st.session_state.get("patho_result")
-                if _npr:
-                    _render_patho_result(_npr)
+                if _calc_and_track(np_kwargs, _np_clicked):
+                    _render_patho_result(st.session_state.get("patho_result"))
 
         render_resistance_profile(page)

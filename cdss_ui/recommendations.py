@@ -9,6 +9,7 @@ import streamlit as st
 
 from cdss.common.catalog import AWARE_COLORS
 from cdss.common.util import get_route_label
+from cdss.organisms.pathogenicity import gate_suppresses
 from cdss.stewardship.ranking import rank_sensitive_antibiotics
 from cdss.stewardship.ranking import route_label
 from cdss.stewardship.syndrome import get_infection_syndrome
@@ -24,9 +25,47 @@ def _sir_tag(page, name):
     return f" [{result_label(name, page.sir_map[name], getattr(page, 'sdd_read', None) or getattr(page, 'sdd_drugs', ()))}]"
 
 
+def render_treatment_gate(page) -> bool:
+    """The no-treatment banner and the physician override (v7.2). True = lists withheld."""
+    _gate = getattr(page, "treatment_gate", None)
+    if not _gate:
+        return False
+    st.error(f"🚫 **لا يوجد داعٍ لمضاد حيوي — تقييم الـ Pathogenicity:** {_gate['verdict']}  \n"
+             f"{_gate['reason_ar']}")
+    st.checkbox("أنا الطبيب المعالج: اعرض الخيارات رغم ذلك (قرار إكلينيكي مختلف — يُطبع في "
+                "التقرير)", key=f"treat_override_chk_{_gate['category']}")
+    if gate_suppresses(_gate):
+        page.ranked = []
+        st.caption(f"الخيارات المحسوبة مخفية ولا تُطبع في التقارير: {len(page.allowed)} مسموح · "
+                   f"{len(page.warned)} بحذر · {len(page.banned)} ممنوع/غير فعّال. "
+                   "نتيجة الحساسية نفسها تظل في التقرير للعلم.")
+        return True
+    st.warning("⚠️ الخيارات معروضة **بطلب الطبيب** رغم أن التقييم يقول: لا علاج — "
+               "ويُطبع ذلك في التقرير.")
+    return False
+
+
 def render_recommendations(page):
     """Ranking, syndrome, pregnancy cautions, banned / warned / allowed lists."""
+    # ── Infection Syndrome Module (computed first: later panels read it) ──
+    page.syndrome_info = get_infection_syndrome(
+        specimen=page.culture_type,
+        organism=page.organism_type,
+        age=page.age,
+        is_preg=page.is_preg,
+        # v7.0: a URINARY catheter from the case record. v7.1: for sputum the
+        # ventilator / tracheostomy (HAP/VAP), for blood the central line (CRBSI).
+        is_cath=bool(getattr(page, "case", None) is not None and page.case.syndrome_device()),
+        sex=page.sex,
+        uti_upper=(getattr(page, "_uti_syn_now", "") == "upper"),
+        complicated=(getattr(page, "_uti_syn_now", "") == "cuti"),
+    )
+    # v7.2: a "do not treat" verdict withholds every treatment list.
+    if render_treatment_gate(page):
+        return
+
     # ── Smart Antibiotic Ranking ──────────────────────────────────────
+    page.ranked = []
     if page.allowed:
         ranked = rank_sensitive_antibiotics(
             page.allowed, page.culture_type, page.organism_type, page.sir_map, page.phenotypes,
@@ -53,18 +92,6 @@ def render_recommendations(page):
                     f"<small style='color:gray'>score:{score}</small>",
                     unsafe_allow_html=True)
 
-    # ── Infection Syndrome Module ─────────────────────────────────────
-    page.syndrome_info = get_infection_syndrome(
-        specimen=page.culture_type,
-        organism=page.organism_type,
-        age=page.age,
-        is_preg=page.is_preg,
-        # v7.0: a URINARY catheter from the case record. v7.1: for sputum the
-        # ventilator / tracheostomy (HAP/VAP), for blood the central line (CRBSI).
-        is_cath=bool(getattr(page, "case", None) is not None and page.case.syndrome_device()),
-        sex=page.sex,
-        uti_upper=(getattr(page, "_uti_syn_now", "") == "upper"),
-    )
     if page.syndrome_info:
         with st.expander(f"🏥 Infection Syndrome: {page.syndrome_info['syndrome']}", expanded=False):
             s1, s2 = st.columns(2)
