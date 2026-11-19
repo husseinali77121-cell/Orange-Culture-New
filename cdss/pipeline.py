@@ -14,6 +14,7 @@ from cdss.common.case_context import (
     build_case_context,
 )
 from cdss.therapy.clsi_categories import canonical_panel
+from cdss.organisms.pathogenicity import gate_suppresses, treatment_gate
 from cdss.common.specimen import (
     classify_specimen,
 )
@@ -85,6 +86,8 @@ def run_analysis(
     apply_gate: bool = True,
     carbapenemase_type: Optional[str] = None,
     uti_syndrome: Optional[str] = None,
+    pathogenicity: Optional[Dict[str, Any]] = None,
+    treat_override: bool = False,
 ) -> Dict[str, Any]:
     """Run the full clinical pipeline and return every panel the UI shows.
 
@@ -96,6 +99,13 @@ def run_analysis(
     PCR) and `uti_syndrome` (cystitis / upper / None) were added 2026-11-10:
     without the first the engine cannot choose between the novel agents, and
     without the second it cannot tell a cystitis from a pyelonephritis.
+
+    `pathogenicity` (v7.2) is the CURRENT assess_pathogenicity() result, if one
+    was calculated. A "do not treat" verdict (asymptomatic bacteriuria,
+    contaminant, colonisation, rejected sputum) sets `treatment_gate` and empties
+    `ranked` and `duration` -- the drug-safety buckets are still returned, so a
+    physician who overrides (`treat_override=True`, recorded in the gate) sees
+    the same lists.
     """
     # D-test / penicillinase travel in the panel as Positive / Negative. The
     # therapy engine reads them from the panel as entered; every other step
@@ -113,8 +123,9 @@ def run_analysis(
     # v7.1 (IDSA cUTI 2025): a urinary catheter / nephrostomy makes the UTI
     # complicated. With no explicit choice the engine now treats it as one --
     # the same rule the UI applies (therapy_rules.resolve_uti_syndrome).
+    # v7.2 (second external review): complicated, not pyelonephritis -- "cuti".
     if uti_syndrome is None and case.cuti_device:
-        uti_syndrome = "upper"
+        uti_syndrome = "cuti"
 
     allowed, warned, banned, preg_warn, interactions = analyze_antibiotics(
         drugs, organism, specimen, k["age"], k["sex"], k["is_renal"],
@@ -161,6 +172,10 @@ def run_analysis(
     ranked = rank_sensitive_antibiotics(allowed, specimen, organism, sir_map, phenotypes,
                                         carbapenemase_type=carbapenemase_type,
                                         uti_syndrome=uti_syndrome)
+    # v7.2: a "do not treat" pathogenicity verdict reaches the advice.
+    treat_gate = treatment_gate(pathogenicity, override=treat_override)
+    if gate_suppresses(treat_gate):
+        ranked = []
     combinations = get_combination_therapy(
         phenotypes,
         is_pregnant=k["is_preg"], age_years=k["age"], age_months=k["age_months"],
@@ -180,14 +195,15 @@ def run_analysis(
     # catheter / ventilator / central line) -- HAP/VAP and CRBSI were unreachable.
     syndrome = get_infection_syndrome(specimen, organism, k["age"], k["is_preg"],
                                       is_cath=case.syndrome_device(), sex=k["sex"],
-                                      uti_upper=str(uti_syndrome or "").lower() == "upper")
+                                      uti_upper=str(uti_syndrome or "").lower() == "upper",
+                                      complicated=str(uti_syndrome or "").lower() == "cuti")
     _syn_key = duration_syndrome_key(syndrome, uti_syndrome, specimen)
     duration = get_treatment_duration(
         specimen, organism, _syn_key, k["age"], k["sex"], k["is_renal"],
         phenotypes, severity.get("suggested", "moderate"),
         is_cath=_uti_cath, primary=(ranked[0] if ranked else None),
         is_preg=bool(k["is_preg"]),
-    )
+    ) if not gate_suppresses(treat_gate) else None
 
     # ── Which safety layers actually ran ────────────────────────────────────
     # ADDED 2026-08-05 after an import-failure injection: with safety_gate or
@@ -224,6 +240,8 @@ def run_analysis(
         # the result must not be reported as if it had.
         "degraded": degraded,
         "gate_applied": bool(apply_gate and SAFETY_GATE_AVAILABLE),
+        # v7.2: None, or the no-treatment gate (see treatment_gate()).
+        "treatment_gate": treat_gate,
     }
 
 def _add_tdm_notes(items: List[Dict[str, Any]]) -> None:
@@ -261,4 +279,7 @@ def duration_syndrome_key(syndrome: Any, uti_syndrome: Optional[str], specimen: 
     if (str(uti_syndrome or "").lower() in ("upper", "pyelonephritis", "urosepsis")
             and classify_specimen(specimen) == "urine"):
         return "pyelonephritis"
+    # v7.2: complicated without upper-tract signs -- the cUTI course, not pyelonephritis.
+    if str(uti_syndrome or "").lower() == "cuti" and classify_specimen(specimen) == "urine":
+        return "complicated UTI"
     return key
