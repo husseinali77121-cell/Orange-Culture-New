@@ -331,9 +331,14 @@ check("age 5: doxycycline is not banned for age (AAP Red Book 2024)",
       not any(x["name"] == "Doxycycline" and x.get("category") == "child" for x in b))
 
 def _paed_unsafe_for(age):
-    # under 8 every non-child_safe agent; from 8 the tetracyclines are exempt
+    # under 8 every non-child_safe agent; from 8 the tetracyclines are exempt.
+    # v6.9 (decision D3, AAP 2016): ciprofloxacin / levofloxacin are a
+    # caution in a child, not a ban -- checked separately below.
+    from cdss.therapy.tables import PAEDIATRIC_FQ
+    # `child_min_age` (v6.9): gepotidacin is licensed from 12 years.
     return [d for d in CHILD_UNSAFE
-            if age < 8 or "tetracycline" not in cls_of(d)]
+            if (age < 8 or "tetracycline" not in cls_of(d)) and d not in PAEDIATRIC_FQ
+            and age < G[d].get("child_min_age", 18)]
 
 kid_leaks = []
 for spec in SPECS:
@@ -347,6 +352,24 @@ for spec in SPECS:
                 kid_leaks.append(f"{spec} age={age} CrCl={crcl}: {sorted(bad)}")
 check("paediatric-unsafe agents never reach allowed/caution", not kid_leaks,
       "\n".join(kid_leaks[:5]))
+
+# v6.9 (decision D3): the AAP-2016 quinolones may be a caution for a child,
+# never a plain recommendation -- and the caution always carries the AAP note.
+from cdss.therapy.tables import PAEDIATRIC_FQ as _PFQ  # noqa: E402
+_fq_leaks = []
+for spec in SPECS:
+    for age in (1, 5, 9, 14, 17):
+        for renal, crcl in ((False, 100.0), (True, 30.0)):
+            _a, _w, _b, _p, _i = analyze(sorted(_PFQ), "E. coli", spec, age, "Male", renal, crcl,
+                                         False, False, [], {d: "S" for d in _PFQ}, "A")
+            for it in _a:
+                if it.get("name") in _PFQ:
+                    _fq_leaks.append(f"{spec} age={age} CrCl={crcl}: {it['name']} recommended")
+            for it in _w:
+                if it.get("name") in _PFQ and "AAP 2016" not in str(it.get("clinical_note", "")):
+                    _fq_leaks.append(f"{spec} age={age} CrCl={crcl}: {it['name']} warned without the AAP note")
+check("a child's ciprofloxacin / levofloxacin is a caution with the AAP note, never recommended",
+      not _fq_leaks, "\n".join(_fq_leaks[:5]))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

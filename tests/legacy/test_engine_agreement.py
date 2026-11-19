@@ -269,7 +269,9 @@ _GRAM_NEG_ORGS = {"E. coli", "Klebsiella spp.", "Pseudomonas aeruginosa",
                   "Acinetobacter spp.", "Pseudomonas spp.", "Enterobacter spp.",
                   "Citrobacter spp.", "Proteus spp.", "Serratia spp.",
                   "Gram-negative bacilli (unidentified)",
-                  "Non-fermenting Gram-negative bacilli (unspeciated)"}
+                  "Non-fermenting Gram-negative bacilli (unspeciated)",
+                  # v6.9 (decision D2)
+                  "Klebsiella aerogenes"}
 
 _gram_leaks = []
 for org in ORGS:
