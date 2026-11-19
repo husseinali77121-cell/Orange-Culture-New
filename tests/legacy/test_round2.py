@@ -221,7 +221,8 @@ check("an infant bag specimen is never diagnostic on its own", x["category"] != 
 x = P("Blood", "Coagulase-negative Staphylococci", "", "", [], "", "", "", 50, "Male", [], blood_source="Single bottle positive")
 check("CoNS in a single bottle = contaminant", x["score"] < 25)
 x = P("Blood", "Coagulase-negative Staphylococci", "", "Pure growth", [], "", "", "", 50, "Male",
-      ["Central line / PICC"], sirs_criteria=["a", "b"], blood_source="Multiple bottles positive")
+      ["Central line / PICC"], sirs_criteria=["a", "b"],
+      blood_source="Same organism in 2 sets drawn separately")   # v7.2: sets, not bottles
 check("CoNS in multiple sets with a line and SIRS = true infection", x["category"] == "TRUE_INFECTION", x["score"])
 for org in ("E. coli", "Acinetobacter spp.", "Gram-negative bacilli (unidentified)"):
     x = P("Blood", org, "", "", [], "", "", "", 50, "Male", [])
