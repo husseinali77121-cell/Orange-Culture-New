@@ -69,6 +69,7 @@ class TherapyContext:
     unreadable: Any
     urine_lower: Any
     uti_upper: Any
+    uti_cuti: Any = False     # v7.2: complicated, no upper-tract sign (see resolve_uti_syndrome)
     weight_kg: Any = None      # v7.1: label weight floors (gepotidacin >= 40 kg)
     alerts: List[str] = field(default_factory=list)      # interaction / side alerts (appended by rules)
 
@@ -162,8 +163,13 @@ def build_context(
                    else "AmpC" if _mech_prob in ("ampc", "ampc_plasmid") else "ESBL")
     _allergy = _allergy_profile(allergies)
     _spec_cat_aa = classify_specimen(culture_type)
+    # v7.2: "cuti" (complicated, no upper-tract sign) is treated as a cUTI by
+    # the mechanism rules and the guideline tiers -- IDSA AMR 2026 groups cUTI
+    # with pyelonephritis -- but the bladder-only agents are CAUTIONS there, not
+    # bans (postprocess.apply_upper_uti / rules.specific.rule_cuti_bladder_agents).
+    _uti_cuti = (_spec_cat_aa == "urine" and str(uti_syndrome or "").lower() == "cuti")
     _uti_upper = (_spec_cat_aa == "urine" and str(uti_syndrome or "").lower()
-                  in ("upper", "pyelonephritis", "urosepsis"))
+                  in ("upper", "pyelonephritis", "urosepsis", "cuti"))
 
     # ── Detect MRSA from AST markers (Oxacillin/Cefoxitin R), not just name ────
     # A S. aureus with Oxacillin-R or Cefoxitin-R IS MRSA -> ALL beta-lactams fail
@@ -268,5 +274,6 @@ def build_context(
         unreadable=_unreadable,
         urine_lower=_urine_lower,
         uti_upper=_uti_upper,
+        uti_cuti=_uti_cuti,
         weight_kg=weight_kg,
     ), final_drugs

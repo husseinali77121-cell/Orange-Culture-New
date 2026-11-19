@@ -47,32 +47,41 @@ def is_proteeae(organism: Optional[str]) -> bool:
     return any(t in o for t in PROTEEAE_TOKENS)
 
 
+# v7.2 (second external review 2026-11-19): a catheter / stone / stent makes the
+# UTI complicated, but without fever or flank pain it is not a pyelonephritis.
+# The fourth choice ("cuti") keeps the bladder-only agents as cautions instead
+# of bans; the third ("upper") is the systemic / upper-tract syndrome.
 UTI_SYNDROME_OPTIONS = ("تلقائي (من الأعراض)", "التهاب مثانة (سفلي)",
-                        "التهاب حويضة / cUTI / إنتان بولي")
+                        "التهاب حويضة / إنتان بولي (حمى أو ألم خاصرة)",
+                        "cUTI بلا حمى أو ألم خاصرة (قسطرة / حصوة / دعامة)")
 
 
 def resolve_uti_syndrome(choice: Optional[str], symptoms: Optional[List[str]] = None,
                          catheter: bool = False) -> Optional[str]:
-    """'upper' | 'lower' | None from the UI choice and the symptom checklist.
+    """'upper' | 'cuti' | 'lower' | None from the UI choice and the symptom checklist.
 
     Auto mode infers 'upper' from fever or flank/loin pain (IDSA cUTI 2025
     defines cUTI/pyelonephritis by systemic or upper-tract signs).
 
-    v7.1: and from `catheter` -- an indwelling, suprapubic or intermittent
-    catheter or a nephrostomy makes the UTI complicated (IDSA cUTI 2025), and
-    bladder-only agents are "generally not appropriate" there. An explicit
-    choice ("cystitis") still wins.
+    v7.1: `catheter` (an indwelling, suprapubic or intermittent catheter, a
+    nephrostomy, v7.2: an obstruction / stone / stent) makes the UTI complicated
+    (IDSA cUTI 2025). v7.2 (second external review): WITHOUT fever or flank pain
+    that is 'cuti' -- complicated, not pyelonephritis: the bladder-only agents
+    become cautions, not bans. An explicit choice still wins.
     """
     c = str(choice or "")
-    if "حويضة" in c or "upper" in c.lower() or "cuti" in c.lower():
+    cl = c.lower()
+    if "بلا حمى" in c or "no fever" in cl or cl.strip() == "cuti":
+        return "cuti"
+    if "حويضة" in c or "upper" in cl or "cuti" in cl:
         return "upper"
-    if "مثانة" in c or "lower" in c.lower() or "cystitis" in c.lower():
+    if "مثانة" in c or "lower" in cl or "cystitis" in cl:
         return "lower"
     sym = " | ".join(str(x).lower() for x in (symptoms or []))
     if any(k in sym for k in ("fever", "flank", "loin", "حمى", "خاصرة", "rigors")):
         return "upper"
     if catheter:
-        return "upper"
+        return "cuti"
     return None
 
 
@@ -90,6 +99,11 @@ CLINICAL_NOTE_EN = {
     "allergy": "Recorded drug allergy or cross-reactivity: avoid, or use only after allergy assessment.",
     "uti_upper": ("Upper urinary tract / systemic infection: agents that reach only bladder urine "
                   "are not adequate (IDSA cUTI 2025)."),
+    "cuti_bladder_agent": ("Complicated UTI (catheter / stone / stent) without fever or flank pain: "
+                           "this agent reaches bladder urine only. IDSA cUTI 2025 regards it as "
+                           "generally not appropriate for cUTI - use only for a cystitis-type "
+                           "episode after catheter change, and never with any systemic or "
+                           "upper-tract sign."),
     "aminoglycoside_pseudomonas": ("P. aeruginosa: CLSI M100 lists amikacin for urinary isolates "
                                    "only; do not rely on an aminoglycoside alone outside the urinary tract."),
     "colistin": ("Colistin: reserve agent. Only broth microdilution is valid; use in combination, "

@@ -20,7 +20,9 @@ def apply_upper_uti(cx, allowed, warned, banned, preg_warn_items):
     # or serum; IDSA cUTI 2025 and the IDSA AMR guidance restrict them to
     # cystitis. They used to be offered for pyelonephritis because the engine
     # only knew "urine", not which part of the urinary tract was infected.
-    if cx.uti_upper:
+    if cx.uti_upper and not getattr(cx, "uti_cuti", False):
+        # v7.2: not for "cuti" (complicated, no fever / flank pain): there the
+        # same agents are cautions (rules.specific.rule_cuti_bladder_agents).
         # v6.9: pivmecillinam and gepotidacin "stay in cystitis" (IDSA 2026).
         _lower_only = {"Nitrofurantoin", "Fosfomycin", "Norfloxacin", "Pivmecillinam",
                        "Gepotidacin"}

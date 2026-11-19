@@ -73,6 +73,7 @@ RULES: Tuple[Rule, ...] = (
     specific.rule_oxacillin_alert,
     specific.rule_enterococcus_tmp_smx,
     specific.rule_nitrofurantoin_renal,
+    specific.rule_cuti_bladder_agents,    # v7.2: cUTI without upper signs -> caution
     pregnancy.rule_pregnancy,
     # ── host cautions: always last (see rules/host.py) ──────────────────────
     host.rule_hepatic,
