@@ -403,3 +403,24 @@ def avoid_reason_tag(bd, sir_map, *, is_mrsa=False, is_carbapenemase=False, is_e
             "allergy": ('⊘ Allergy', '#922b21'), "neonate": ('⊘ Neonate', '#7d3c98'),
             "cross_resistance": ('✗ Cross-R', '#922b21'),
             "interaction": ('⚠ Interaction', '#b7770d')}.get(cat, ('✗ Avoid', '#922b21'))
+
+
+def section_treatment_gate(*, H, _EN, gate) -> None:
+    """v7.2: the pathogenicity "do not treat" verdict, or the physician's override of it."""
+    if not gate:
+        return
+    _v = _esc(gate.get("verdict", ""))
+    if gate.get("override"):
+        H.append('<div class="alert al-warn" style="font-size:9pt;line-height:1.5">'
+                 '<b>⚠ Options shown at the physician\'s request</b> although the pathogenicity '
+                 f'assessment says: {_v}. {_esc(gate.get("reason_en", ""))}'
+                 + ('' if _EN else f'<div dir="rtl" style="text-align:right">{_esc(gate.get("reason_ar", ""))}</div>')
+                 + '</div>')
+        return
+    H.append('<div class="sec-ttl">NO ANTIBIOTIC TREATMENT INDICATED</div>')
+    H.append('<div class="alert al-danger" style="font-size:9.5pt;line-height:1.55">'
+             f'<b>{_v}</b><br>{_esc(gate.get("reason_en", ""))}'
+             + ('' if _EN else f'<div dir="rtl" style="text-align:right">{_esc(gate.get("reason_ar", ""))}</div>')
+             + '<br><span style="font-size:8.4pt">Treatment options were withheld; the '
+               'susceptibility result is for information. Re-assess if symptoms or signs '
+               'of infection develop.</span></div>')

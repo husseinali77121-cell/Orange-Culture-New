@@ -319,6 +319,7 @@ def section_columns(
     phenotypes,
     sir_map,
     specimen,
+    treatment_withheld=False,
 ) -> None:
     """Two columns: treatment duration (left), pathogenicity or resistance profile (right)."""
     # 2-column equal — Treatment Duration LEFT, Pathogenicity RIGHT
@@ -342,6 +343,10 @@ def section_columns(
         if d.get("follow_up_culture"):
             H.append('<div class="alert al-warn" style="font-size:8.5pt">↻ Follow-up culture recommended after treatment</div>')
         H.append(f'<div style="font-size:8.4pt;color:#7b8794;margin-top:1.2mm">§ {_esc(d.get("ref",""))}</div>')
+    elif treatment_withheld:
+        H.append('<div class="sec-ttl">Treatment Duration</div>')
+        H.append('<div class="alert al-info" style="font-size:9pt">Not applicable — no antibiotic '
+                 'treatment is indicated (see the banner above).</div>')
     else:
         H.append('<div class="sec-ttl">Treatment Duration</div>')
         H.append('<div class="alert al-info" style="font-size:9pt">Select severity level to see treatment duration</div>')

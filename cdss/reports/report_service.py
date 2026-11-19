@@ -138,6 +138,7 @@ from cdss.reports.pdf_sections import (
     section_ranked,
     section_warned,
 )
+from cdss.reports.pdf_parts import section_treatment_gate
 from cdss.reports.fonts import with_bundled_fonts
 from cdss.reports.html_utils import (
     _esc,
@@ -169,6 +170,7 @@ from cdss.therapy.tables import (
     preg_status_of,
 )
 from cdss.common.case_context import LOW_MUSCLE_CRCL_NOTE_EN, TDM_AGENTS  # noqa: F401
+from cdss.organisms.pathogenicity import gate_suppresses
 from cdss.organisms.organism_profile import ORGANISM_PROFILE
 
 # AST Panel Completeness -- a standalone module (like ast_reportability.py),
@@ -199,6 +201,7 @@ def generate_pdf_html_report(
     return_html: bool = False,
     carbapenemase_type: Optional[str] = None,
     uti_syndrome: Optional[str] = None,
+    treatment_gate: Optional[Dict[str, Any]] = None,
 ) -> Optional[bytes]:
     # `return_html` exists so this document can be INSPECTED without WeasyPrint.
     # Added 2026-08-03: the function returns rendered bytes, so in any
@@ -286,22 +289,31 @@ def generate_pdf_html_report(
     H.append(hdr_html("CLINICAL ADVISORY"))
     H.append('<div class="content">')
 
-    section_ranked(
-        H=H,
-        AWARE_CARD=AWARE_CARD,
-        AWARE_CLR=AWARE_CLR,
-        AWARE_PILL=AWARE_PILL,
-        _T=_T,
-        _rnote=_rnote,
-        is_preg=is_preg,
-        is_renal=is_renal,
-        lang=lang,
-        organism=organism,
-        pill=pill,
-        preg_warn_items=preg_warn_items,
-        ranked=ranked,
-        sir_map=sir_map,
-        specimen=specimen)
+    # v7.2 (second external review): "do not treat" reaches the PDF.
+    _withheld = gate_suppresses(treatment_gate)
+    if treatment_gate:
+        section_treatment_gate(H=H, _EN=_EN, gate=treatment_gate)
+    if _withheld:
+        ranked, warned, preg_warn_items = [], [], []
+        duration_data, combo_suggestions = None, None
+
+    if not _withheld:
+        section_ranked(
+            H=H,
+            AWARE_CARD=AWARE_CARD,
+            AWARE_CLR=AWARE_CLR,
+            AWARE_PILL=AWARE_PILL,
+            _T=_T,
+            _rnote=_rnote,
+            is_preg=is_preg,
+            is_renal=is_renal,
+            lang=lang,
+            organism=organism,
+            pill=pill,
+            preg_warn_items=preg_warn_items,
+            ranked=ranked,
+            sir_map=sir_map,
+            specimen=specimen)
 
     section_avoid(
         H=H,
@@ -339,7 +351,8 @@ def generate_pdf_html_report(
         patho_assessment=patho_assessment,
         phenotypes=phenotypes,
         sir_map=sir_map,
-        specimen=specimen)
+        specimen=specimen,
+        treatment_withheld=_withheld)
 
     section_pregnancy(
         H=H,
@@ -1066,6 +1079,7 @@ def generate_report(
     show_commercial_names: bool = False,
     age_months:            Optional[int] = None,
     case:                  Any = None,
+    treatment_gate:        Optional[Dict[str, Any]] = None,
 ) -> str:
     now  = datetime.now().strftime("%Y-%m-%d %H:%M")
     sep  = "=" * 60
@@ -1117,7 +1131,8 @@ def generate_report(
         spec_ctx = (op.get("specimen_context") or {}).get(specimen, "")
         if spec_ctx:
             L.append(f"Context    : {spec_ctx}")
-        _fl_gen = _hide_urine_only(op.get("first_line"), specimen)
+        _fl_gen = (_hide_urine_only(op.get("first_line"), specimen)
+                   if not gate_suppresses(treatment_gate) else [])
         # v7.0: agree with the AST -- generic first-line agents this isolate is
         # R / I to are not printed as first line under its own results.
         _fl_disp = _drop_tested_ns(_fl_gen, sir_map)
@@ -1181,18 +1196,30 @@ def generate_report(
             L += ["\n🔶 ESBL CONFIRMATION RECOMMENDED", sep2,
                   esbl_r["detail"], f"Action: {esbl_r['action']}", ""]
 
-    L += ["\nRECOMMENDED ANTIBIOTICS", sep]
-    _text_allowed(
-        L=L, allowed=allowed, is_preg=is_preg, is_renal=is_renal, sep2=sep2,
-        show_commercial_names=show_commercial_names, sir_map=sir_map, specimen=specimen
-    )
+    # v7.2 (second external review): a "do not treat" pathogenicity verdict
+    # replaces the treatment lists; a physician override is printed with them.
+    if gate_suppresses(treatment_gate):
+        L += ["\nNO ANTIBIOTIC TREATMENT INDICATED", sep,
+              f"Pathogenicity: {treatment_gate.get('verdict', '')}",
+              treatment_gate.get("reason_en", ""),
+              "The susceptibility results above are reported for information only;",
+              "treatment options were withheld (the physician can choose to show them).", ""]
+    else:
+        L += ["\nRECOMMENDED ANTIBIOTICS", sep]
+        if treatment_gate:
+            L += ["!! Shown at the physician's request although the pathogenicity assessment",
+                  f"!! says: {treatment_gate.get('verdict', '')}", ""]
+        _text_allowed(
+            L=L, allowed=allowed, is_preg=is_preg, is_renal=is_renal, sep2=sep2,
+            show_commercial_names=show_commercial_names, sir_map=sir_map, specimen=specimen
+        )
 
-    L = _text_warned(
-        L=L, cl_cr=cl_cr, is_renal=is_renal, sep=sep, sep2=sep2,
-        show_commercial_names=show_commercial_names, sir_map=sir_map, warned=warned
-    )
+        L = _text_warned(
+            L=L, cl_cr=cl_cr, is_renal=is_renal, sep=sep, sep2=sep2,
+            show_commercial_names=show_commercial_names, sir_map=sir_map, warned=warned
+        )
 
-    if is_preg and preg_warn_items:
+    if is_preg and preg_warn_items and not gate_suppresses(treatment_gate):
         L += ["\nPREGNANCY -- USE WITH CAUTION", sep]
         for item in preg_warn_items:
             L += [item['name'], sep2]
