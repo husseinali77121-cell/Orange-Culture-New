@@ -156,12 +156,19 @@ def test_qa_engine_and_completeness_show_the_findings():
     assert {"Meropenem", "Ciprofloxacin"} <= set(pc.reflex_missing) <= set(pc.missing_primary)
 
 
-def test_cefepime_i_is_read_as_sdd_for_enterobacterales():
-    from cdss.therapy.clsi_categories import sdd_drugs
-    assert "Cefepime" in sdd_drugs(CASE, ORG)
-    assert "Piperacillin + Tazobactam" in sdd_drugs({"Piperacillin + Tazobactam": "I"}, "Escherichia coli")
-    assert sdd_drugs(CASE) == set()                       # without the organism: what the lab wrote
-    assert "Cefepime" not in sdd_drugs({"Cefepime": "I"}, "Pseudomonas aeruginosa")
+def test_cefepime_i_on_a_no_i_pair_stays_i_and_asks_for_the_mic():
+    # v7.0 read this I as SDD. v7.1 (external review): the breakpoint version
+    # behind it is unknown -- an old-CLSI I is R today -- so it stays I, is
+    # never dosed as SDD on the label alone, and the note asks for the MIC.
+    from cdss.therapy.clsi_categories import intermediate_note, sdd_drugs
+    assert "Cefepime" not in sdd_drugs(CASE, ORG)
+    assert sdd_drugs({"Cefepime": "SDD"}, ORG) == {"Cefepime"}      # what the lab wrote
+    ar, en = intermediate_note("Cefepime", "cephalosporin", "urine", True, False, ORG)
+    assert "no I category" in en and "MIC" in en and "SDD" in ar
+    r = run_analysis(Patient(age_years=40, sex="Female"), "Klebsiella pneumoniae", "Blood",
+                     {"Ceftriaxone": "S", "Cefepime": "I", "Meropenem": "S"})
+    it = next(i for i in r["warned"] if i["name"] == "Cefepime")
+    assert "no I category" in it.get("intermediate_note_en", "") and not it.get("culture_sdd")
 
 
 # ── 5. The case through the engine ──────────────────────────────────────────

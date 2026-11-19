@@ -182,7 +182,9 @@ def test_pyelonephritis_keeps_the_cystitis_agents_out():
     r = _run("Escherichia coli", "Urine", {**_ESBL, **_NEW}, uti_syndrome="pyelonephritis")
     banned = {d["name"]: d["category"] for d in r["banned"]}
     assert banned.get("Pivmecillinam") == "uti_upper" and banned.get("Gepotidacin") == "uti_upper"
-    assert _item(r["warned"], "Sulopenem")["warning_reason"] == "idsa_new_agent"
+    # v7.1 (external review): banned for upper UTI -- FDA excludes cUTI and IV
+    # step-down, and the program cannot verify IDSA's step-down condition.
+    assert banned.get("Sulopenem") == "specimen"
     assert [d["name"] for d in r["ranked"]].index("Cefepime + Enmetazobactam") < 3
 
 

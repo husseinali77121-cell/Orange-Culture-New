@@ -1,46 +1,46 @@
 {
 "pathogenicity": [
-"648ce0f70accbd2a7012",
-"ae97709dd338853265cd",
-"389ccc1b0e4285f03ab1",
-"8d955fc90a5e6028ca74",
-"db7ad4447f4b9b39e0b8",
-"24bb29a4d25c30b02137",
-"f4c385beeca5c18de3b4",
-"cab09e9a5c10073ec437",
-"40c63f154741b2556bab",
-"71c11bfc5066a2036ce5",
-"7473f43a7df14c533d9b",
-"03f08fd7d0620cf1f852",
-"fa69064801bafcbc7a33",
-"0a4f8a6ba084feb29cb3",
-"ae611f93905f6b5afbaa",
-"51958c910f626e581c1f",
-"188a1fd88c115864d290",
-"eb977716a1a9079bec0a",
-"53dd9df58a91f98e6545",
-"682be6c9419561f0f566",
-"bb248ee97df2e8be0301",
-"da6c70f78e0ec98d8203",
-"14f66de39d9ed38b329c",
-"01115e61a6c3f099bb77",
-"2fe93d6b0ded89517c80",
-"3c847318723d785660b0",
-"4b47ce5990a872188596",
-"1b6b5822bfb91bc6e7fb",
-"ba08cd667f6a419f5bd0",
-"e76b759690362b074b56"
+"6e4e64e0a6fe0ef01022",
+"0d8c5748eb83cdf9721f",
+"263d8d7b07a5640a2243",
+"d5db48a63e0a31867b41",
+"e75af29303daec50d806",
+"6440d8440db930625f2b",
+"c37dd89f4f6d48b7b574",
+"983cedd185f61431f50c",
+"99bb2951915dedf2a743",
+"9b97298414560fab65cd",
+"287538b82d96a7a5ed20",
+"3979788d74ad90d39a21",
+"12c4f5362f4ef6e3ad26",
+"c35177938aa0b4c7a442",
+"c06a95a7610f8e6e005f",
+"1831bb38aab1bfe874b4",
+"aeadfaadfc625a9fe98d",
+"8e5f99e61ff165044a5f",
+"1c330b86bc0e7098f332",
+"2393091198730b5010dd",
+"eea84ca09abbde97ee55",
+"c3183890c27676bb8cbe",
+"35834294e4add6b73172",
+"e0ec7ca98d216569f097",
+"18e9dce5ab0da58431f3",
+"010f0c74e57ad7c20a05",
+"feb5744397fd355b7bf4",
+"50dd8aa11b672643c524",
+"dfd3e383df294cad3766",
+"b88174e4c6a970c89563"
 ],
 "reports": {
 "0000|Escherichia coli|Urine|adult|upper|KPC": {
-"pdf_ar": "8fd3015ddfbf164dbc2c",
-"pdf_en": "36e6ccf4617db657f1dc",
-"txt": "ca0441b9cffbde015330"
+"pdf_ar": "a2aa78d5a33c6ad5e946",
+"pdf_en": "4c641f870ccc5031344a",
+"txt": "d3d57719afd9121602d7"
 },
 "0004|Escherichia coli|Urine|child5|cystitis|None": {
-"pdf_ar": "132bc3d7bf6e8b82eae3",
-"pdf_en": "cf7e263952b5887f0345",
-"txt": "bf3d0f5185fd3b1499e0"
+"pdf_ar": "1b040835bff261bb4b6e",
+"pdf_en": "8f374f4917db2e58facc",
+"txt": "5d60d8a1e6650b7cd8cd"
 },
 "0008|Escherichia coli|Blood|adult|None|None": {
 "pdf_ar": "31c8af84c4f03fa33a95",
@@ -48,29 +48,29 @@
 "txt": "062e974c007a3077b473"
 },
 "0012|Escherichia coli|Blood|child5|None|OXA-48": {
-"pdf_ar": "63fe6e159df4aa9fd7be",
-"pdf_en": "346e423a216a74998cef",
-"txt": "909a97ae8c611e67d889"
+"pdf_ar": "78e0361c9b8d07ced1a3",
+"pdf_en": "7da38e6cbb832fbaab05",
+"txt": "14e6247fc89e69dc5408"
 },
 "0016|Escherichia coli|Sputum|adult|None|OXA-48": {
-"pdf_ar": "0b0d882fefb64cc4a3a8",
-"pdf_en": "2c4be5d556b1d3b96dc4",
-"txt": "bd32ddb6c5f76f1f4c06"
+"pdf_ar": "4d5314fe9f389f715882",
+"pdf_en": "ae118ea09e2e4d942688",
+"txt": "44a8490b26a05e5fe470"
 },
 "0020|Escherichia coli|Sputum|child5|None|None": {
-"pdf_ar": "b86de397f1e7d60b6461",
-"pdf_en": "d9be2db567666b535dc9",
-"txt": "29223236661a5d1925c2"
+"pdf_ar": "e03f4cfae4d983bf07e1",
+"pdf_en": "5e3f1a4337f07ef8c699",
+"txt": "586f85a52fd624242b16"
 },
 "0024|Escherichia coli|CSF|adult|None|OXA-48": {
-"pdf_ar": "3660b1f95437e09416ba",
-"pdf_en": "f17d934d291c5a7b4de5",
-"txt": "10cd8c0662f11005fafa"
+"pdf_ar": "f5f4fe2f0afd0dacba78",
+"pdf_en": "d323736681860487ad4d",
+"txt": "351819c34007a36d8527"
 },
 "0028|Escherichia coli|CSF|child5|None|OXA-48": {
-"pdf_ar": "c529f313dd6d0c0e51e7",
-"pdf_en": "ede310ca385d538d8475",
-"txt": "12b88c945cb312304321"
+"pdf_ar": "abae8dd18ee33d2bbeda",
+"pdf_en": "f88b75075c5b401f073d",
+"txt": "dbcd028dba40d6f0b57f"
 },
 "0032|Escherichia coli|Pus|adult|None|None": {
 "pdf_ar": "6638c9ecd9a67f5f9d3b",
@@ -78,59 +78,59 @@
 "txt": "f73d715cb7f3cd239af9"
 },
 "0036|Escherichia coli|Pus|child5|None|MBL": {
-"pdf_ar": "cef0185316d53d117af0",
-"pdf_en": "91996f8dd926d2fc26b0",
-"txt": "9b5761c96b7a2926d8e6"
+"pdf_ar": "dfc751dea9d5e055c2e3",
+"pdf_en": "1d2c489e116f341ad4c1",
+"txt": "3b0f1834fd3ed189131f"
 },
 "0040|Escherichia coli|Urine|adult|upper|KPC": {
-"pdf_ar": "f672ca1a7dff9fcfcb3c",
-"pdf_en": "f9ab4c8f09686b8fdadb",
-"txt": "75a9480981de80821949"
+"pdf_ar": "234d39a7f865fa7d024a",
+"pdf_en": "66f36f1058dcf57e76eb",
+"txt": "be9bd8bdee5279b72864"
 },
 "0044|Escherichia coli|Urine|child5|cystitis|KPC": {
-"pdf_ar": "44a2da1ad61a02a9fc6a",
-"pdf_en": "17bcf9d5b28dd3775f1f",
-"txt": "4fb9841f17023d05b42e"
+"pdf_ar": "c2addfb0fd17a3b3e562",
+"pdf_en": "5b8de010d36c78029294",
+"txt": "000492a0bbdc9bc6a87b"
 },
 "0048|Escherichia coli|Blood|adult|None|MBL": {
-"pdf_ar": "0c466e8fbd1ddf6f96db",
-"pdf_en": "22a6f1978d42b6e851c9",
-"txt": "92469685af76e9d620c0"
+"pdf_ar": "584551d42e35abfae2d5",
+"pdf_en": "f32521ff5f29b7b73bca",
+"txt": "e90bb4cc990dd508f678"
 },
 "0052|Escherichia coli|Blood|child5|None|MBL": {
-"pdf_ar": "2d9a5d2324909425ed02",
-"pdf_en": "2d584b6f48fe6b68b796",
-"txt": "63968d9acfef0197fefa"
+"pdf_ar": "4e0a751dae2a9256e3f1",
+"pdf_en": "c59f45d9bbd89e6f7a05",
+"txt": "9ac71c427eddca997d19"
 },
 "0056|Escherichia coli|Sputum|adult|None|KPC": {
-"pdf_ar": "3a9df6011b82d0869923",
-"pdf_en": "9dc2e90b19bdbc55aa55",
-"txt": "b63890fc7b687f7ec5ed"
+"pdf_ar": "1455306ca2abd9e5cfd8",
+"pdf_en": "dffc6dfb0dc1a0029af6",
+"txt": "b7a6354fbfa8aee848ba"
 },
 "0060|Escherichia coli|Sputum|child5|None|MBL": {
-"pdf_ar": "6382099103a06bcdffca",
-"pdf_en": "289a65f3e9bf8323b09e",
-"txt": "038443024551f4d227dc"
+"pdf_ar": "11d061b7369150a670e6",
+"pdf_en": "cc24bab1bd8c6c80cd08",
+"txt": "6bc3b4686b9ed0447bda"
 },
 "0064|Escherichia coli|CSF|adult|None|None": {
-"pdf_ar": "4089eef431982a282e99",
-"pdf_en": "88d44eba55e5c0c6b4fe",
+"pdf_ar": "810e3b13f74732d12a27",
+"pdf_en": "b09b954be9bd57128c3b",
 "txt": "e5a2e485f626731738df"
 },
 "0068|Escherichia coli|CSF|child5|None|KPC": {
-"pdf_ar": "d8417056f6b7952b490c",
-"pdf_en": "8ae8c91fc479eaeda743",
-"txt": "f4ca17c555b182770c07"
+"pdf_ar": "cdd880684a4960b53979",
+"pdf_en": "35477b4e836c0553cd73",
+"txt": "5e7e7f3d9baebd78f081"
 },
 "0072|Escherichia coli|Pus|adult|None|None": {
-"pdf_ar": "2c007153dbc3b91c9292",
-"pdf_en": "e04f9a5315ae8f1cf824",
+"pdf_ar": "f4564da067a0e44831fb",
+"pdf_en": "fbb9eb27c705f701dbf4",
 "txt": "5be2e89a0218fdd46be8"
 },
 "0076|Escherichia coli|Pus|child5|None|KPC": {
-"pdf_ar": "e17797ef65968de0fe93",
-"pdf_en": "186f322a2b5d8ce0931e",
-"txt": "4cbb628b6950513c4274"
+"pdf_ar": "570be13c25b5c8c2eada",
+"pdf_en": "134cd0b78829baf8a82e",
+"txt": "98afba82d8de236dc3fc"
 },
 "0080|Klebsiella pneumoniae|Urine|adult|upper|None": {
 "pdf_ar": "40f9cc4c889658730b44",
@@ -138,9 +138,9 @@
 "txt": "6c40bd6c01149b0739d0"
 },
 "0084|Klebsiella pneumoniae|Urine|child5|cystitis|MBL": {
-"pdf_ar": "f40d495bc1311dfdfe59",
-"pdf_en": "058634db817f4db84dfc",
-"txt": "eab6ee5c5cd29fcd3013"
+"pdf_ar": "b96ee9b05249dc050898",
+"pdf_en": "c17cb3a747682f98ec9d",
+"txt": "3c2bb5a4c2b178ae4d65"
 },
 "0088|Klebsiella pneumoniae|Blood|adult|None|MBL": {
 "pdf_ar": "8057d15fcb2653676182",
@@ -148,9 +148,9 @@
 "txt": "1624157b4e8f7cd24f17"
 },
 "0092|Klebsiella pneumoniae|Blood|child5|None|KPC": {
-"pdf_ar": "7a7b3ba67944ef4c63db",
-"pdf_en": "094655e9f4446c4d1d26",
-"txt": "f90e8646f513513281d4"
+"pdf_ar": "11bf315462ae39add64f",
+"pdf_en": "924d95d06a1e5dcddd5d",
+"txt": "aa062842293bcc568bd0"
 },
 "0096|Klebsiella pneumoniae|Sputum|adult|None|MBL": {
 "pdf_ar": "e1e7bca4c7d0abd774c7",
@@ -158,9 +158,9 @@
 "txt": "e4a9f756d0fde4e040f7"
 },
 "0100|Klebsiella pneumoniae|Sputum|child5|None|None": {
-"pdf_ar": "5658531fe52f09ebb4b4",
-"pdf_en": "4fcb39e4318e17f2971f",
-"txt": "5aa185c92a66e3f964b8"
+"pdf_ar": "5052bc5c86ba99ddf746",
+"pdf_en": "ca4ec69963eec6766b1e",
+"txt": "83b7fa81e9be8078d418"
 },
 "0104|Klebsiella pneumoniae|CSF|adult|None|OXA-48": {
 "pdf_ar": "f1841d5e6ac706fcab18",
@@ -168,9 +168,9 @@
 "txt": "ff33ed39f6c709ac1c55"
 },
 "0108|Klebsiella pneumoniae|CSF|child5|None|None": {
-"pdf_ar": "78e7b20732996cd5ce7b",
-"pdf_en": "cdfd9ddcf0270da1d502",
-"txt": "bf2dd6febdddee6e2098"
+"pdf_ar": "b6e12df50e74fcfb7b96",
+"pdf_en": "2149cc2ac17148a40afc",
+"txt": "3a179cf6a8078d78b8f9"
 },
 "0112|Klebsiella pneumoniae|Pus|adult|None|KPC": {
 "pdf_ar": "c543af8ae32f6ff704f7",
@@ -178,9 +178,9 @@
 "txt": "853a5ef7121cc276837a"
 },
 "0116|Klebsiella pneumoniae|Pus|child5|None|None": {
-"pdf_ar": "146089b892182711d972",
-"pdf_en": "ea2b499f7b362eb5d26e",
-"txt": "8602ce9f93827c521883"
+"pdf_ar": "2626a9df637180c996df",
+"pdf_en": "92b8ede081e5740df799",
+"txt": "afdbb3dc12469545752e"
 },
 "0120|Staphylococcus aureus|Urine|adult|upper|KPC": {
 "pdf_ar": "029f85962e95cd464896",
@@ -188,29 +188,29 @@
 "txt": "928fd5835ee95881ec36"
 },
 "0124|Staphylococcus aureus|Urine|child5|None|None": {
-"pdf_ar": "f606f89e6b8e921977d9",
-"pdf_en": "c5a67deaa1cabaf8833f",
-"txt": "44b24f171fce5742fed8"
+"pdf_ar": "65140e8769d65be0e218",
+"pdf_en": "c88157d1cb882367f6b6",
+"txt": "9ae75e57878ea1a918fc"
 },
 "0128|Staphylococcus aureus|Blood|adult|None|OXA-48": {
-"pdf_ar": "9cc6674d3c2cc276777e",
-"pdf_en": "d90769de7fc4b27347ae",
-"txt": "1ded16bd2f055e7fe1d5"
+"pdf_ar": "5b9bc4c69599ae89a2fa",
+"pdf_en": "234db60e795c7b1bcd20",
+"txt": "119d57a49de6918921c0"
 },
 "0132|Staphylococcus aureus|Blood|child5|None|MBL": {
-"pdf_ar": "8fb6b0a9c6197503d3d0",
-"pdf_en": "820952e6932004a68236",
-"txt": "e9e9f5137613eb867b24"
+"pdf_ar": "ebcaab18a909b77af075",
+"pdf_en": "5b7c341fbae7485f504a",
+"txt": "9c7e377e5fafad0cef3c"
 },
 "0136|Staphylococcus aureus|Sputum|adult|None|MBL": {
-"pdf_ar": "1d3019f2abec4413835a",
-"pdf_en": "b4141b53e954460bf02b",
-"txt": "7b37853651dae6b80383"
+"pdf_ar": "0c7ee793a6747d75c895",
+"pdf_en": "cedbb2c261958d358e4a",
+"txt": "2f72b6bdb5ea77df76f4"
 },
 "0140|Staphylococcus aureus|Sputum|child5|None|OXA-48": {
-"pdf_ar": "882442bcf49395a882da",
-"pdf_en": "61d961549dcf4e584f93",
-"txt": "e5efdaedd6be6b925216"
+"pdf_ar": "aa7a7b0e37dab4a0d974",
+"pdf_en": "26f1b00923068e37f6cf",
+"txt": "f2e567fc4984641fe12e"
 },
 "0144|Staphylococcus aureus|CSF|adult|None|MBL": {
 "pdf_ar": "e504d7e19c107323003e",
@@ -218,19 +218,19 @@
 "txt": "ec9c5ce0d577463e799e"
 },
 "0148|Staphylococcus aureus|CSF|child5|None|MBL": {
-"pdf_ar": "4496bb596aa641f79cfb",
-"pdf_en": "c7c087a7ae8b4792994b",
-"txt": "1c36d76dbda1d2224fca"
+"pdf_ar": "1e616cfd5ce54ad04a8e",
+"pdf_en": "3075f668dfda6ecb2ddb",
+"txt": "067eaf554049bb584fce"
 },
 "0152|Staphylococcus aureus|Pus|adult|None|None": {
-"pdf_ar": "b855c2fc4d59440712f0",
-"pdf_en": "38324aad682d86e93904",
-"txt": "a4be38be288e5aa6d2e7"
+"pdf_ar": "fda3f9655404b3ef1e03",
+"pdf_en": "c6a241e987801c736021",
+"txt": "89a372be8028ad07fa95"
 },
 "0156|Staphylococcus aureus|Pus|child5|None|KPC": {
-"pdf_ar": "370496f3dfe79f90a899",
-"pdf_en": "4e4e3e6a39202473c9c4",
-"txt": "0539c8b88c18dc192f9d"
+"pdf_ar": "d778fbb70331759c42b7",
+"pdf_en": "ee5b77883366bd4abe67",
+"txt": "3c34fad47b92980ae6ef"
 },
 "0160|Staphylococcus aureus|Urine|adult|upper|MBL": {
 "pdf_ar": "8b078bfc77309c5df0f1",
@@ -238,29 +238,29 @@
 "txt": "143949ed4f3cb75f8fc2"
 },
 "0164|Staphylococcus aureus|Urine|child5|upper|MBL": {
-"pdf_ar": "16f85cd9122a4e187222",
-"pdf_en": "5cee99aceb5cca1eed2b",
-"txt": "9cfc4bdb9d239c013f57"
+"pdf_ar": "a8aa4aed7d3d87873230",
+"pdf_en": "c90514cab9b9da6a603f",
+"txt": "d19a84100fb979fb16fc"
 },
 "0168|Staphylococcus aureus|Blood|adult|None|None": {
-"pdf_ar": "8c666ce439893a94af86",
-"pdf_en": "f224485a53a7c175e296",
-"txt": "5fe473b1a4315247b690"
+"pdf_ar": "975406070d9de4988cce",
+"pdf_en": "ee32f387ed1c9a4e5995",
+"txt": "1714676b168d242705a3"
 },
 "0172|Staphylococcus aureus|Blood|child5|None|OXA-48": {
-"pdf_ar": "6cfb098311471d3b96e8",
-"pdf_en": "73d0a62e0be4333595f0",
-"txt": "d6a8dfdb8f02b05fe2b9"
+"pdf_ar": "fa037cf1191645af79e7",
+"pdf_en": "dbfc0dc93d7ccdc7e6f2",
+"txt": "6d3e1f07d37179091c81"
 },
 "0176|Staphylococcus aureus|Sputum|adult|None|MBL": {
-"pdf_ar": "2e122a37c23c340c8f83",
-"pdf_en": "fa791e91594c680d8c8c",
-"txt": "82beb2816d8857069d3c"
+"pdf_ar": "970a686ca6741b232bdb",
+"pdf_en": "d92b165b939725d4ced3",
+"txt": "bcd3674d4b84ed0e071a"
 },
 "0180|Staphylococcus aureus|Sputum|child5|None|KPC": {
-"pdf_ar": "a94e2d8bda0251d83072",
-"pdf_en": "fa915e21f84629de3b86",
-"txt": "a7339f010f3fa23011eb"
+"pdf_ar": "0985c4cb952153a3d45b",
+"pdf_en": "21b86b44169d90f47bff",
+"txt": "0565a48d8ba1cd5b23fd"
 },
 "0184|Staphylococcus aureus|CSF|adult|None|None": {
 "pdf_ar": "63d6212f18ae8c82fe14",
@@ -268,29 +268,29 @@
 "txt": "46de39f495bc9ad150f7"
 },
 "0188|Staphylococcus aureus|CSF|child5|None|MBL": {
-"pdf_ar": "1d987474fe6595b64bd2",
-"pdf_en": "40c22eab4c41fc18814f",
-"txt": "00c1bd38f8f0ae8213bd"
+"pdf_ar": "c967ffc082de3ea4d7d2",
+"pdf_en": "3c8f787269ac18564df0",
+"txt": "9bcdcf8a8c96239fe4e7"
 },
 "0192|Staphylococcus aureus|Pus|adult|None|None": {
-"pdf_ar": "ae151e3cbc6a86488671",
-"pdf_en": "ddcd3e06047268ce2ca0",
-"txt": "be7b5c3ab6e7c3739cc0"
+"pdf_ar": "e13fefd1b054a83665bc",
+"pdf_en": "c5eebc571a92020ad15e",
+"txt": "97455860bd51372c6faa"
 },
 "0196|Staphylococcus aureus|Pus|child5|None|MBL": {
-"pdf_ar": "e0020205466ecb2f7fca",
-"pdf_en": "4739db279681a76135ee",
-"txt": "65aa45cda6d8466b793c"
+"pdf_ar": "6e51b5c2a78a1bc41189",
+"pdf_en": "61de45192c8a462e9a43",
+"txt": "0ea9e8a8a33ba28d134d"
 },
 "0200|Pseudomonas aeruginosa|Urine|adult|None|KPC": {
-"pdf_ar": "8c8aeafb907247b0dee1",
-"pdf_en": "635d9c64a620f438e4e6",
+"pdf_ar": "b09d0e60203ca907c177",
+"pdf_en": "97e09ac74da979e989f2",
 "txt": "d5daf806eb294393eaec"
 },
 "0204|Pseudomonas aeruginosa|Urine|child5|None|MBL": {
-"pdf_ar": "b95fbe7d4bcfedc063cf",
-"pdf_en": "9f3a2ee75f3b2694d4bb",
-"txt": "b4568f24e91a285a89bc"
+"pdf_ar": "10df2a40a08c7b6902b5",
+"pdf_en": "d00f37edc058c6b5b8b5",
+"txt": "1e43d3c59aa83e7fc95b"
 },
 "0208|Pseudomonas aeruginosa|Blood|adult|None|KPC": {
 "pdf_ar": "258b67649c608900d208",
@@ -298,9 +298,9 @@
 "txt": "3991d9d560cc439b46a7"
 },
 "0212|Pseudomonas aeruginosa|Blood|child5|None|KPC": {
-"pdf_ar": "21933fcc91a51d35aaa5",
-"pdf_en": "ede1aab3ab963191d153",
-"txt": "862f92f936e284b87e3b"
+"pdf_ar": "7f5e265e1e8a4688e9b6",
+"pdf_en": "08f2d4aecd391b6e8cdd",
+"txt": "d545faf44cf985a0c2b4"
 },
 "0216|Pseudomonas aeruginosa|Sputum|adult|None|OXA-48": {
 "pdf_ar": "44eb6914b49ad8d01713",
@@ -308,9 +308,9 @@
 "txt": "74a74d85c52d26afd030"
 },
 "0220|Pseudomonas aeruginosa|Sputum|child5|None|MBL": {
-"pdf_ar": "67c10367aaa77f1be62f",
-"pdf_en": "1d058db77024fc96565d",
-"txt": "75e9e57722cf80eb8f14"
+"pdf_ar": "5b0c62ecdf3004d832fe",
+"pdf_en": "42f7396069ab34a157e3",
+"txt": "a0d134aaba67328ab8a0"
 },
 "0224|Pseudomonas aeruginosa|CSF|adult|None|OXA-48": {
 "pdf_ar": "5d3f0e676c90b4454c20",
@@ -318,9 +318,9 @@
 "txt": "4350dd58cf3a5ea0d09c"
 },
 "0228|Pseudomonas aeruginosa|CSF|child5|None|KPC": {
-"pdf_ar": "fbddd47c42128fe4d9f6",
-"pdf_en": "3156fdb2fa92507bf295",
-"txt": "d8536af6c828b0f3105b"
+"pdf_ar": "b6209613bedc8e8c2184",
+"pdf_en": "075982fd3a6191a3d4c5",
+"txt": "f079b5fb488236acb9cc"
 },
 "0232|Pseudomonas aeruginosa|Pus|adult|None|KPC": {
 "pdf_ar": "2f092041110ab889e966",
@@ -328,9 +328,9 @@
 "txt": "65713715823fba394bea"
 },
 "0236|Pseudomonas aeruginosa|Pus|child5|None|None": {
-"pdf_ar": "ae8d28e66663698f4713",
-"pdf_en": "0f96997d44d7238a8b34",
-"txt": "b882cbc1ddd652ef7b4c"
+"pdf_ar": "0245b3a77ba8f2064e92",
+"pdf_en": "f0ab42a71dc33f36cd6b",
+"txt": "e293076ad5e2c0b8a7a0"
 },
 "0240|Acinetobacter baumannii|Urine|adult|upper|MBL": {
 "pdf_ar": "6d5c7ad7289e5b50a357",
@@ -338,9 +338,9 @@
 "txt": "eb9a1df5fa63f222a1c9"
 },
 "0244|Acinetobacter baumannii|Urine|child5|None|OXA-48": {
-"pdf_ar": "77404928c791afdc6077",
-"pdf_en": "a7afba363b7b8ed0e672",
-"txt": "5881719b5453ee59b5b7"
+"pdf_ar": "f00a13a521bcd0225156",
+"pdf_en": "b5cd1748ab7483163a2f",
+"txt": "14a30a62642ef188aac9"
 },
 "0248|Acinetobacter baumannii|Blood|adult|None|MBL": {
 "pdf_ar": "18d2b8e9adac09ebaea1",
@@ -348,9 +348,9 @@
 "txt": "81864586d4bc6bd0f5e9"
 },
 "0252|Acinetobacter baumannii|Blood|child5|None|OXA-48": {
-"pdf_ar": "5402bbc9c5c09e2af9cb",
-"pdf_en": "c773065ae67197d4a278",
-"txt": "0b21e25edbef57bbb445"
+"pdf_ar": "b40349be2392df106088",
+"pdf_en": "a7341df18556975a446c",
+"txt": "bb8d4f4fcbe79030a754"
 },
 "0256|Acinetobacter baumannii|Sputum|adult|None|MBL": {
 "pdf_ar": "dbffbb6d8d70f6897ed3",
@@ -358,9 +358,9 @@
 "txt": "9cd114d66363ab4c6b75"
 },
 "0260|Acinetobacter baumannii|Sputum|child5|None|None": {
-"pdf_ar": "c94255a4ec6a67c6fd60",
-"pdf_en": "2f0714b3eaa14fe7810c",
-"txt": "b63e5990ff55f1898c51"
+"pdf_ar": "4edb5e142c6be8d03b68",
+"pdf_en": "260c3fea8be07cf6dd2c",
+"txt": "df338ba3b3eaad3a4f70"
 },
 "0264|Acinetobacter baumannii|CSF|adult|None|MBL": {
 "pdf_ar": "6c29e02f976ddc170b32",
@@ -368,9 +368,9 @@
 "txt": "a64367cc53ed95df0f7b"
 },
 "0268|Acinetobacter baumannii|CSF|child5|None|MBL": {
-"pdf_ar": "34ab8ec46e50629e60a9",
-"pdf_en": "7eb48a5fee8a903adae8",
-"txt": "0729d6abf96763caeb51"
+"pdf_ar": "0809f38f21864d87d55d",
+"pdf_en": "8f78feaaf4cea8503c49",
+"txt": "eabef48308a3619c9898"
 },
 "0272|Acinetobacter baumannii|Pus|adult|None|MBL": {
 "pdf_ar": "e7dde2bb52c192f77a09",
@@ -378,19 +378,19 @@
 "txt": "e91be5f042fde9f17bd8"
 },
 "0276|Acinetobacter baumannii|Pus|child5|None|KPC": {
-"pdf_ar": "8ed7c3e30ed9e1e6c211",
-"pdf_en": "4d1778a6a1665fd22d9f",
-"txt": "bedfde57592d96a1b7fa"
+"pdf_ar": "93286cb00ce85b9d05f9",
+"pdf_en": "5fe14b3146bdc2eab9be",
+"txt": "21a410be7fe56e7115ef"
 },
 "0280|Enterococcus faecalis|Urine|adult|None|OXA-48": {
-"pdf_ar": "14b2aadbb7ae2d2b33ec",
-"pdf_en": "ae91ffc3582f21d7a04f",
+"pdf_ar": "9c2dcbe99942f0c7cfb1",
+"pdf_en": "d0d30074dd843bb38819",
 "txt": "c62180cea7246ceb2439"
 },
 "0284|Enterococcus faecalis|Urine|child5|None|KPC": {
-"pdf_ar": "7651613e90411911bc51",
-"pdf_en": "3fb13d922f537cf5fb15",
-"txt": "a08d67128f40f905458b"
+"pdf_ar": "020b6a459a76d8a5d350",
+"pdf_en": "c9e5c2a2170f428eb18e",
+"txt": "68b85a62449178941315"
 },
 "0288|Enterococcus faecalis|Blood|adult|None|None": {
 "pdf_ar": "37f0b02ec6b4f7d4d41b",
@@ -398,9 +398,9 @@
 "txt": "25bca6c44340cf4f0f54"
 },
 "0292|Enterococcus faecalis|Blood|child5|None|None": {
-"pdf_ar": "f014943db40d662eead0",
-"pdf_en": "c15d898881d218e1da32",
-"txt": "c182c4ff6062db805b59"
+"pdf_ar": "fe6e795048d9df515c91",
+"pdf_en": "43c4c59e7a98c6bfd8ce",
+"txt": "193213152094516f82c7"
 },
 "0296|Enterococcus faecalis|Sputum|adult|None|KPC": {
 "pdf_ar": "be4e4aee5009fb254b09",
@@ -408,9 +408,9 @@
 "txt": "23420d16765c68561705"
 },
 "0300|Enterococcus faecalis|Sputum|child5|None|None": {
-"pdf_ar": "106a8d1df81761fc5425",
-"pdf_en": "bc184967d2b0b9ae0382",
-"txt": "44357829d83096290c45"
+"pdf_ar": "d5f321d3d9487263521e",
+"pdf_en": "cfb5d069b0cd6ad74012",
+"txt": "ec4048b5e8f7fcc8a34a"
 },
 "0304|Enterococcus faecalis|CSF|adult|None|OXA-48": {
 "pdf_ar": "e5e9f9f992e944bec57f",
@@ -418,9 +418,9 @@
 "txt": "68bcdadd1e83e1dd93dd"
 },
 "0308|Enterococcus faecalis|CSF|child5|None|None": {
-"pdf_ar": "4792d0d83694c5b6fb06",
-"pdf_en": "be5fc3bff46c71e4668e",
-"txt": "8c6968ffcba5699d8aa0"
+"pdf_ar": "a08b378b6f043250554a",
+"pdf_en": "94ac4b49056ac727e01c",
+"txt": "9c6b7e21359ba0df4cd1"
 },
 "0312|Enterococcus faecalis|Pus|adult|None|MBL": {
 "pdf_ar": "913a8ebe04150a015b63",
@@ -428,9 +428,9 @@
 "txt": "7746c59fbca817ed3748"
 },
 "0316|Enterococcus faecalis|Pus|child5|None|MBL": {
-"pdf_ar": "0cbbdc340ea5fa646e3e",
-"pdf_en": "4e607f09220c5a5376e1",
-"txt": "9c0b1d7676948baf9714"
+"pdf_ar": "0ab3d83982f379aac44e",
+"pdf_en": "a186e4272286a6e89499",
+"txt": "e7a5035be6e7d17e2945"
 },
 "0320|Streptococcus pneumoniae|Urine|adult|upper|OXA-48": {
 "pdf_ar": "8f8924be53e420d605f8",
@@ -438,9 +438,9 @@
 "txt": "28693ea0f807ceb809b0"
 },
 "0324|Streptococcus pneumoniae|Urine|child5|upper|MBL": {
-"pdf_ar": "024ed2ce8de261f73a51",
-"pdf_en": "0cefe4823be031231388",
-"txt": "d6def0810876d1d89d3b"
+"pdf_ar": "d4be1df7407d1aa50329",
+"pdf_en": "f2c457aa3177cc80c91d",
+"txt": "43b28a154f8037588422"
 },
 "0328|Streptococcus pneumoniae|Blood|adult|None|KPC": {
 "pdf_ar": "4659a1944fd00cb97aa4",
@@ -448,9 +448,9 @@
 "txt": "2fdf5d2f0381fb71ba98"
 },
 "0332|Streptococcus pneumoniae|Blood|child5|None|None": {
-"pdf_ar": "13184969fb6f1f5d5e0c",
-"pdf_en": "ab443da6712f912367ef",
-"txt": "5f7120ef0050cdd328a9"
+"pdf_ar": "c50b57754f04fda582ff",
+"pdf_en": "863b1f63a085aac5a778",
+"txt": "32a88a4f75ab149edd6f"
 },
 "0336|Streptococcus pneumoniae|Sputum|adult|None|None": {
 "pdf_ar": "f2990b20c91e67f14e90",
@@ -458,9 +458,9 @@
 "txt": "4e732747f4e4a53cca12"
 },
 "0340|Streptococcus pneumoniae|Sputum|child5|None|OXA-48": {
-"pdf_ar": "8d2f63f495438fbfdabe",
-"pdf_en": "2ec5ede2a0e33627d55d",
-"txt": "59cfee3616c5bf929350"
+"pdf_ar": "ded69dd014ce5bf3042c",
+"pdf_en": "50fcff387f6355694815",
+"txt": "64e6a368c361b87731e3"
 },
 "0344|Streptococcus pneumoniae|CSF|adult|None|KPC": {
 "pdf_ar": "0a26b26ee3e0de8e69c2",
@@ -468,9 +468,9 @@
 "txt": "cc6e7af59019da9edd19"
 },
 "0348|Streptococcus pneumoniae|CSF|child5|None|KPC": {
-"pdf_ar": "166f36cbe1882035d1d6",
-"pdf_en": "4998ff03635d34770780",
-"txt": "42afe7546e2d643dba4b"
+"pdf_ar": "e159bfb42a73a9d999d8",
+"pdf_en": "1ea7998c83b57f3c6a3b",
+"txt": "dd74a207a8b881e3cc9a"
 },
 "0352|Streptococcus pneumoniae|Pus|adult|None|MBL": {
 "pdf_ar": "5232a939773d67df8101",
@@ -478,9 +478,9 @@
 "txt": "c398dae30798dc022911"
 },
 "0356|Streptococcus pneumoniae|Pus|child5|None|OXA-48": {
-"pdf_ar": "27facef602123815f96f",
-"pdf_en": "6c3471132637caac681f",
-"txt": "eea983b9944c3836575d"
+"pdf_ar": "bd0bfb6c8b68447b450d",
+"pdf_en": "363e6fdce0b11d59d6ee",
+"txt": "c4cc1dddafdfb50464cd"
 },
 "0360|Staphylococcus epidermidis|Urine|adult|cystitis|KPC": {
 "pdf_ar": "6f1e98cb0072545c373f",
@@ -488,29 +488,29 @@
 "txt": "7afe2278f4fc049dad42"
 },
 "0364|Staphylococcus epidermidis|Urine|child5|None|None": {
-"pdf_ar": "4f55836f022af6d7c786",
-"pdf_en": "dedb5a769b86b592a9a7",
-"txt": "89de6ecfaf94cac23e5f"
+"pdf_ar": "d0ec655ddd9d7d467244",
+"pdf_en": "f842b23da51e6a778cdd",
+"txt": "a0b18de3396767a42fdf"
 },
 "0368|Staphylococcus epidermidis|Blood|adult|None|OXA-48": {
-"pdf_ar": "897c574e431a3f57bdfc",
-"pdf_en": "49a9906f5b3d8bfc5fd7",
-"txt": "94b6d220241cdb3c318b"
+"pdf_ar": "6036108578e3bdd301db",
+"pdf_en": "06830e9e9943901a4fa4",
+"txt": "d7bb4eb61b77adbbc0ea"
 },
 "0372|Staphylococcus epidermidis|Blood|child5|None|OXA-48": {
-"pdf_ar": "3041f44fe92a4d5153c5",
-"pdf_en": "7f6d90fb6df068411686",
-"txt": "0da677b5246e8d78980d"
+"pdf_ar": "d6d6cfbfe39308372eb7",
+"pdf_en": "957284d4803415bc4226",
+"txt": "9af0399d9ef55495ac30"
 },
 "0376|Staphylococcus epidermidis|Sputum|adult|None|OXA-48": {
-"pdf_ar": "798edff5e4e6d2071dc1",
-"pdf_en": "487183d60e57e659690b",
-"txt": "e9ee4489961074773037"
+"pdf_ar": "5e99d454b3a43bc22f93",
+"pdf_en": "ea3e02e9cd2b0d2ca299",
+"txt": "87c3d49027570d51c7da"
 },
 "0380|Staphylococcus epidermidis|Sputum|child5|None|None": {
-"pdf_ar": "90ee8493c1f02b947078",
-"pdf_en": "2225d2fa7fc35f57b1c2",
-"txt": "438d990d693674498a6b"
+"pdf_ar": "e8d330e5e8d598f23b6b",
+"pdf_en": "b4bdf7fe191c3b8c2943",
+"txt": "55c3918eae02a14608c9"
 },
 "0384|Staphylococcus epidermidis|CSF|adult|None|OXA-48": {
 "pdf_ar": "664e898235d2ecaed5d0",
@@ -518,69 +518,69 @@
 "txt": "ad34222771aadebdb1a0"
 },
 "0388|Staphylococcus epidermidis|CSF|child5|None|MBL": {
-"pdf_ar": "41aa9d5345190b816fdb",
-"pdf_en": "0c35eaefbce768f7d9f7",
-"txt": "bbbd48dcd45480b244a8"
+"pdf_ar": "ba3de684a79c84077cba",
+"pdf_en": "78a36290203e6ba873ee",
+"txt": "03354e3df1f6a06011d3"
 },
 "0392|Staphylococcus epidermidis|Pus|adult|None|MBL": {
-"pdf_ar": "375041909d1528d25da9",
-"pdf_en": "42e194ac5054177599d6",
-"txt": "ae580aedae82d9e3b5cc"
+"pdf_ar": "67bd2b2d11e058a3bcab",
+"pdf_en": "02e3bfddb48cc1331142",
+"txt": "806c2f712ef1f78aa4ef"
 },
 "0396|Staphylococcus epidermidis|Pus|child5|None|None": {
-"pdf_ar": "081b6e6e52a286d53dd8",
-"pdf_en": "d55976d3de786547c330",
-"txt": "344d94c4a62e248680ae"
+"pdf_ar": "820f757097c704c74c80",
+"pdf_en": "431c812e981709cb6b7f",
+"txt": "a8886ba397c053eeae51"
 },
 "0400|Enterobacter cloacae|Urine|adult|upper|KPC": {
-"pdf_ar": "99d32f9195699c5e11ab",
-"pdf_en": "fe9b61d439beeb55cdd7",
-"txt": "b13aaf017e13814ce70d"
+"pdf_ar": "412d5c5316b1bbfd077e",
+"pdf_en": "78027ce98bbfca5e0a2f",
+"txt": "dd14bb8348e4a8e44f0b"
 },
 "0404|Enterobacter cloacae|Urine|child5|upper|KPC": {
-"pdf_ar": "04283bffd2022cfce5d7",
-"pdf_en": "a51fa560991fd38a8607",
-"txt": "2fb16b921b246ff10ea5"
+"pdf_ar": "035f39faa61b67ce0ca3",
+"pdf_en": "af88d6c7cf31d7e6ae45",
+"txt": "120571934cd0c9c9bd6c"
 },
 "0408|Enterobacter cloacae|Blood|adult|None|MBL": {
-"pdf_ar": "ed92ed251615cff997d1",
-"pdf_en": "54013e245c0deed343fb",
-"txt": "952de8cdcec0d8421cac"
+"pdf_ar": "fb8a2fcbfc6f63f100b4",
+"pdf_en": "23f78b20146ab6781aae",
+"txt": "43ad7a1a8b61b27f42ca"
 },
 "0412|Enterobacter cloacae|Blood|child5|None|OXA-48": {
-"pdf_ar": "1709622aaf49258627ce",
-"pdf_en": "7734805b650747888688",
-"txt": "5aad3151557941b847d2"
+"pdf_ar": "8b8b133db588650b40ac",
+"pdf_en": "617dfcc2780e68e166d3",
+"txt": "5c7c256579474db614a3"
 },
 "0416|Enterobacter cloacae|Sputum|adult|None|OXA-48": {
-"pdf_ar": "7cad9c61fa495ebab621",
-"pdf_en": "78b0a45fcd64d4ff0a38",
-"txt": "2b50f4148585493d0909"
+"pdf_ar": "984e10118756222c772f",
+"pdf_en": "8bf4c06327eda3ecc20d",
+"txt": "88ab48844363cd36848f"
 },
 "0420|Enterobacter cloacae|Sputum|child5|None|None": {
-"pdf_ar": "ab3dbf644428caf6c796",
-"pdf_en": "beb494c4958d24bf4294",
-"txt": "a8db3f62cd76362259b1"
+"pdf_ar": "ebc847963a35492767c4",
+"pdf_en": "053f936cdad9b7004552",
+"txt": "feb7e60aa109363a216f"
 },
 "0424|Enterobacter cloacae|CSF|adult|None|KPC": {
-"pdf_ar": "6fdc548cefa0001febd2",
-"pdf_en": "64a818dc470d3f310802",
-"txt": "38eace6693d7f997d160"
+"pdf_ar": "954bc04ccaec2ae8085f",
+"pdf_en": "0dcf770f4a1f28dc88c2",
+"txt": "ebd3483d0fe96aeda852"
 },
 "0428|Enterobacter cloacae|CSF|child5|None|None": {
-"pdf_ar": "92f18165df1bc9768c63",
-"pdf_en": "33439137498021e38fcc",
-"txt": "d579d48ac8d921fe3e14"
+"pdf_ar": "3a26baff7fc853b27940",
+"pdf_en": "eba4d6dde3001974256b",
+"txt": "d8467e15c6902ffe5a12"
 },
 "0432|Enterobacter cloacae|Pus|adult|None|MBL": {
-"pdf_ar": "93cf4b31c44eea04f2fe",
-"pdf_en": "aa845a7bf0a722949d63",
-"txt": "c1c703347e13851b0979"
+"pdf_ar": "a45ad7d9592508f191e5",
+"pdf_en": "b5f6944df9b5be5183bd",
+"txt": "e43fb912c48212cb24e1"
 },
 "0436|Enterobacter cloacae|Pus|child5|None|MBL": {
-"pdf_ar": "ff27603d668008b984d2",
-"pdf_en": "ca8ac2879f6c6444e431",
-"txt": "17102bdddbc5ad343cab"
+"pdf_ar": "865c7da5a0dae55e8c10",
+"pdf_en": "d6e0f7ba1e5734192b12",
+"txt": "9bbaa971fb20bc07f7c9"
 },
 "0440|Proteus mirabilis|Urine|adult|upper|None": {
 "pdf_ar": "e5d3e036da9d283d7792",
@@ -588,29 +588,29 @@
 "txt": "eb6ad5fd25ea61239d92"
 },
 "0444|Proteus mirabilis|Urine|child5|upper|KPC": {
-"pdf_ar": "a185527321802bf9a86f",
-"pdf_en": "903fdcc8d314d868f996",
-"txt": "c0dc5327c053e75003f8"
+"pdf_ar": "1b87533cfe0728290ec2",
+"pdf_en": "1e0003cb986662af7e84",
+"txt": "7b5520d5dd47d3ac3855"
 },
 "0448|Proteus mirabilis|Blood|adult|None|OXA-48": {
-"pdf_ar": "efb3b02f38873e917e24",
-"pdf_en": "4c4e33e5eebab0bf0f5b",
-"txt": "58c300e78ff775130994"
+"pdf_ar": "cfd30d04939c584b244d",
+"pdf_en": "d6fba9ea9fd592b269d6",
+"txt": "bc5a6c203252cabab9d9"
 },
 "0452|Proteus mirabilis|Blood|child5|None|OXA-48": {
-"pdf_ar": "1b7aa5c10f91ea5fe127",
-"pdf_en": "4c31a69487d471760584",
-"txt": "7399e67819954be4d8f7"
+"pdf_ar": "f3a2e6d8615528e06947",
+"pdf_en": "ae7e57c06f30ab020d16",
+"txt": "987ba1901fb5978242c0"
 },
 "0456|Proteus mirabilis|Sputum|adult|None|KPC": {
-"pdf_ar": "43f7af521755eb85896e",
-"pdf_en": "862ddb24fca59deed0a2",
-"txt": "f64bba59d91da65e5c40"
+"pdf_ar": "df1310fb57e99b42c484",
+"pdf_en": "c5d67c003c421cd1c133",
+"txt": "b0ad47f9b118b68418f8"
 },
 "0460|Proteus mirabilis|Sputum|child5|None|OXA-48": {
-"pdf_ar": "56047eaf5be42fbfbe31",
-"pdf_en": "411a4abac2778d0e9254",
-"txt": "94769fcc79f49592991d"
+"pdf_ar": "ad81ff4d2f94c5d3dd6f",
+"pdf_en": "f014327b2799c3132c56",
+"txt": "bb27134fed58baf64493"
 },
 "0464|Proteus mirabilis|CSF|adult|None|None": {
 "pdf_ar": "c9c12dc669783f360d34",
@@ -618,19 +618,19 @@
 "txt": "801702ccf0a33e7356a8"
 },
 "0468|Proteus mirabilis|CSF|child5|None|KPC": {
-"pdf_ar": "c556bdf37f95b1ec57e5",
-"pdf_en": "515f9e7de45c1ac45f9e",
-"txt": "5734906ced96c5bcb3b5"
+"pdf_ar": "c352c1c94c94909a7aba",
+"pdf_en": "2071844c0ba1358ae7f1",
+"txt": "79080db1a3a4f23268da"
 },
 "0472|Proteus mirabilis|Pus|adult|None|MBL": {
-"pdf_ar": "6dc5c2694dbfd08e6436",
-"pdf_en": "d34cc2c2637887ed081a",
-"txt": "9fa429377de922df5d24"
+"pdf_ar": "1bc68b1025cc8c6f565d",
+"pdf_en": "9ed53d0aa9aa46c4f937",
+"txt": "7ff22523a4ad2f1d4846"
 },
 "0476|Proteus mirabilis|Pus|child5|None|KPC": {
-"pdf_ar": "da86fdbe34f71c6c4839",
-"pdf_en": "fb5644b7958d14227aa9",
-"txt": "122e8431ff6e2a861c22"
+"pdf_ar": "40e462404d5d1863855c",
+"pdf_en": "757c7f192cc197d113a3",
+"txt": "7d9f1191be5a244ea284"
 },
 "0480|Streptococcus agalactiae|Urine|adult|upper|KPC": {
 "pdf_ar": "aa14fd30a6cd3cf0d2ec",
@@ -638,9 +638,9 @@
 "txt": "233c3817c11358f5def5"
 },
 "0484|Streptococcus agalactiae|Urine|child5|cystitis|None": {
-"pdf_ar": "a42e41d13c707e457220",
-"pdf_en": "b65c3aa0fd008e60d2a3",
-"txt": "4a545f1dc30c2a08fee8"
+"pdf_ar": "218b0052d0867c256b95",
+"pdf_en": "28fa2c047b9ca4204624",
+"txt": "cff3aaa715227ee50ab5"
 },
 "0488|Streptococcus agalactiae|Blood|adult|None|None": {
 "pdf_ar": "f997c7c336bb7445d81b",
@@ -648,9 +648,9 @@
 "txt": "edc7e1c96ff21a527c83"
 },
 "0492|Streptococcus agalactiae|Blood|child5|None|OXA-48": {
-"pdf_ar": "66abee989b5d983fc13d",
-"pdf_en": "7dc8a778cef2c33ea6bb",
-"txt": "498380241170808c5411"
+"pdf_ar": "98879bdf3153c1e3ddfa",
+"pdf_en": "8722bef0903c4cda2bdf",
+"txt": "bc354306e27b694e24c5"
 },
 "0496|Streptococcus agalactiae|Sputum|adult|None|MBL": {
 "pdf_ar": "67a21f1d960a23c813e2",
@@ -658,9 +658,9 @@
 "txt": "4ee05ec85a6a01ada1b1"
 },
 "0500|Streptococcus agalactiae|Sputum|child5|None|OXA-48": {
-"pdf_ar": "4600ce0f8fe4da084fa4",
-"pdf_en": "8e9a13e101edadbfe836",
-"txt": "7ae9271b820dfc9d9ba1"
+"pdf_ar": "9b341963645a883b6183",
+"pdf_en": "c4e4e66e7765f0b7a8ba",
+"txt": "3cde6f0b6323965e4dd9"
 },
 "0504|Streptococcus agalactiae|CSF|adult|None|KPC": {
 "pdf_ar": "0a02509ca6c8f30d5bef",
@@ -668,9 +668,9 @@
 "txt": "0f1b85c0363f9212979b"
 },
 "0508|Streptococcus agalactiae|CSF|child5|None|None": {
-"pdf_ar": "eb79a0395062cff60a1a",
-"pdf_en": "f6bf5dc3032ddd216f6c",
-"txt": "04e0184a4c02f38f02c2"
+"pdf_ar": "4f37f118a0244c14e34b",
+"pdf_en": "106d7f655346aef8dac6",
+"txt": "f58679620e5870e9d233"
 },
 "0512|Streptococcus agalactiae|Pus|adult|None|MBL": {
 "pdf_ar": "f1adf8d9511547b8d029",
@@ -678,109 +678,109 @@
 "txt": "5c0775e0f0484bbc25e5"
 },
 "0516|Streptococcus agalactiae|Pus|child5|None|OXA-48": {
-"pdf_ar": "78fc0893552922032cfe",
-"pdf_en": "5fe522a03da2d210efb3",
-"txt": "e6f0dbad42890611a747"
+"pdf_ar": "391e52c64e89cfe982a1",
+"pdf_en": "33ee026be22370410c83",
+"txt": "ea4fcb6568b3eadd36f5"
 },
 "0520|Pseudomonas aeruginosa|Urine|adult|upper|None": {
 "pdf_ar": "3c2b48da06d67825fe53",
 "pdf_en": "850da5f822c30daba2a5",
-"txt": "5fbb35ec355e1b999dfb"
+"txt": "b0c39b834fb0f92f5de2"
 },
 "0524|Pseudomonas aeruginosa|Urine|child5|cystitis|None": {
-"pdf_ar": "00de38aa3597b8b1acd2",
-"pdf_en": "ce80b66cdda39ef6b4f6",
-"txt": "a78dcf1841ec893ad412"
+"pdf_ar": "bb3095e252fa2d33353a",
+"pdf_en": "c2b3cbd949e35a68566a",
+"txt": "7ae36551227fd6f384b0"
 },
 "0528|Pseudomonas aeruginosa|Blood|adult|None|MBL": {
 "pdf_ar": "252858b32c7942484d12",
 "pdf_en": "5f706a8736fd69757b30",
-"txt": "1e327ee109afd68679aa"
+"txt": "9bcd0926a48159a7f96b"
 },
 "0532|Pseudomonas aeruginosa|Blood|child5|None|None": {
-"pdf_ar": "dad3a619d1cfcc434e5e",
-"pdf_en": "d269362563fca9ad9d18",
-"txt": "049181d9472038ad20e9"
+"pdf_ar": "cd94742b34a3d2f67206",
+"pdf_en": "79c062a5b15d76484cdb",
+"txt": "9b9ece23dce8073d3c43"
 },
 "0536|Pseudomonas aeruginosa|Sputum|adult|None|None": {
-"pdf_ar": "471036a012f142acc4e0",
-"pdf_en": "5dd2e364e58966a2cda3",
-"txt": "6cefe3d928f459d9e22b"
+"pdf_ar": "41879194d93713c72c18",
+"pdf_en": "cc68e522b1b563c2f2c9",
+"txt": "7fe2a28e4fcd4e3e84c1"
 },
 "0540|Pseudomonas aeruginosa|Sputum|child5|None|OXA-48": {
-"pdf_ar": "650cc040d8517ff16620",
-"pdf_en": "15c3acc45c6b13f0efa3",
-"txt": "b74e4790d7fabd57829b"
+"pdf_ar": "cf9f1084edf9002b2b72",
+"pdf_en": "11c30e67dfc492e156f7",
+"txt": "8ef671ade41dbddbf894"
 },
 "0544|Pseudomonas aeruginosa|CSF|adult|None|KPC": {
 "pdf_ar": "0481b85684d27bc6dc5d",
 "pdf_en": "b939833031a0a447ade6",
-"txt": "6fa8f6ac2c16afde7e65"
+"txt": "5239efa2b4648539d650"
 },
 "0548|Pseudomonas aeruginosa|CSF|child5|None|KPC": {
-"pdf_ar": "7683da88c10cee9d491a",
-"pdf_en": "bc035beba72788484b42",
-"txt": "231ec4a4de14433c246a"
+"pdf_ar": "e8e9d28b361848adfb4b",
+"pdf_en": "cd0477b4d90804d4533c",
+"txt": "7673b57b5ad1147d16bc"
 },
 "0552|Pseudomonas aeruginosa|Pus|adult|None|MBL": {
 "pdf_ar": "3b7b785b1cdb27acdeed",
 "pdf_en": "df4c99b4db46b078f049",
-"txt": "8ec62bc85e97fc503d12"
+"txt": "bceb70deac54509ea722"
 },
 "0556|Pseudomonas aeruginosa|Pus|child5|None|None": {
-"pdf_ar": "dd5d01b5db584e9782f0",
-"pdf_en": "f45eb31272bf92668a96",
-"txt": "e8fc937d3ad1cb88e123"
+"pdf_ar": "987f2810c1b3bb19cf9e",
+"pdf_en": "fc950723b5fe63f0a9e7",
+"txt": "a317c6f72fd945c14160"
 },
 "0560|Escherichia coli|Urine|adult|upper|MBL": {
-"pdf_ar": "f7a68838f84220803f3b",
-"pdf_en": "a6a5389549294c7a2d8a",
-"txt": "0ba1239f5237cce5e7d2"
+"pdf_ar": "2c788990fcf09efd278d",
+"pdf_en": "20a2fbd07709da95ea56",
+"txt": "240fc7ecb80e8bcf0cdf"
 },
 "0564|Escherichia coli|Urine|child5|cystitis|None": {
-"pdf_ar": "78636ebafff6a26efcc0",
-"pdf_en": "11bb705305347a5e55bb",
-"txt": "664620ab9afb5dea24f2"
+"pdf_ar": "6001af38072dc9b0d48d",
+"pdf_en": "8b475bd98e01729854b9",
+"txt": "f61d664382a1ee342e5a"
 },
 "0568|Escherichia coli|Blood|adult|None|KPC": {
-"pdf_ar": "636230425063e77bfd5e",
-"pdf_en": "16125295b7506fc6eb1b",
-"txt": "a1d310ae29d0ecadb2d4"
+"pdf_ar": "d213442f841364bd7bb0",
+"pdf_en": "19d43d79beaae1cb33c8",
+"txt": "3dcab23ea0989fb1f389"
 },
 "0572|Escherichia coli|Blood|child5|None|MBL": {
-"pdf_ar": "13e05e8bc37fd0033840",
-"pdf_en": "1e696720750f387e4ef0",
-"txt": "1c7ad5221da6f115381a"
+"pdf_ar": "8f4463af8b3cec2f4a23",
+"pdf_en": "6434bc57c32dad2a85fa",
+"txt": "9c37a45c6ce35f3747c1"
 },
 "0576|Escherichia coli|Sputum|adult|None|MBL": {
-"pdf_ar": "bd6c1e15682a2d37caca",
-"pdf_en": "a895bc4b43661cf00c37",
-"txt": "f642483cc4b66f06084f"
+"pdf_ar": "a7407b1d20341f4e2fa9",
+"pdf_en": "24e8963769e5255f7a12",
+"txt": "3626902ab45cc194f5ad"
 },
 "0580|Escherichia coli|Sputum|child5|None|None": {
-"pdf_ar": "9c0a2c54f033ac033fb6",
-"pdf_en": "1e401391f18e1a69a005",
-"txt": "a6cfa6fae0be39f3dff0"
+"pdf_ar": "8577c2eb668f2915548d",
+"pdf_en": "085939f21c94655afc27",
+"txt": "20401b3647a64fe43105"
 },
 "0584|Escherichia coli|CSF|adult|None|KPC": {
-"pdf_ar": "e2c261e89210bc711693",
-"pdf_en": "205b6cd989edc9c81ff3",
-"txt": "24bfc9325334e735f77b"
+"pdf_ar": "fdc778c61f8326bbe13d",
+"pdf_en": "9de89317c6c25d443ee2",
+"txt": "89fdb8ded668a95cbe11"
 },
 "0588|Escherichia coli|CSF|child5|None|MBL": {
-"pdf_ar": "7a2d776411c87e0125f6",
-"pdf_en": "713b46bd6015d3c3eb33",
-"txt": "1d4c690b6b24839478ba"
+"pdf_ar": "d0685fdbc6f44ca439f3",
+"pdf_en": "133e18d1e33cb59f58b4",
+"txt": "da842a934ff9e61f9145"
 },
 "0592|Escherichia coli|Pus|adult|None|KPC": {
-"pdf_ar": "80d4c829153aa6115bb5",
-"pdf_en": "01c858f31b32f8fc080a",
-"txt": "cb01e1e6003cfd241953"
+"pdf_ar": "900aef37ddf8baf589ea",
+"pdf_en": "9c42cd12f0ac55ee79e8",
+"txt": "6917b844c64d6d79d649"
 },
 "0596|Escherichia coli|Pus|child5|None|None": {
-"pdf_ar": "035b5a88d077a706d475",
-"pdf_en": "b61caafb01907a1d66b4",
-"txt": "982d96eb9a418aa05c85"
+"pdf_ar": "ee67bb7db9e10f031f57",
+"pdf_en": "750c4cbd31cd54401a9c",
+"txt": "29922ef1830abd3b852c"
 }
 }
 }
