@@ -121,3 +121,24 @@ def rule_nitrofurantoin_renal(cx, dg, out):
             f"خطر عدم كفاءة علاجية + تراكم سمي (EMA/BNF 2025).{cx.crcl_src}",
         ))
         return
+
+
+# v7.2 (second external review 2026-11-19): a urinary catheter, stone or stent
+# makes the UTI complicated, but without fever or flank pain it is not a
+# pyelonephritis -- the bladder-only agents were BANNED as "not for
+# pyelonephritis". IDSA cUTI 2025 calls them "generally not appropriate" for
+# cUTI: a caution with the reason, kept visible.
+CUTI_BLADDER_AGENTS = ("Nitrofurantoin", "Fosfomycin", "Norfloxacin", "Pivmecillinam",
+                       "Gepotidacin")
+
+
+def rule_cuti_bladder_agents(cx, dg, out):
+    """Complicated UTI without upper-tract signs: bladder-only agents are a caution."""
+    if (getattr(cx, "uti_cuti", False) and dg.name in CUTI_BLADDER_AGENTS
+            and dg.result in ("S", "I", None)):
+        out.note(dg.name, "warn", (
+            f"{dg.name}: يصل لبول المثانة فقط. cUTI (قسطرة / حصوة / دعامة) بلا حمى ولا ألم خاصرة: "
+            "IDSA cUTI 2025 يعتبره «غير مناسب عادةً» للـ cUTI — يُستخدم فقط لنوبة تشبه التهاب "
+            "المثانة بعد تغيير القسطرة، ولا يُستخدم مع أي علامة جهازية أو علوية (حمى، رعشة، ألم "
+            "خاصرة) — عندها اختر TMP-SMX / Fluoroquinolone / بيتا-لاكتام حسب المزرعة."),
+            "cuti_bladder_agent")
