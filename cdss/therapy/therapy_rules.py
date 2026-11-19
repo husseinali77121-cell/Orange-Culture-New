@@ -27,12 +27,14 @@ WHAT IS HERE
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 __all__ = [ "NOVEL_BL_AGENTS", "CARBAPENEMASE_TYPE_OPTIONS",
     "normalize_carbapenemase_type", "NOVEL_ACTIVITY", "RESERVE_NOTE",
     "novel_agent_verdict", "carb_tx_text", "allergy_profile",
     "PROTEEAE_TOKENS", "is_proteeae", "UTI_SYNDROME_OPTIONS", "resolve_uti_syndrome",
+    "UtiClass", "classify_uti", "UPPER_UTI_SIGNS",
 ]
 
 # Proteeae (Proteus, Morganella, Providencia) have intrinsically elevated
@@ -56,33 +58,86 @@ UTI_SYNDROME_OPTIONS = ("تلقائي (من الأعراض)", "التهاب مث
                         "cUTI بلا حمى أو ألم خاصرة (قسطرة / حصوة / دعامة)")
 
 
-def resolve_uti_syndrome(choice: Optional[str], symptoms: Optional[List[str]] = None,
-                         catheter: bool = False) -> Optional[str]:
-    """'upper' | 'cuti' | 'lower' | None from the UI choice and the symptom checklist.
+UPPER_UTI_SIGNS = ("fever", "flank", "loin", "حمى", "خاصرة", "rigors")
 
-    Auto mode infers 'upper' from fever or flank/loin pain (IDSA cUTI 2025
-    defines cUTI/pyelonephritis by systemic or upper-tract signs).
 
-    v7.1: `catheter` (an indwelling, suprapubic or intermittent catheter, a
-    nephrostomy, v7.2: an obstruction / stone / stent) makes the UTI complicated
-    (IDSA cUTI 2025). v7.2 (second external review): WITHOUT fever or flank pain
-    that is 'cuti' -- complicated, not pyelonephritis: the bladder-only agents
-    become cautions, not bans. An explicit choice still wins.
+@dataclass(frozen=True)
+class UtiClass:
+    """v7.3: WHERE the infection is and WHETHER it is complicated, kept apart.
+
+    site         'upper' | 'lower' | None (not stated, no upper-tract sign)
+    complicated  a catheter / nephrostomy / stone / stent (or the explicit cUTI
+                 choice) -- a complicating factor, independent of the site
+    value        the one word the engine reads: 'upper' | 'cuti' | 'lower' | None
+    upper_signs  fever, flank / loin pain or rigors were entered
+    conflict     a manual 'cystitis' / 'cUTI without fever' choice that the
+                 entered upper-tract signs contradict
+    confirmed    the physician confirmed a non-urinary source for those signs
+    """
+    site: Optional[str]
+    complicated: bool
+    value: Optional[str]
+    upper_signs: bool
+    conflict: bool
+    confirmed: bool
+
+
+def classify_uti(choice: Optional[str], symptoms: Optional[List[str]] = None,
+                 catheter: bool = False, confirm_non_urinary: bool = False) -> UtiClass:
+    """Site and complicated status of a UTI from the UI choice, the symptoms and the device.
+
+    Third external review (2026-11-19) of v7.2: a manual choice used to win over
+    the symptoms -- "cystitis" with fever stayed cystitis, "cUTI without fever"
+    with flank pain or rigors stayed cUTI -- and "cystitis" with a Foley left
+    nitrofurantoin and fosfomycin allowed. Now:
+      * fever / flank pain / rigors make the site UPPER whatever was picked,
+        unless the physician confirms a non-urinary source (recorded);
+      * a catheter, nephrostomy, stone or stent keeps the UTI COMPLICATED
+        whatever site was picked (a cystitis with a Foley is a cUTI).
     """
     c = str(choice or "")
     cl = c.lower()
     if "بلا حمى" in c or "no fever" in cl or cl.strip() == "cuti":
-        return "cuti"
-    if "حويضة" in c or "upper" in cl or "cuti" in cl:
-        return "upper"
-    if "مثانة" in c or "lower" in cl or "cystitis" in cl:
-        return "lower"
+        manual = "cuti"
+    elif "حويضة" in c or "upper" in cl or "cuti" in cl:
+        manual = "upper"
+    elif "مثانة" in c or "lower" in cl or "cystitis" in cl:
+        manual = "lower"
+    else:
+        manual = None
     sym = " | ".join(str(x).lower() for x in (symptoms or []))
-    if any(k in sym for k in ("fever", "flank", "loin", "حمى", "خاصرة", "rigors")):
-        return "upper"
-    if catheter:
-        return "cuti"
-    return None
+    upper_signs = any(k in sym for k in UPPER_UTI_SIGNS)
+    conflict = upper_signs and manual in ("lower", "cuti")
+    confirmed = bool(conflict and confirm_non_urinary)
+    if manual == "upper" or (upper_signs and not confirmed):
+        site = "upper"
+    elif manual in ("lower", "cuti"):
+        site = "lower"
+    else:
+        site = None
+    complicated = bool(catheter) or manual == "cuti"
+    if site == "upper":
+        value = "upper"
+    elif complicated:
+        value = "cuti"
+    else:
+        value = site
+    return UtiClass(site, complicated, value, upper_signs, conflict, confirmed)
+
+
+def resolve_uti_syndrome(choice: Optional[str], symptoms: Optional[List[str]] = None,
+                         catheter: bool = False,
+                         confirm_non_urinary: bool = False) -> Optional[str]:
+    """'upper' | 'cuti' | 'lower' | None -- the engine's word for classify_uti().
+
+    Auto mode infers 'upper' from fever or flank/loin pain (IDSA cUTI 2025
+    defines cUTI/pyelonephritis by systemic or upper-tract signs). v7.1: a
+    device makes the UTI complicated. v7.2: without upper-tract signs that is
+    'cuti', not pyelonephritis. v7.3: those signs are no longer overridden by a
+    manual choice without `confirm_non_urinary`, and a device keeps a manual
+    'cystitis' complicated (see classify_uti).
+    """
+    return classify_uti(choice, symptoms, catheter, confirm_non_urinary).value
 
 
 # English wording for the clinical notes, by reason code (2026-11-11). The

@@ -27,7 +27,11 @@ def is_intrinsically_avoided(organism_type: str, drug_name: str, drug_info: Dict
     entries (poor clinical efficacy despite in-vitro activity), and every one
     of them used to be shown to the physician as intrinsic resistance.
     """
-    # ── FIX: authoritative EUCAST intrinsic-resistance table first ────────────
+    # ── FIX: the reconciled intrinsic-resistance table first ──────────────────
+    # (v7.3 wording: INTRINSIC_RESISTANCE is the program's reconciled table --
+    # CLSI M100 Ed36 first, EUCAST Expected Resistant Phenotypes v3.3 where CLSI
+    # is silent, each row with its own source in guideline_registry / the
+    # EUCAST audit. It is checked before the per-organism profile.)
     # The per-organism ORGANISM_PROFILE["avoid"] list was incomplete for
     # P. aeruginosa (missing Doxycycline and the intrinsically-inactive
     # cephalosporins), so drugs like Doxycycline (reported I) leaked into
