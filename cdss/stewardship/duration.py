@@ -408,6 +408,8 @@ def get_treatment_duration(
         # duration once on an active agent, IDSA AMR 2026). Pregnancy has its own
         # rows (ACOG 2023).
         _upper = any(k in synd for k in ["pyelonephritis", "upper", "kidney", "pyelo"])
+        # v7.2: "complicated UTI" (catheter / stone / stent, no upper-tract sign)
+        _cuti = bool(re.search(r"(?<!un)complicated", synd))
         if is_preg and is_cath and severity != "severe":
             key = "UTI_catheter"                 # + the pregnancy note below
         elif is_preg:
@@ -420,7 +422,7 @@ def get_treatment_duration(
         elif severity == "severe":
             # Severe UTI without explicit syndrome -> treat as pyelonephritis/inpatient
             key = "Pyelonephritis_inpatient"
-        elif severity == "moderate":
+        elif severity == "moderate" or _cuti:
             # Stent / stone / immunosuppression, or the clinician's own grading
             key = "UTI_complicated"
         elif sex == "Male":

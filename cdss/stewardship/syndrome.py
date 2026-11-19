@@ -183,6 +183,7 @@ def get_infection_syndrome(
     is_cath:   bool = False,
     sex:       str = "",
     uti_upper: bool = False,
+    complicated: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """
     يعيد السياق السريري للعدوى -- يدعم مطابقة مرنة لأسماء العينات.
@@ -224,7 +225,8 @@ def get_infection_syndrome(
         sub_type = "Catheter-associated UTI in pregnancy"     # no fluoroquinolone list
     if uti_upper and sub_type == "Pregnancy-associated UTI":
         sub_type = "Pyelonephritis in pregnancy"
-    elif uti_upper and sub_type == "Uncomplicated UTI":
+    elif (uti_upper or complicated) and sub_type == "Uncomplicated UTI":
+        # v7.2: `complicated` = catheter / stone / stent without upper-tract signs
         sub_type = "Complicated UTI"
     # v7.1 (IDSA cUTI 2025): male sex alone no longer makes it "complicated";
     # a UTI in a man has its own card (7 days, think of the prostate).
