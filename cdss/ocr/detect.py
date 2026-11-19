@@ -161,7 +161,8 @@ def classify_sir_from_line(line: str) -> Optional[str]:
         (r"(?:متوسط|متوسطة)", "I"),
     ):
         if re.search(pat, ll):
-            return normalize_sir_value(token)
+            # SDD stays SDD (CLSI category, decision D4 v6.9); the rest normalise.
+            return "SDD" if token == "SDD" else normalize_sir_value(token)
     tail = re.search(r"\b([sir])\b\s*$", ll)
     if tail:
         return tail.group(1).upper()
