@@ -165,6 +165,11 @@ _OWNER = ("2026-11-10 — approved on the lab owner's instruction (Hussein) afte
 # Rows changed or added by that decision carry this stamp. It records the
 # owner's decision; Dr. Tarek's countersignature is still required for them.
 _AI4 = "AI-assisted source check (Claude, CLSI/IDSA conversion 2026-11-14)"
+# v7.1 (2026-11-19): rows added by the v7.1 rules review the lab owner asked for.
+_AI71 = "AI-assisted source check (Claude, v7.1 rules review 2026-11-19)"
+_OWNER_71 = ("2026-11-19 — approved on the lab owner's instruction (Hussein): v7.1 review of "
+             "every rule and recommendation. NOT a clinician countersignature -- awaiting "
+             "Dr. Tarek El-Shafei.")
 _OWNER_D = ("2026-11-14 — decision of the lab owner (Hussein): CLSI M100 Ed36 and IDSA "
             "in everything (decisions D1-D6, v6.8 decisions document). NOT a clinician "
             "countersignature -- awaiting Dr. Tarek El-Shafei.")
@@ -278,6 +283,25 @@ RULES: Dict[str, Dict[str, Any]] = {
                 "while the QC panel stayed silent — a split verdict between two "
                 "panels on the same screen. Found by the engine-agreement "
                 "suite, not by any existing guard.",
+    },
+    "intr_aerobes_nitroimidazoles": {
+        "assertion": "Metronidazole and tinidazole have no activity against aerobic or "
+                     "facultative bacteria: the nitro group is reduced to the active radical "
+                     "only under anaerobic conditions. No breakpoints exist for them against "
+                     "any aerobic organism.",
+        "source": "CLSI_M100", "locus": "no criteria for nitroimidazoles outside the anaerobe "
+                                        "tables (M100 Ed36; M11 for anaerobes)",
+        "verified": "secondary", "checked_by": _AI71, "checked_on": "2026-11-19",
+        "owner_approved": _OWNER_71,
+        "source_check": ("CLSI M100 Ed36: metronidazole criteria appear only in the anaerobe "
+                         "table (Table 2J, with CLSI M11); none of the aerobic-organism tables "
+                         "lists metronidazole or tinidazole. EUCAST likewise lists metronidazole "
+                         "for anaerobes (and H. pylori) only. Mechanism: reductive activation "
+                         "of the 5-nitro group requires a low-redox anaerobic environment."),
+        "note": "v7.1 review: a 'Metronidazole S' read off a report reached the RECOMMENDED "
+                "list for E. coli in blood and CSF -- neither table listed it. Added to "
+                "clinical_data and ast_reportability with the same organism set "
+                "(Campylobacter and the anaerobes deliberately excluded).",
     },
     "intr_anaerobes_aminoglycosides_polymyxins": {
         "assertion": "Anaerobes are intrinsically resistant to aminoglycosides "
