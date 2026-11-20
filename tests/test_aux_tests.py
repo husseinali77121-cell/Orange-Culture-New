@@ -27,7 +27,8 @@ def test_normalize_aux_result_never_guesses(value, expected):
 def test_aux_keys_are_read_before_normalisation_drops_them():
     panel = {"Clindamycin": "S", "D-test": "Negative", "Penicillinase": "Positive"}
     assert "D-test" not in normalize_sir_map(panel)              # why the old code never saw it
-    assert read_aux_tests(panel) == {"d_test": "NEGATIVE", "penicillinase": "POSITIVE"}
+    assert read_aux_tests(panel) == {"d_test": "NEGATIVE", "penicillinase": "POSITIVE",
+                                     "esbl_confirm": ""}      # v7.4: ESBL confirmatory test
     assert is_aux_key(" d-TEST ") and not is_aux_key("Clindamycin")
 
 

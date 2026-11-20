@@ -94,8 +94,14 @@ def test_ocr_keeps_sdd_and_the_panel_offers_it():
     from cdss.ocr.ocr_parsing import normalize_sir_value
     assert classify_sir_from_line("Cefepime  SDD") == "SDD"
     assert normalize_sir_value("SDD") == "I"
+    # v7.6: D4 revised (SDD offered only where CLSI defines it). v7.7: revised
+    # again by the owner -- the form offers S / I / R only; the laboratory SDD
+    # the OCR keeps is shown as I with a note, and stays SDD for the engine.
+    from cdss.therapy.clsi_categories import panel_display, sir_options_for
+    assert sir_options_for("Cefepime", "Escherichia coli") == ["S", "I", "R"]
+    shown, level, note = panel_display("Cefepime", "Escherichia coli", "SDD")
+    assert (shown, level) == ("I", "info") and "SDD" in note
     src = (ROOT / "cdss_ui" / "panel_editor.py").read_text(encoding="utf-8")
-    assert 'sir_options = ["S", "SDD", "I", "R"]' in src
     assert "page.sir_map = canonical_panel(edited_sir)" in src
 
 

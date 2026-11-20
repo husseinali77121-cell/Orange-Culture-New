@@ -219,7 +219,8 @@ def test_sci_thresholds_follow_nidrr_by_collection_method():
     sv = _thr("Midstream clean-catch", [QUAD], ["Fever (> 38°C)"], "10^4")
     ic = _thr("Intermittent catheterisation (in-out / CIC)", [QUAD], ["Increased spasticity (SCI)"], "500")
     assert "Spontaneous voiding in spinal cord injury" in sv["threshold"] and "10^5" in sv["threshold"]
-    assert "10^2" in ic["threshold"] and "meets the threshold" in " ".join(ic["factors_pos"])
+    # v7.4: the factor names the threshold value ("meets the 100 CFU/mL threshold")
+    assert "10^2" in ic["threshold"] and "meets the 100 CFU/mL threshold" in " ".join(ic["factors_pos"])
     ic_asym = _thr("Intermittent catheterisation (in-out / CIC)", [QUAD], ["Asymptomatic"], "500")
     assert "10^5" in ic_asym["threshold"]
 

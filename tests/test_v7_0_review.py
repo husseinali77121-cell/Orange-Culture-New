@@ -184,7 +184,8 @@ def test_case_engine_output_is_consistent():
     assert d["label"].startswith("Catheter-associated") and d["po_days"] == 0 and d["iv_days"] >= 7
     # low muscle mass: creatinine overestimates GFR -> TDM note on the aminoglycoside
     g = _item(r, "Gentamicin")[1]
-    assert g.get("tdm_note_en") and "monitoring" in g["tdm_note_en"]
+    # v7.4: short form beside the agent; the full note (with "monitoring") stays in clinical_note_en
+    assert g.get("tdm_note_en") and "TDM" in g["tdm_note_en"] and "monitoring" in g["clinical_note_en"]
     assert r["case"].collection_label == FOLEY
 
 
@@ -327,5 +328,7 @@ def test_page_passes_one_case_record_to_the_image(monkeypatch):
     assert seen["case"].collection_label == FOLEY and seen["case"].low_muscle_mass
     assert any("Test now" in s for s in seen["first_line"])
     assert any("[A · IV]" in s for s in seen["preferred"])
-    assert any("Aztreonam (ESBL)" == s for s in seen["contraindicated"])
+    # v7.4 (external case review): a tested-S agent that is not appropriate here
+    # carries its S result -- it is not a resistant agent.
+    assert any("Aztreonam (S · ESBL)" == s for s in seen["contraindicated"])
     assert any(s.startswith("Ofloxacin (FQ") for s in seen["use_caution"])

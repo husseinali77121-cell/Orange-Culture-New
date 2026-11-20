@@ -89,7 +89,8 @@ def test_the_page_warns_on_the_conflict_and_prints_the_decision():
     traces, state, errors = run_page(pl, runs=2, script=script)
     assert not errors, errors
     assert "اخترت «التهاب مثانة»" in rendered_text(traces[-1])
-    assert "treated as pyelonephritis" in (state.get("_rpt_text") or "")
+    # v7.4 (external review of v7.3): a systemic / upper-tract syndrome, not a proven pyelonephritis
+    assert "treated as a systemic / upper-tract UTI syndrome" in (state.get("_rpt_text") or "")
     script["أؤكد إكلينيكياً: الحمى / الأعراض من مصدر غير بولي — اعتمد اختياري "
            "(يُطبع في التقرير)"] = True
     traces, state, errors = run_page(pl, runs=2, script=script)
