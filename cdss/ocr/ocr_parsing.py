@@ -630,6 +630,28 @@ def _segment_drugs(seg: str) -> List[str]:
     return _scan_line_for_disk_codes(seg, require_verdict=False, check_row=False)
 
 
+_ROW_WORDS = {"mm", "ug", "mcg", "ml", "mic", "zone", "result", "results", "interpretation",
+              "disk", "disc", "ug/ml", "mg", "l"}
+
+
+def _clean_letter_row(line: str, letter: Any, drug: str) -> bool:
+    """A lone S / I / R counts as the result only on a CLEAN row (v7.8).
+
+    On a poor scan Tesseract turns the cell into junk -- "- Nitrofurantoin , i,
+    Be biy Pree ESs" -- and the stray lower-case "i" was taken as Intermediate
+    (the drug was S). Laboratories print the letter as a capital, and a real
+    row carries the drug, the letter and numbers / units, not words of noise.
+    """
+    if not letter.group().isupper():
+        return False
+    names = [normalize_abx_key(a) for a in
+             [drug, *((ABX_GUIDELINES.get(drug) or {}).get("aliases") or [])]]
+    junk = [w for w in re.findall(r"[A-Za-z]{2,}", line)
+            if w.lower() not in _ROW_WORDS
+            and not any(normalize_abx_key(w) in n for n in names)]
+    return len(junk) <= 1
+
+
 def parse_result_line(line: str, classify=None) -> List[Tuple[str, str]]:
     """Every (antibiotic, 'S'|'I'|'R') pair printed on ONE line.
 
@@ -649,7 +671,7 @@ def parse_result_line(line: str, classify=None) -> List[Tuple[str, str]]:
             letters = [m for m in verdicts if m.lastgroup == "letter"]
             if words:
                 v = _verdict_of(words[0])
-            elif drugs and len(letters) == 1:
+            elif drugs and len(letters) == 1 and _clean_letter_row(line, letters[0], drugs[0]):
                 # "Nitrofurantoin   S   32": the zone / MIC is printed AFTER
                 # the verdict, so the end-of-line rule missed it and the row
                 # lost its result.

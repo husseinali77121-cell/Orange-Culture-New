@@ -402,3 +402,20 @@ def detect_culture_condition(text: str) -> str:
     if re.search(r"aerob", text_l):
         return "Aerobic"
     return ""
+
+
+# v7.8: a report that says the culture grew nothing. An organism and an AST
+# panel entered against it are a contradiction (data_consistency
+# INPUT_REPORT_NO_GROWTH). "No growth OF anaerobes / fungi / ..." is part of a
+# positive report and is NOT a negative culture.
+_NO_GROWTH = re.compile(
+    r"\bno\s+(?:bacterial\s+|significant\s+)?growth\b(?!\s+of\b)"
+    r"|\bculture\s*(?:result)?\s*[:\-]?\s*(?:is\s+)?(?:negative|sterile)\b"
+    r"|\bno\s+(?:organisms?|pathogens?|bacteria)\s+(?:were\s+|was\s+)?(?:isolated|grown|detected)\b"
+    r"|لا\s*يوجد\s*نمو|لم\s*ينم[وُ]?",
+    re.I)
+
+
+def detect_no_growth(text: str) -> bool:
+    """True when the report states the culture grew nothing."""
+    return bool(_NO_GROWTH.search(text or ""))
