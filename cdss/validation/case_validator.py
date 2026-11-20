@@ -33,6 +33,11 @@ checklist; tests/test_v7_4_review.py runs it over end-to-end cases).
                lists one agent as both offered and avoided
   V14 error    an SDD the laboratory wrote on a pair CLSI defines no SDD for is still
                unresolved (v7.7: the entry form offers S / I / R only)
+  V15 error    results read by OCR were not confirmed against the report image (v7.8)
+  V16 error    the rule base contradicts itself (matrix proofs, an alias naming two drugs,
+               a line-listed drug the organism resists, SDD / PL3 tables disagreeing)
+  V17 error    an offered agent breaks a core safety fact of THIS case: the organism is
+               intrinsically resistant, or the site / host matrix denies it (v7.8)
 
 RELEASE (v7.5, external review of v7.4): any ERROR blocks every export -- the
 text report, the PDF and the summary image. `release_decision()` is the one
@@ -170,6 +175,15 @@ def validate_case(result: Dict[str, Any], *, specimen: str, sir_map: Dict[str, s
                 out.append(_v("V14", "error", f"The laboratory wrote SDD for {n}, a pair CLSI "
                                               "M100 Ed36 defines no SDD for - choose S, I or R "
                                               "from the MIC."))
+    # V15 (v7.8): results read from an image go out only after a person
+    # compared them with the image (None = nothing was read from an image)
+    if result.get("ocr_reviewed") is False:
+        out.append(_v("V15", "error", "The results read from the report image were not "
+                                      "confirmed against the image."))
+    # V16 / V17 (v7.8): the rule base is coherent, and the final lists keep the
+    # core safety facts whatever the rules did on the way
+    out.extend(dict(v) for v in rule_base_integrity())
+    out.extend(_case_invariants(result, specimen))
     if image_lists is not None:
         def _base(x: str) -> str:
             return str(x).split(" [")[0].split(" (")[0].strip()
@@ -251,6 +265,121 @@ def _mechanism_labels(result: Dict[str, Any], pdf_html: str) -> List[Dict[str, s
         if not any("ESBL CONFIRMED" in v["message"] for v in out):
             out.append(_v("V12", "error", "The PDF prints 'ESBL CONFIRMED' without a positive "
                                           "confirmatory test."))
+    return out
+
+
+def rule_base_integrity() -> List[Dict[str, str]]:
+    """V16 -- contradictions INSIDE the knowledge tables (v7.8).
+
+    Owner's request after the external review of v7.7: the rules must not be
+    able to contradict each other. Checked once per process (the tables do
+    not change at run time); any finding blocks EVERY report until the tables
+    are corrected -- an edit that breaks the rule base cannot reach a patient.
+      * the site / host matrix's own proofs (total, fail-closed, monotone,
+        free of contradiction);
+      * one OCR alias naming two drugs (a result would be read as the other);
+      * a drug listed first / second / third line for an organism it is
+        intrinsically resistant to, or that the organism's profile avoids;
+      * the SDD table and the PL3 no-I table disagreeing, or naming a drug
+        the formulary does not have;
+      * a formulary drug the site matrix does not know (it could never be
+        checked for the site of infection).
+    """
+    return list(_rule_base_integrity_cached())
+
+
+def _rule_base_integrity_cached():
+    global _RULE_BASE
+    if _RULE_BASE is None:
+        found: List[Dict[str, str]] = []
+        try:
+            found = _rule_base_findings()
+        except Exception as exc:                      # fail closed
+            found = [_v("V16", "error", f"The rule-base integrity check could not run: "
+                                        f"{type(exc).__name__}: {exc}")]
+        _RULE_BASE = tuple(found)
+    return _RULE_BASE
+
+
+_RULE_BASE = None
+
+
+def _rule_base_findings() -> List[Dict[str, str]]:
+    import collections
+    from cdss.astqc.phenotype_plausibility import NO_I_PAIRS
+    from cdss.formulary.abx_guidelines import ABX_GUIDELINES
+    from cdss.ocr.ocr_parsing import _ABX_ALIAS_SORTED
+    from cdss.organisms.organism_profile import ORGANISM_PROFILE
+    from cdss.therapy import clinical_matrix as M
+    from cdss.therapy.clsi_categories import SDD_REGIMENS
+    from cdss.therapy.intrinsic import is_intrinsically_avoided
+    out: List[Dict[str, str]] = []
+    for proof in ("prove_totality", "prove_fail_closed", "prove_monotonicity",
+                  "prove_no_contradiction"):
+        for problem in getattr(M, proof)()[:3]:
+            out.append(_v("V16", "error", f"Site / host matrix {proof}: {problem}"))
+    names = collections.defaultdict(set)
+    for alias, drug in _ABX_ALIAS_SORTED:
+        names[alias].add(drug)
+    for alias, drugs in sorted(names.items()):
+        if len(drugs) > 1:
+            out.append(_v("V16", "error", f"The OCR alias '{alias}' names {sorted(drugs)}."))
+    for org, prof in ORGANISM_PROFILE.items():
+        for line in ("first_line", "second_line", "third_line"):
+            for d in prof.get(line) or []:
+                if d in ABX_GUIDELINES and is_intrinsically_avoided(org, d, ABX_GUIDELINES[d]):
+                    out.append(_v("V16", "error", f"{d} is {line.replace('_', '-')} for {org}, "
+                                                  "which is resistant to it or avoids it."))
+    for d, reg in SDD_REGIMENS.items():
+        if d not in ABX_GUIDELINES:
+            out.append(_v("V16", "error", f"The SDD table names {d}, unknown to the formulary."))
+        if NO_I_PAIRS.get(d) != reg[0]:
+            out.append(_v("V16", "error", f"The SDD and the PL3 tables disagree on {d}."))
+    for d in ABX_GUIDELINES:
+        if d not in M.SITE_PENETRATION:
+            out.append(_v("V16", "error", f"{d} is unknown to the site matrix."))
+    return out
+
+
+def _case_invariants(result: Dict[str, Any], specimen: str) -> List[Dict[str, str]]:
+    """V17 -- the core safety facts hold in the FINAL lists of this case (v7.8).
+
+    Re-checked independently of the rules that built the lists: an offered
+    agent the organism is intrinsically resistant to, or one the site / host
+    matrix denies (no penetration of the site, contraindicated for this
+    patient), means two rules disagreed and the wrong one won. The safety gate
+    keeps an agent it could not evaluate ("never break the report"); here a
+    check that cannot run is an error (fail closed).
+    """
+    org = result.get("organism")
+    if not org or result.get("host") is None:
+        return []
+    from cdss.formulary.abx_guidelines import ABX_GUIDELINES
+    from cdss.therapy.clinical_matrix import DENY, evaluate
+    from cdss.therapy.intrinsic import is_intrinsically_avoided
+    host = dict(result.get("host") or {})
+    out: List[Dict[str, str]] = []
+    offered = []
+    for k in ("allowed", "warned", "ranked"):
+        for n in _names(result.get(k)):
+            if n not in offered:
+                offered.append(n)
+    for n in offered:
+        info = ABX_GUIDELINES.get(n) or {}
+        if is_intrinsically_avoided(org, n, info, return_source=True) == "intrinsic":
+            out.append(_v("V17", "error", f"{n} is offered although {org} is intrinsically "
+                                          "resistant to it."))
+            continue
+        try:
+            verdict = evaluate(n, org, specimen, strict_unknown=False, **host)
+        except Exception as exc:
+            out.append(_v("V17", "error", f"{n} could not be re-checked against the site and "
+                                          f"the patient ({type(exc).__name__})."))
+            continue
+        if verdict.level == DENY:
+            why = "; ".join(r["en"] for r in verdict.blocking)[:160]
+            out.append(_v("V17", "error", f"{n} is offered although the site / patient check "
+                                          f"denies it: {why}."))
     return out
 
 
