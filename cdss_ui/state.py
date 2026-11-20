@@ -132,7 +132,8 @@ def reset_patient_state() -> None:
     for _k in _PATIENT_WIDGET_KEYS + _PATIENT_STATE_KEYS:
         st.session_state.pop(_k, None)
     for _k in [k for k in list(st.session_state.keys())
-               if str(k).startswith(("severity_manual_", "treat_override_chk_"))]:
+               if str(k).startswith(("severity_manual_", "treat_override_chk_",
+                                     "data_confirm_", "ocr_reviewed_"))]:
         st.session_state.pop(_k, None)
     init_session_state()          # re-seed the data keys with their defaults
 

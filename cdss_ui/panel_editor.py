@@ -47,6 +47,47 @@ def _result_cell(col, drug: str, cur, lab, organism: str, key: str):
     return c3, value
 
 
+OCR_REVIEW_LABEL = ("راجعت النتائج المقروءة مقابل صورة التقرير الأصلي (S / I / R لكل مضاد) — "
+                    "مطلوب قبل أي تقرير")
+
+
+def _ocr_reason(page, drug: str) -> str:
+    """Why the OCR left a drug without a result (v7.8), in Arabic."""
+    rev = (getattr(page, "payload", None) or {}).get("ocr_review") or {}
+    if drug in (rev.get("conflicts") or {}):
+        return f"🛑 قراءتين مختلفتين: {rev['conflicts'][drug]} — اختار من التقرير الأصلي"
+    if drug in (rev.get("unresolved") or {}):
+        return f"❔ النتيجة مش واضحة في الصورة ({rev['unresolved'][drug]})"
+    return ""
+
+
+def render_ocr_review(page):
+    """v7.8 (external review of v7.7): what the OCR read and from where, and a
+    mandatory confirmation -- no report leaves before a person compared the
+    readings with the report image (enforced by V15)."""
+    pl = getattr(page, "payload", None) or {}
+    if not pl.get("raw_text") and not pl.get("sir_map"):
+        page.ocr_reviewed = None                    # nothing was read from an image
+        return
+    rev = pl.get("ocr_review") or {}
+    src = rev.get("sources") or {}
+    conflicts, unresolved = rev.get("conflicts") or {}, rev.get("unresolved") or {}
+    with st.container(border=True):
+        st.markdown("**🔎 مراجعة قراءة الـ OCR**")
+        st.caption(f"اتقرا {len(pl.get('sir_map') or {})} نتيجة"
+                   + (f" (شكل الجدول: {rev.get('layout')})" if rev.get("layout") else "")
+                   + f" · {len(conflicts)} قراءة متعارضة · {len(unresolved)} نتيجة مش واضحة")
+        for d, why in conflicts.items():
+            st.warning(f"🛑 **{d}** — {why}. ما اتختارش أي قراءة: حدّدها من التقرير الأصلي.")
+        if unresolved:
+            st.info("❔ نتائج مش واضحة (ظاهرة فوق بدون نتيجة): " + "، ".join(unresolved))
+        if src:
+            with st.expander("مصدر كل قراءة", expanded=False):
+                st.caption(" · ".join(f"{d}: {how}" for d, how in sorted(src.items())))
+        page.ocr_reviewed = bool(st.checkbox(OCR_REVIEW_LABEL,
+                                             key=f"ocr_reviewed_{page.file_hash[:8]}"))
+
+
 def render_panel_editor(page):
     """The editable S/I/R panel: OCR rows, quick add, deletions, summary."""
     # ══════════════════════════════════════════════════════
@@ -88,6 +129,10 @@ def render_panel_editor(page):
                 key=f"no_sir_{drug_no_sir}_{page.file_hash[:8]}",
                 help=f"OCR وجد '{drug_no_sir}' في النص -- حدد النتيجة أو اتركها"
             )
+            # v7.8: why it has no result -- a conflict is never resolved for you
+            _why = _ocr_reason(page, drug_no_sir)
+            if _why:
+                col_d.caption(_why)
             if assign != "--":
                 if drug_no_sir not in ocr_drugs:
                     ocr_drugs.append(drug_no_sir)
@@ -245,11 +290,10 @@ def render_panel_editor(page):
     # it is interpreted as. The raw panel (with SDD) goes to run_analysis(),
     # which names the SDD regimen; sdd_drugs drives the [SDD] tags.
     page.sir_map_raw = dict(edited_sir)
-    page.sdd_drugs = sorted(sdd_drugs(edited_sir))          # what the laboratory wrote
-    # v7.0: what the program READS as SDD -- adds an "I" on a CLSI no-I pair
-    # (cefepime / pip-tazo in Enterobacterales ...). Tags use this one; the QC
-    # check uses sdd_drugs to ask the laboratory for the correction.
-    page.sdd_read = sorted(sdd_drugs(edited_sir, getattr(page, "organism_type", "") or ""))
+    # what the LABORATORY wrote as SDD (v7.8: the old `sdd_read` -- "what the
+    # program reads as SDD" -- has equalled this since v7.1 and is gone; an I
+    # is never read as SDD)
+    page.sdd_drugs = sorted(sdd_drugs(edited_sir))
     page.sir_map = canonical_panel(edited_sir)
 
     # final_drugs = كل الأدوية التي أُدخلت نتائجها

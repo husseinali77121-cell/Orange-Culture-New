@@ -91,6 +91,17 @@ def render_health_and_title(page):
                    + ". Core recommendations are unaffected. "
                    "After uploading the missing file: **Manage app → Reboot app**.")
 
+    # v7.8: a rule base that contradicts itself stops every report (V16) --
+    # shown here, at the top, not only inside each case's validation
+    try:
+        from cdss.validation.case_validator import rule_base_integrity
+        _rb = rule_base_integrity()
+    except Exception as _exc:                       # the validator itself fails closed too
+        _rb = [{"message": f"rule-base check failed to run: {_exc}"}]
+    if _rb:
+        st.error("🛑 **قواعد البرنامج متعارضة مع بعضها — كل التقارير موقوفة لحد ما تتصلح:**  \n"
+                 + "  \n".join(f"• {v['message']}" for v in _rb[:8]))
+
     startup_issues = get_startup_validation_issues()
     if startup_issues:
         with st.expander(f"🧪 Data validation at startup ({len(startup_issues)})",

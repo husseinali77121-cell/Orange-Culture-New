@@ -20,10 +20,11 @@ from cdss.therapy.tables import preg_status_of
 
 
 def _sir_tag(page, name):
-    """" [S]" / " [SDD]" / "" -- the result as entered (CLSI SDD shown as SDD)."""
+    """" [S]" / " [SDD]" / "" -- the result as the laboratory reported it (a laboratory
+    SDD is shown as SDD; SDD is never an entry choice, v7.7)."""
     if not page.sir_map or name not in page.sir_map:
         return ""
-    return f" [{result_label(name, page.sir_map[name], getattr(page, 'sdd_read', None) or getattr(page, 'sdd_drugs', ()))}]"
+    return f" [{result_label(name, page.sir_map[name], getattr(page, 'sdd_drugs', None) or ())}]"
 
 
 def render_treatment_gate(page) -> bool:

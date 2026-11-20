@@ -51,6 +51,17 @@ def get_startup_validation_issues() -> List[str]:
                 f"password set: {', '.join(_open[:5])}"
                 + (" ..." if len(_open) > 5 else "")
             )
+    # v7.8: the login-attempt store must be owner-only -- verified (on Windows
+    # by its NTFS ACL), not assumed from a chmod that Windows ignores
+    try:
+        import os as _os
+        from cdss.security import auth_service as _as
+        if _os.path.exists(_as.store_path()) and not _as.restrict_to_owner(_as.store_path()):
+            issues.append(
+                "[SECURITY] The login-attempt store could not be restricted to the account "
+                f"running the app ({_as.store_path()}); other local users may read it.")
+    except Exception:
+        pass
     _bad_preg = sorted(
         f"{d} = {i.get('preg_status')!r}" for d, i in ABX_GUIDELINES.items()
         if str(i.get("preg_status") or "").strip().upper() not in _PREG_ALIASES

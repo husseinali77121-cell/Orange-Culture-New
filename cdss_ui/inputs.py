@@ -13,6 +13,7 @@ from cdss.common.renal import ASSUMED_CRCL_UNKNOWN
 from cdss.common.renal import calc_creatinine_clearance
 from cdss.common.renal import calc_paediatric_egfr
 from cdss.common.renal import get_renal_severity
+from cdss.common.data_consistency import same_organism
 from cdss.common.util import best_default_index
 from cdss.common.util import safe_int
 from cdss.formulary.co_medications import COMMON_MEDS
@@ -23,6 +24,13 @@ from cdss.therapy.panel_filters import _hide_urine_only
 from cdss.therapy.therapy_rules import CARBAPENEMASE_TYPE_OPTIONS
 from cdss.therapy.therapy_rules import UTI_SYNDROME_OPTIONS
 
+
+
+def _same_specimen(option, reported):
+    """v7.8: the same specimen category ("wound swab" = "Wound Swab")."""
+    from cdss.common.specimen import classify_specimen
+    a, b = classify_specimen(option), classify_specimen(reported)
+    return bool(a) and a == b
 
 def render_specimen_and_organism(page):
     """Patient name, specimen and organism pickers."""
@@ -49,7 +57,8 @@ def render_specimen_and_organism(page):
     page.culture_type = st.selectbox(
         "🧫 Specimen",
         SPECIMEN_TYPES,
-        index=best_default_index(SPECIMEN_TYPES, page.patient.get("Specimen")),
+        index=best_default_index(SPECIMEN_TYPES, page.patient.get("Specimen"),
+                                 match=_same_specimen),
         key=f"specimen_sel_{page._fh}",
     )
 
@@ -63,7 +72,8 @@ def render_specimen_and_organism(page):
     page.organism_type = st.selectbox(
         "🦠 Organism",
         filtered_organisms,
-        index=best_default_index(filtered_organisms, page.patient.get("Organism")),
+        index=best_default_index(filtered_organisms, page.patient.get("Organism"),
+                                 match=same_organism),
         help=f"بكتيريا شائعة في عينة {page.culture_type}",
         key=f"organism_sel_{page._fh}_{page.culture_type}",
     )

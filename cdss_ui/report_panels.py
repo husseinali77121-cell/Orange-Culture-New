@@ -88,7 +88,7 @@ def prepare_report_inputs(page):
     def _caution(item):
         _r = item.get("warning_reason") or item.get("category") or ""
         _t = _CAUTION_TAG.get(_r, "")
-        if _r == "intermediate_culture" and item.get("name") in (getattr(page, "sdd_read", None) or ()):
+        if _r == "intermediate_culture" and item.get("name") in (getattr(page, "sdd_drugs", None) or ()):
             _t = "(SDD)"
         return f"{item['name']} {_t}".strip()
     page.use_caution_names  = uniq_keep_order(

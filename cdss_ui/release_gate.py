@@ -56,4 +56,21 @@ def validation_input(page) -> dict:
             "carbapenemase_type": getattr(page, "_carb_type_now", None),
             # v7.7: V14 -- a laboratory SDD left on a pair CLSI defines none for
             "sdd_reported": getattr(page, "sdd_drugs", None) or [],
+            # v7.8: V15 -- the OCR reading was not compared with the image
+            "ocr_reviewed": getattr(page, "ocr_reviewed", None),
+            # v7.8: V17 -- the host facts the final lists are re-checked against
+            "host": _host(page),
             "organism": getattr(page, "organism_type", "") or ""}
+
+
+def _host(page):
+    """The patient facts the site / host matrix needs (V17)."""
+    from cdss.common.clinical_utils import resolve_age_years
+    return {"age_years": resolve_age_years(getattr(page, "age", None),
+                                           getattr(page, "age_months", None)),
+            "is_pregnant": bool(getattr(page, "is_preg", False)),
+            "is_lactating": False,
+            "cl_cr": getattr(page, "cl_cr", None),
+            "is_renal": bool(getattr(page, "is_renal", False)),
+            "is_hepatic": bool(getattr(page, "is_hepatic", False)),
+            "child_pugh": getattr(page, "_child_pugh_now", None)}

@@ -55,43 +55,69 @@ def _resolve_uti(page):
                       "confirmed); pyelonephritis is not proven by these signs alone")
 
 
-def _check_specimen_consistency(page):
-    """(report collection method, physician confirmed) -- v7.4.
+_CONFIRM_REPORT = ("أؤكد إكلينيكياً أن طريقة الجمع المُدخلة هي الصحيحة رغم تقرير المعمل "
+                   "(يُطبع في التقرير) — بدون التأكيد أو التصحيح التقارير موقوفة")
+_CONFIRM_ENTRY = ("أؤكد إكلينيكياً إن العينة فعلاً midstream / تبول رغم تسجيل القسطرة (مثلاً القسطرة "
+                  "اتشالت قبل أخذ العينة) — يُطبع في التقرير؛ بدون التأكيد أو التصحيح التقارير موقوفة")
 
-    External case review 2026-11-20: the laboratory report said "Mid stream
-    urine" and the case was analysed as a Foley specimen (CA-UTI rules). The
-    OCR now reads the report's method; a disagreement is a CRITICAL alert and
-    the physician-facing reports stay blocked until the entry is corrected or
-    the physician confirms it (printed in the report).
+
+def _check_case_consistency(page, patient):
+    """(report collection method, confirmed issue codes) -- v7.4, v7.8.
+
+    External case review 2026-11-20 (v7.4): the laboratory report said "Mid
+    stream urine" and the case was analysed as a Foley specimen. v7.8 (owner:
+    "protect the program against conflicts in the inputs themselves"): every
+    contradiction in the inputs, and between the inputs and the report the
+    OCR read, is checked the same way -- a CRITICAL alert, the reports blocked
+    until the entry is corrected or, where it can be legitimate, THAT issue is
+    confirmed (each its own checkbox; the confirmation is printed).
     """
-    from cdss.common.data_consistency import check_case_consistency
+    import hashlib
+    from cdss.common.data_consistency import check_case_consistency, check_case_inputs
     _payload_pt = (getattr(page, "patient", None) or {})
-    _report = _payload_pt.get("CollectionMethod") if isinstance(_payload_pt, dict) else None
-    # v7.6: the entry is checked against the host factors even without an OCR'd method
+    _payload_pt = _payload_pt if isinstance(_payload_pt, dict) else {}
+    _report = _payload_pt.get("CollectionMethod")
     _issues = check_case_consistency(
         specimen=page.culture_type, report_collection=_report,
         entered_collection=page.case.collection_method,
         host_factors=page.case.host_factors)
-    if not _issues:
-        return _report, False
+    _issues += check_case_inputs(
+        patient, specimen=page.culture_type, organism=page.organism_type,
+        panel=getattr(page, "sir_map_raw", None) or page.sir_map,
+        symptoms=_symptoms_now(page), report=_payload_pt)
+    confirmed = set()
     for _i in _issues:
-        st.error(f"🛑 **CRITICAL — {_i['message_ar']}**  \n"
-                 + (_i['hint_ar'] if _i.get("confirmable", True)
-                    else "اختار طريقة الجمع في خانة الـ Pathogenicity — مفيش تأكيد يحل محلها."))
-    # v7.6 (external review of v7.5): "confirm" released a method never entered.
-    # When any issue is not confirmable there is no checkbox at all.
-    if not all(_i.get("confirmable", True) for _i in _issues):
-        return _report, False
-    import hashlib
-    _key = "data_confirm_" + hashlib.md5(
-        f"{_report}|{page.case.collection_method}|{sorted(page.case.host_factors)}".encode()
-    ).hexdigest()[:12]
-    _label = ("أؤكد إكلينيكياً أن طريقة الجمع المُدخلة هي الصحيحة رغم تقرير المعمل "
-              "(يُطبع في التقرير) — بدون التأكيد أو التصحيح التقارير موقوفة") if _report else (
-              "أؤكد إكلينيكياً إن العينة فعلاً midstream / تبول رغم تسجيل القسطرة (مثلاً القسطرة "
-              "اتشالت قبل أخذ العينة) — يُطبع في التقرير؛ بدون التأكيد أو التصحيح التقارير موقوفة")
-    _ok = st.checkbox(_label, key=_key)
-    return _report, bool(_ok)
+        if _i.get("confirmable", True):
+            _how = _i['hint_ar']
+        elif _i.get("kind") == "input":
+            _how = _i['hint_ar'] + " — مفيش تأكيد يحل محل التصحيح."
+        else:
+            _how = "اختار طريقة الجمع في خانة الـ Pathogenicity — مفيش تأكيد يحل محلها."
+        st.error(f"🛑 **CRITICAL — {_i['message_ar']}**  \n" + _how)
+        if not _i.get("confirmable", True):
+            continue
+        if _i["code"] == "SPECIMEN_ENTRY_VOIDED_WITH_CATHETER":
+            _label = _CONFIRM_ENTRY
+        elif _i["code"].startswith("SPECIMEN_"):
+            _label = _CONFIRM_REPORT
+        else:
+            _label = f"أؤكد إكلينيكياً صحة الإدخال رغم التعارض: {_i['message_ar']} (يُطبع في التقرير)"
+        # keyed by the report file too: a confirmation never carries over to
+        # the next patient (and reset_patient_state clears the prefix)
+        _key = f"data_confirm_{page.file_hash[:8]}_" + hashlib.md5(
+            f"{_i['code']}|{_i['report_value']}|{_i['entered_value']}|{_report}|"
+            f"{page.case.collection_method}|{sorted(page.case.host_factors)}".encode()
+        ).hexdigest()[:12]
+        if st.checkbox(_label, key=_key):
+            confirmed.add(_i["code"])
+    return _report, confirmed
+
+
+def _symptoms_now(page):
+    from cdss.common.specimen import classify_specimen as _cs
+    if _cs(page.culture_type) == "urine":
+        return list(st.session_state.get("patho_symptoms") or [])
+    return []
 
 
 def run_case_analysis(page):
@@ -145,14 +171,17 @@ def run_case_analysis(page):
     _patho_now = current_patho_result()
     _g0 = treatment_gate(_patho_now)
     _override = bool(_g0 and st.session_state.get(treat_override_key()))
-    _report_coll, _confirmed = _check_specimen_consistency(page)
+    _report_coll, _confirmed = _check_case_consistency(page, _patient)
+    _report_fields = getattr(page, "patient", None)
     _res = run_analysis(_patient, page.organism_type, page.culture_type,
                         {**getattr(page, "sir_map_raw", page.sir_map), **page.aux_tests},
                         drugs=page.final_drugs, carbapenemase_type=page._carb_type_now,
                         uti_syndrome=page._uti_syn_now,
                         pathogenicity=_patho_now, treat_override=_override,
                         report_collection_method=_report_coll,
-                        consistency_confirmed=_confirmed)
+                        consistency_confirmed=_confirmed,
+                        report_fields=_report_fields if isinstance(_report_fields, dict) else None,
+                        symptoms=_symptoms_now(page))
     page.treatment_gate = _res.get("treatment_gate")
     page.data_issues = _res.get("data_issues") or []
     page.data_blocked = bool(_res.get("data_blocked"))

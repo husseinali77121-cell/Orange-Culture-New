@@ -23,6 +23,7 @@ from cdss_ui.page_setup import configure_page
 from cdss_ui.page_setup import render_health_and_title
 from cdss_ui.page_setup import render_lab_identity
 from cdss_ui.panel_editor import render_aux_tests
+from cdss_ui.panel_editor import render_ocr_review
 from cdss_ui.panel_editor import render_panel_editor
 from cdss_ui.pathogenicity_panel import render_pathogenicity
 from cdss_ui.resistance_panels import render_ast_quality_check
@@ -108,6 +109,8 @@ def main():
             st.subheader("💊 Antibiotic Analysis")
 
             render_panel_editor(page)
+
+            render_ocr_review(page)
 
             render_aux_tests(page)
 
