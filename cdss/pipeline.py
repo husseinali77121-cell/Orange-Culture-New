@@ -17,7 +17,7 @@ from cdss.common.case_context import (
 )
 from cdss.therapy.clsi_categories import canonical_panel
 from cdss.common.data_consistency import blocking as data_blocking
-from cdss.common.data_consistency import check_case_consistency
+from cdss.common.data_consistency import check_case_consistency, check_case_inputs
 from cdss.organisms.pathogenicity import gate_suppresses, treatment_gate
 from cdss.common.specimen import (
     classify_specimen,
@@ -93,7 +93,9 @@ def run_analysis(
     pathogenicity: Optional[Dict[str, Any]] = None,
     treat_override: bool = False,
     report_collection_method: Optional[str] = None,
-    consistency_confirmed: bool = False,
+    consistency_confirmed: Any = False,
+    report_fields: Optional[Dict[str, Any]] = None,
+    symptoms: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Run the full clinical pipeline and return every panel the UI shows.
 
@@ -140,6 +142,11 @@ def run_analysis(
         entered_collection=getattr(patient, "collection_method", ""),
         host_factors=list(getattr(patient, "host_factors", None) or []),
         confirmed=consistency_confirmed)
+    # v7.8: contradictions inside the inputs, and inputs vs the report fields
+    # the OCR read (organism, specimen, sex, age, "no growth")
+    data_issues += check_case_inputs(
+        patient, specimen=specimen, organism=organism, panel=raw_panel,
+        symptoms=symptoms, report=report_fields, confirmed=consistency_confirmed)
     # v7.1 (IDSA cUTI 2025): a urinary catheter / nephrostomy makes the UTI
     # complicated. With no explicit choice the engine now treats it as one --
     # the same rule the UI applies (therapy_rules.resolve_uti_syndrome).
