@@ -24,7 +24,12 @@ ABX_GUIDELINES = {
         "hepatic_caution": True, "aware": "Access", "high_po": True,
         "preg_status": "Safe", "preg_note": "",
         "child_safe": True, "interacts_with": ["Methotrexate (ميثوتريكسات)", "Warfarin (مضادات التخثر)"],
-        "aliases": ["augmentin","curam","amoxiclav","co-amoxiclav"],
+        # v7.6 (sweep): "Amoxicillin/Clavulanate", "Amoxicillin-clav" ... were read as
+        # plain AMOXICILLIN (the longest alias found was "amoxicillin"), so an
+        # amox-clav S became amoxicillin S. The generic spellings are aliases now.
+        "aliases": ["augmentin","curam","amoxiclav","co-amoxiclav","amoxicillin clavulanate",
+                    "amoxicillin clavulanic","amoxicillin clav","amoxycillin clavulanate",
+                    "amoxycillin clavulanic","amoxycillin clav","amox clav","amoxi clav"],
         "organisms": ["E. coli","Klebsiella spp.","Staphylococcus aureus",
                       "Proteus mirabilis","Streptococcus pneumoniae","H. influenzae"],
         "specimen_notes": {
@@ -83,7 +88,7 @@ ABX_GUIDELINES = {
         "hepatic_caution": False, "aware": "Watch", "high_po": False,
         "preg_status": "Safe", "preg_note": "",
         "child_safe": True, "interacts_with": ["Methotrexate (ميثوتريكسات)"],
-        "aliases": ["tazocin","pip-tazo","piptaz"],
+        "aliases": ["tazocin","pip-tazo","piptaz","piperacillin tazo","pip tazobactam"],
         "organisms": ["Pseudomonas aeruginosa","E. coli","Klebsiella spp.",
                       "Enterococcus faecalis","Proteus mirabilis","Acinetobacter baumannii"],
         "specimen_notes": {
