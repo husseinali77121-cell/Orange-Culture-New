@@ -18,6 +18,7 @@ from cdss.ocr.detect import (
     detect_sex,
     detect_specimen,
 )
+from cdss.common.data_consistency import detect_collection_method
 from cdss.ocr.image import (
     preprocess_image,
     run_ocr,
@@ -60,6 +61,10 @@ def extract_all_data_cached(file_bytes: bytes) -> Dict[str, Any]:
             "AgeAmbiguous": age_reading_is_ambiguous(full_text),
             "Sex":      detect_sex(text_lower),
             "Specimen": detect_specimen(text_lower),
+            # v7.4 (external case review): the report's collection method
+            # ("Sample: Mid stream urine") -- compared with the method entered in
+            # the app (cdss.common.data_consistency). It used to be discarded.
+            "CollectionMethod": detect_collection_method(full_text),
             "Organism": detect_organism(text_lower),
         },
         "drugs":     extract_detected_drugs(full_text),
