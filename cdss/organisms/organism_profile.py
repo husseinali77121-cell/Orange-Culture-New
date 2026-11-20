@@ -38,7 +38,9 @@ ORGANISM_PROFILE = {
         "avoid": [],
         "urine_note": (
             "Norfloxacin: مخصص للمسالك فقط — لا تركيز علاجي خارج البول.\n"
-            "Ertapenem: يُحفظ للـ ESBL-producing E. coli فقط.\n"
+            "Ertapenem: كاربابينيم مناسب لعدوى ESBL من الـ Enterobacterales عند ثبوت الحساسية "
+            "(لا يغطي Pseudomonas ولا Acinetobacter) — الاختيار حسب الحساسية وشدة الحالة وسياسة "
+            "المستشفى.\n"
             "Nitrofurantoin / Fosfomycin الفموي: لالتهاب المثانة فقط — لا تصل لنسيج الكلى."
         ),
         "specimen_context": {

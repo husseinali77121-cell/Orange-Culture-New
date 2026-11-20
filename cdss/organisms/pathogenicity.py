@@ -54,6 +54,8 @@ __all__ = [
     # v7.2
     "NO_TREAT_CATEGORIES", "treatment_gate", "gate_suppresses",
     "BLOOD_SET_OPTIONS", "blood_sets_state", "RESP_SPECIMEN_SUBTYPES",
+    # v7.4
+    "SYMPTOM_COURSE_OPTIONS", "SCI_TYPE_SYMPTOMS",
 ]
 
 
@@ -161,7 +163,7 @@ def _org_in(name: str, group) -> bool:
 #  New keys: engine_version, category, threshold, notes, missing_inputs,
 #  confidence, references, evidence.
 # ════════════════════════════════════════════════════════════════════════════
-PATHO_ENGINE_VERSION = "3.2 (2026-11-19)"
+PATHO_ENGINE_VERSION = "3.3 (2026-11-20)"
 
 # ── Option lists (single source for the UI) ─────────────────────────────────
 HOST_SCI_PARA = "Paraplegia (spinal cord injury)"
@@ -207,6 +209,46 @@ URINE_SYMPTOMS = [
     "Nocturnal enuresis", "Abdominal pain", "Nausea / Vomiting",
     "Asymptomatic",
 ]
+# v7.4 (external case review, 2026-11-20): the catheter / neurogenic-bladder
+# symptoms (IDSA CA-UTI 2009: malaise, lethargy, sense of unease, spasticity,
+# autonomic dysreflexia, new leakage) count only when they are NEW or WORSE than
+# the patient's baseline and no other cause was found. The panel asks; an
+# unanswered question keeps the verdict at "possible", and "present at baseline"
+# makes them non-specific (catheter-associated bacteriuria if the count is high).
+SCI_TYPE_SYMPTOMS = (
+    "Increased spasticity (SCI)", "Autonomic dysreflexia (SCI)",
+    "Malaise / Lethargy / Sense of unease (SCI)",
+    "New incontinence / Leaking around catheter",
+)
+SYMPTOM_COURSE_OPTIONS = [
+    "مش محدد",
+    "New / worsening vs baseline — no other cause found",
+    "Present at baseline / unchanged (chronic)",
+]
+_SCI_SHORT = {
+    "Increased spasticity (SCI)": "increased spasticity",
+    "Autonomic dysreflexia (SCI)": "autonomic dysreflexia",
+    "Malaise / Lethargy / Sense of unease (SCI)": "malaise / lethargy",
+    "New incontinence / Leaking around catheter": "new leakage / incontinence",
+}
+
+
+def _course(symptom_course: str) -> Optional[str]:
+    """'new' | 'baseline' | None (not answered)."""
+    c = str(symptom_course or "").lower()
+    if not c or "مش محدد" in c:
+        return None
+    if "baseline" in c and ("unchanged" in c or "chronic" in c or "present" in c):
+        return "baseline"
+    if "new" in c or "worse" in c:
+        return "new"
+    return None
+
+
+def _rule_source(rule: str) -> str:
+    """The citation in a threshold rule ('IDSA CA-UTI 2009'), for a short factor line."""
+    hits = re.findall(r"\(([^()]*)\)", str(rule or ""))
+    return hits[-1].strip() if hits else ""
 # v7.0 (review 2026-11-19): "Rods" -> "Bacilli", the wording the laboratory
 # report uses. A reviewer looking for "WBCs + Gram negative bacilli" under
 # E. coli / Klebsiella did not recognise "Gram Negative Rods" as that choice.
@@ -314,8 +356,12 @@ _NOTES_EN = [
     ("حامل + bacteriuria", "Pregnant with bacteriuria >= 10^5: if asymptomatic this is ASB, which IS treated in pregnancy (IDSA 2019) - record the symptoms."),
     ("إصابة النخاع الشوكي / المثانة العصبية", "Spinal cord injury / neurogenic bladder: bacteriuria and pyuria are near-constant - do not screen for or treat them without symptoms (IDSA ASB 2019, strong recommendation). Symptoms are atypical: fever, increased spasticity, autonomic dysreflexia, malaise, new leakage around the catheter - not dysuria."),
     ("عند العلاج: غيّر القسطرة", "When treating: replace a catheter that has been in place >= 2 weeks and culture from the new one; 7 days with prompt response, 10-14 days with delayed response (IDSA CA-UTI 2009). Resistant organisms are more likely - follow the susceptibility result."),
+    ("بدون قسطرة في هذه العينة", "No catheter in this specimen: resistant organisms are more likely after spinal cord injury (repeated antibiotics) - follow the susceptibility result."),
     ("الأعراض غير مُدخلة: في إصابة النخاع", "Symptoms not entered: in spinal cord injury the culture cannot be interpreted without them."),
     ("رضيع < سنتين", "Infant < 2 years: UTI = pyuria + >= 5x10^4 CFU/mL of a single organism from catheter or SPA (AAP). Any confirmed UTI is treated."),
+    ("NIDRR 1992 (إصابة النخاع الشوكي)", "NIDRR 1992 consensus (spinal cord injury): any detectable uropathogen from an indwelling or suprapubic catheter is SIGNIFICANT BACTERIURIA - a definition of bacteriuria, not a diagnosis of UTI; UTI also needs new signs or symptoms."),
+    ("رضيع 8–60 يوم بدون حمى", "Infant 8-60 days without fever: the AAP 2021 guideline covers febrile infants only - the threshold used is a working figure, not an AAP recommendation. Absence of fever does not exclude serious infection at this age (hypothermia, poor feeding, lethargy) - decide on clinical assessment."),
+    ("الـ WBCs في صبغة Gram مع القسطرة", "WBCs on the Gram stain with a catheter or neurogenic bladder are the expected pyuria - not counted as evidence of infection."),
     ("رضيع + عينة midstream", "Infant with a midstream specimen: AAP bases the diagnosis on a catheter or SPA specimen - confirm with a catheter specimen before treating (do not delay treatment in a febrile, ill-looking infant)."),
     ("UTI في الذكور","UTI in males: consider prostatic involvement (longer course, an agent that penetrates the prostate) with fever or recurrence."),
     ("تشخيص الالتهاب الرئوي يحتاج", "Pneumonia requires a new infiltrate on imaging - a culture alone is not sufficient (ATS/IDSA)."),
@@ -399,6 +445,7 @@ _MISSING_AR = {
     "Local signs of infection": "علامات العدوى الموضعية",
     "Specimen type not recognised": "نوع العينة غير معروف",
     "Urinalysis / pyuria (AAP)": "تحليل البول / الصديد (شرط AAP للرضيع)",
+    "Symptom course (new vs baseline)": "هل الأعراض جديدة / أسوأ من المعتاد؟",
 }
 
 
@@ -562,9 +609,12 @@ def _urine_threshold(collection: str, age, sex: str, symptomatic: bool, sci: boo
                            "evaluation")
         if _days < 60.5:
             if febrile is False:
+                # v7.4 (external review of v7.3): "applied by analogy" read as an AAP
+                # recommendation. It is a working figure only; the decision is clinical.
                 return 50000, ("Infant 8-60 days (catheter/SPA), no fever entered: the AAP 2021 "
-                               "guideline is for FEBRILE infants — >= 5×10^4 CFU/mL of one "
-                               "uropathogen with pyuria is applied by analogy")
+                               "guideline covers FEBRILE infants only and does not apply here — "
+                               ">= 5×10^4 CFU/mL with pyuria is a working figure, NOT an AAP "
+                               "recommendation; decide clinically (working figure)")
             return 50000, ("Febrile infant 8-60 days (catheter/SPA): >= 5×10^4 CFU/mL of one "
                            "uropathogen, or 10^4-5×10^4 with an abnormal urinalysis (AAP 2021 "
                            "febrile infant guideline)")
@@ -591,10 +641,11 @@ def _urine_threshold(collection: str, age, sex: str, symptomatic: bool, sci: boo
                      "CFU/mL (NIDRR consensus; IDSA CA-UTI 2009 uses >= 10^3)")
     if catheterised:
         if symptomatic:
+            # v7.4 (external case review): the NIDRR "any detectable concentration"
+            # is a definition of significant BACTERIURIA, not of UTI -- it now
+            # appears as a separate note with that wording (see _site_urine).
             return 1000, ("Catheter specimen with compatible symptoms: >= 10^3 CFU/mL "
-                          "(IDSA CA-UTI 2009)"
-                          + ("; NIDRR counts any detectable concentration from an indwelling / "
-                             "suprapubic catheter in spinal cord injury" if sci else ""))
+                          "(IDSA CA-UTI 2009)")
         return 100000, ("Catheter specimen WITHOUT symptoms: >= 10^5 CFU/mL defines "
                         "catheter-associated asymptomatic bacteriuria — not an infection "
                         "(IDSA CA-UTI 2009)")
@@ -613,7 +664,8 @@ def _urine_threshold(collection: str, age, sex: str, symptomatic: bool, sci: boo
 def _score_colony_count(state: str, cfu_val: int, age: int, sex: str,
                         symptomatic: bool = False, collection: str = "",
                         sci: bool = False, catheterised: bool = False,
-                        febrile: Optional[bool] = None):
+                        febrile: Optional[bool] = None,
+                        bacteriuria_expected: bool = False):
     """(delta, positive_factor, negative_factor) for the colony-count field.
 
     v3: one threshold chosen by _urine_threshold(), then four outcomes —
@@ -630,12 +682,21 @@ def _score_colony_count(state: str, cfu_val: int, age: int, sex: str,
                            "count and the culture result disagree; re-check the "
                            "report before treating.")
     thr, rule = _urine_threshold(collection, age, sex, symptomatic, sci, catheterised, febrile)
+    # v7.4 (external case review): short factor lines -- the full rule is the
+    # "Threshold applied" line; the factor was cut with "..." in the PDF.
+    src = _rule_source(rule).split(";")[0].strip()
+    src = f", {src}" if src else ""
     if cfu_val >= thr:
-        return 30, f"✅ Colony count {cfu_val:,} CFU/mL meets the threshold — {rule}", None
+        if bacteriuria_expected:
+            # v7.4: with a catheter or a neurogenic bladder bacteriuria is the rule;
+            # the count confirms bacteriuria, not infection -- less weight.
+            return 25, (f"✅ Colony count {cfu_val:,} CFU/mL meets the {thr:,} CFU/mL threshold"
+                        f"{src} — bacteriuria, expected here; not infection by itself"), None
+        return 30, f"✅ Colony count {cfu_val:,} CFU/mL meets the {thr:,} CFU/mL threshold{src}", None
     if cfu_val * 10 >= thr:
-        return 12, (f"➕ Colony count {cfu_val:,} CFU/mL is borderline (within one log of the "
-                    f"threshold) — {rule}."), None
-    return -15, None, f"⚠️ Colony count {cfu_val:,} CFU/mL is below the threshold — {rule}"
+        return 12, (f"➕ Colony count {cfu_val:,} CFU/mL is borderline (within one log of "
+                    f"{thr:,} CFU/mL{src})"), None
+    return -15, None, f"⚠️ Colony count {cfu_val:,} CFU/mL is below the {thr:,} CFU/mL threshold{src}"
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -680,6 +741,7 @@ def _site_urine(
     threshold_text,
     urinalysis_result,
     uro_procedure,
+    symptom_course="",
 ):
     """URINE: score this specimen's own evidence (moved from assess_pathogenicity)."""
     coll_l = collection_method.lower()
@@ -698,7 +760,13 @@ def _site_urine(
     if age < 18 or "bag" in coll_l or "كيس" in coll_l:
         references.append("AAP UTI 2011 (reaffirmed 2016)")
     if age * 365.25 < 60.5:
-        references.append("AAP 2021 febrile infant guideline (8-60 days)")
+        if 7.5 <= age * 365.25 and not (set(symptoms) & {"Fever (> 38°C)", "Flank pain / Loin pain",
+                                                          "Rigors / Hypotension (sepsis)"}):
+            # v7.4: cited, but marked as not applicable without fever
+            references.append("AAP 2021 febrile infant guideline (8-60 days) — not applicable "
+                              "without fever")
+        else:
+            references.append("AAP 2021 febrile infant guideline (8-60 days)")
     infant = age < 2
     if infant:
         special_flags.append("PEDIATRIC_UTI")
@@ -713,7 +781,17 @@ def _site_urine(
     sym = set(symptoms)
     has_upper = bool(sym & _upper)
     has_specific = bool(sym & _specific)
-    has_sci_sym = bool(sym & _sci_sym) and (neurogenic or catheterised)
+    sci_entered = [x for x in SCI_TYPE_SYMPTOMS if x in sym]
+    has_sci_sym = bool(sci_entered) and (neurogenic or catheterised)
+    # v7.4 (external case review): these symptoms count only when NEW / worse than
+    # baseline and unexplained (IDSA CA-UTI 2009); "present at baseline" makes them
+    # non-specific -- with the count, catheter-associated bacteriuria.
+    course = _course(symptom_course)
+    sci_only = has_sci_sym and not has_upper and not has_specific
+    sci_baseline = sci_only and course == "baseline"
+    if sci_baseline:
+        has_sci_sym = False
+    _sci_names = ", ".join(_SCI_SHORT.get(x, x) for x in sci_entered)
     infant_nonspecific = infant and bool(sym & {"Nausea / Vomiting", "Abdominal pain"})
     symptomatic = has_upper or has_specific or has_sci_sym or infant_nonspecific
     explicit_asym = ("Asymptomatic" in sym) and not symptomatic
@@ -726,12 +804,30 @@ def _site_urine(
     elif has_specific:
         add("symptoms", 25, "✅ Urinary symptoms present (dysuria / frequency / urgency / suprapubic pain)")
     elif has_sci_sym:
-        add("symptoms", 22, "✅ Symptoms compatible with UTI in neurogenic bladder / catheter "
-                            "(spasticity, autonomic dysreflexia, malaise, new leakage) — IDSA 2009")
+        # v7.4: name the symptoms ENTERED (the line listed the four textbook
+        # examples, three of which the patient did not have).
+        if course == "new":
+            add("symptoms", 22, f"✅ New / worsening {_sci_names}, no other cause found — "
+                                "compatible with UTI with a catheter / neurogenic bladder "
+                                "(IDSA CA-UTI 2009)")
+        else:
+            # Not answered: the symptom keeps its weight (it WAS entered) but the
+            # verdict is capped at "possible" below -- an unanswered question must
+            # not push the case towards "contaminant" either.
+            add("symptoms", 22, f"➕ {_sci_names[:1].upper() + _sci_names[1:]} — counts only if "
+                                "new / worse than baseline and unexplained (IDSA CA-UTI 2009): "
+                                "not yet confirmed")
+            special_flags.append("SCI_SYMPTOMS_UNCONFIRMED")
+            missing.append("Symptom course (new vs baseline)")
     elif infant_nonspecific:
         add("symptoms", 15, "➕ Non-specific symptoms in an infant — UTI presents this way under 2 yr")
     elif explicit_asym:
         add("symptoms", -20, "⚠️ Asymptomatic — bacteriuria without symptoms is not a UTI")
+    elif only_nonspecific and sci_baseline:
+        add("symptoms", -10, f"⚠️ {_sci_names[:1].upper() + _sci_names[1:]} present at baseline "
+                             "(unchanged) — not evidence of UTI; bacteriuria is expected with a "
+                             "catheter / neurogenic bladder")
+        special_flags.append("SCI_SYMPTOMS_BASELINE")
     elif only_nonspecific:
         add("symptoms", -10, "⚠️ Only non-specific findings (cloudy/smelly urine, confusion, "
                              "abdominal pain) — none is an indication to treat bacteriuria")
@@ -790,7 +886,28 @@ def _site_urine(
                                          symptomatic=symptomatic,
                                          collection=collection_method,
                                          sci=sci, catheterised=catheterised,
-                                         febrile=_febrile)
+                                         febrile=_febrile,
+                                         bacteriuria_expected=(catheterised or neurogenic)
+                                         and not infant)
+    _indwelling = (any(k in coll_l for k in ("indwelling", "foley", "suprapubic catheter"))
+                   or (_hf(host_factors, "urinary catheter")
+                       and not any(k in coll_l for k in ("midstream", "clean", "intermittent",
+                                                         "condom", "aspirate", "spa", "bag"))))
+    if sci and _indwelling:
+        notes.append("♿ NIDRR 1992 (إصابة النخاع الشوكي): أي تركيز يُكتشف لكائن بولي من قسطرة "
+                     "دائمة أو فوق العانة = bacteriuria ذات دلالة — ده تعريف للـ bacteriuria مش "
+                     "تشخيص UTI؛ الـ UTI يحتاج أعراض أو علامات جديدة كمان.")
+    # v7.4: the lower weights for catheter / neurogenic-bladder evidence must never
+    # turn a patient with fever, rigors or hypotension and a significant count into
+    # "do not treat / repeat" -- floor at "possible" (see assess_pathogenicity).
+    if has_upper and (catheterised or neurogenic) and cfu_state == "counted" and cfu_val >= _thr:
+        special_flags.append("CA_SYSTEMIC_SIGNS")
+    # v7.4 (external review of v7.3): afebrile infant 8-60 days -- not an AAP rule
+    if infant and 7.5 <= age * 365.25 < 60.5 and not _febrile and not has_upper:
+        special_flags.append("INFANT_AFEBRILE_8_60")
+        notes.append("👶 رضيع 8–60 يوم بدون حمى: إرشاد AAP 2021 للرضيع المحموم فقط — العتبة "
+                     "المستخدمة رقم عملي وليست توصية AAP. غياب الحمى لا ينفي عدوى خطيرة في هذا "
+                     "العمر (انخفاض الحرارة، ضعف الرضاعة، الخمول) — القرار بالتقييم الإكلينيكي.")
     add("colony_count", _d, _pos or _neg)
     if cfu_state == "unreported":
         special_flags.append("CFU_NOT_REPORTED")
@@ -904,10 +1021,15 @@ def _site_urine(
             "لا تُفحص ولا تُعالَج بلا أعراض (IDSA ASB 2019، توصية قوية). الأعراض هنا غير "
             "نمطية: حمى، زيادة التشنج (spasticity)، autonomic dysreflexia، إحساس بالتوعك، "
             "تسريب جديد حول القسطرة — وليست الحرقان.")
-        notes.append(
-            "♿ عند العلاج: غيّر القسطرة إذا مرّ عليها ≥ أسبوعين وخذ المزرعة من الجديدة؛ "
-            "المدة 7 أيام مع استجابة سريعة و10–14 يوم مع استجابة متأخرة (IDSA CA-UTI 2009). "
-            "احتمال الكائنات المقاومة أعلى (مضادات متكررة) — اعتمد على الحساسية.")
+        if catheterised:
+            notes.append(
+                "♿ عند العلاج: غيّر القسطرة إذا مرّ عليها ≥ أسبوعين وخذ المزرعة من الجديدة؛ "
+                "المدة 7 أيام مع استجابة سريعة و10–14 يوم مع استجابة متأخرة (IDSA CA-UTI 2009). "
+                "احتمال الكائنات المقاومة أعلى (مضادات متكررة) — اعتمد على الحساسية.")
+        else:
+            # v7.4: no catheter in this specimen -- the catheter advice does not apply
+            notes.append("♿ بدون قسطرة في هذه العينة: احتمال الكائنات المقاومة أعلى في إصابة "
+                         "النخاع (مضادات متكررة) — اعتمد على الحساسية.")
         if not symptoms_stated:
             notes.append("♿ الأعراض غير مُدخلة: في إصابة النخاع الشوكي لا يمكن تفسير المزرعة بدونها.")
 
@@ -1151,8 +1273,13 @@ def _site_blood(
     if _has(org_l, _TK_NEVER_CONTAMINANT_BLOOD):
         # v6.7: in English like every other factor -- the English PDF stripped
         # this Arabic one down to "🔴 Staphylococcus aureus — ." (the words gone).
-        add("organism", 45, f"🔴 {organism} in blood is never a contaminant -- one positive bottle "
-                            "is enough. Start treatment now; do not wait for a repeat culture.")
+        # v7.4 (external review of v7.3): "never a contaminant ... start treatment
+        # now" was absolute and a treatment order from a culture engine.
+        add("organism", 45, f"🔴 {organism} in blood: presume clinically significant -- urgent "
+                            "clinical assessment and prompt treatment evaluation. Do not dismiss "
+                            "it as contamination because only one bottle is positive; repeat "
+                            "cultures must not delay assessment or appropriate treatment. The "
+                            "treating physician decides.")
         special_flags.append("NEVER_CONTAMINANT")
     elif is_enterobacterales or is_nonfermenter or is_enterococcus or is_gnb_unidentified \
             or _has(org_l, ("anaerobes", "bacteroides", "لاهوائ")):
@@ -1533,7 +1660,8 @@ def _verdict(*, insufficient, missing, score, special_flags):
     return category, color, interpretation, recommendations, verdict
 
 
-def _score_gram_stain(*, add, gram_stain, immuno, notes, org_l, organism, special_flags):
+def _score_gram_stain(*, add, gram_stain, immuno, notes, org_l, organism, special_flags,
+                      wbc_uninformative=False):
     """Gram stain of the specimen versus the isolate (WBCs, organism type, concordance)."""
     g_l = gram_stain.lower()
     stain_done = bool(gram_stain) and "مش متعملة" not in gram_stain
@@ -1548,6 +1676,12 @@ def _score_gram_stain(*, add, gram_stain, immuno, notes, org_l, organism, specia
                          "كائن لا يُصبغ (Mycoplasma / Legionella / Mycobacteria).")
         elif no_org:
             add("gram_stain", -8, "⚠️ Gram stain: no organisms seen")
+        elif wbc_seen and wbc_uninformative:
+            # v7.4 (external case review): with a catheter / neurogenic bladder the
+            # WBCs on the stain are the expected pyuria -- not evidence of infection.
+            add("gram_stain", 0, None)
+            notes.append("🔬 الـ WBCs في صبغة Gram مع القسطرة أو المثانة العصبية = pyuria متوقعة — "
+                         "لا تُحتسب دليلاً على العدوى.")
         elif wbc_seen:
             add("gram_stain", 12, "✅ Gram stain: organisms WITH inflammatory cells -- supports infection")
         elif "بدون wbcs" in g_l or "without" in g_l:
@@ -1588,14 +1722,19 @@ def _score_gram_stain(*, add, gram_stain, immuno, notes, org_l, organism, specia
             add("gram_stain", 5, "✅ Gram stain morphology matches the isolate")
 
 
-def _score_purity(*, add, collection_method, culture_purity, host_factors, spec_lower):
+def _score_purity(*, add, collection_method, culture_purity, host_factors, spec_lower,
+                  bacteriuria_expected=False):
     """Pure versus mixed growth (mixed is expected in a catheter urine)."""
     # ══════════════════════════════════════════════════════════════════
     # Shared: purity, Gram stain, host
     # ══════════════════════════════════════════════════════════════════
     _polymicrobial_ok = ("urine" in spec_lower and (_hf(host_factors, "urinary catheter")
                                                     or "catheter" in collection_method.lower()))
-    if culture_purity == "Pure growth":
+    if culture_purity == "Pure growth" and bacteriuria_expected:
+        # v7.4: chronic catheter / neurogenic-bladder bacteriuria is often one organism
+        add("purity", 5, "✅ Pure culture -- one uropathogen (chronic catheter bacteriuria is "
+                         "often monomicrobial too)")
+    elif culture_purity == "Pure growth":
         add("purity", 10, "✅ Pure culture -- supports true infection")
     elif culture_purity == "Mixed growth":
         if _polymicrobial_ok:
@@ -1639,6 +1778,18 @@ _FLAG_RECS: List[Tuple[str, bool, str, str]] = [
      "أدخل تحليل البول / الصديد: AAP يشترط pyuria مع العدّ لتشخيص UTI تحت سنتين.",
      "Enter the urinalysis / pus cells: AAP requires pyuria with the count to "
      "diagnose UTI under 2 years."),
+    ("SCI_SYMPTOMS_UNCONFIRMED", False,
+     "أكّد إن الأعراض جديدة أو أسوأ من المعتاد ومفيش سبب تاني لها (IDSA CA-UTI 2009): لو "
+     "موجودة من قبل وبنفس الدرجة فده bacteriuria مرتبطة بالقسطرة / المثانة العصبية ولا يُعالَج "
+     "(IDSA ASB 2019).",
+     "Confirm the symptoms are NEW / worse than baseline with no other cause (IDSA CA-UTI "
+     "2009); at baseline they mean bacteriuria, which is not treated (IDSA ASB 2019)."),
+    ("INFANT_AFEBRILE_8_60", False,
+     "رضيع 8–60 يوم بدون حمى: خارج إرشاد AAP 2021 — القرار بالتقييم الإكلينيكي، ولا تؤخر "
+     "العلاج لرضيع يبدو مريضاً.",
+     "Afebrile infant 8-60 days: outside the AAP 2021 febrile-infant guideline - decide "
+     "clinically; absence of fever does not exclude serious infection, and an ill-appearing "
+     "infant is not left untreated."),
     ("INFANT_MIDSTREAM", False,
      "رضيع + midstream: أكّد بعينة قسطرة (أو SPA) قبل اعتماد التشخيص.",
      "Infant, midstream specimen: confirm with a catheter (or SPA) specimen "
@@ -1679,6 +1830,8 @@ def assess_pathogenicity(
     wound_type: str = "",
     # v3
     collection_method: str = "",
+    # v7.4: are the catheter / neurogenic-bladder symptoms new or at baseline?
+    symptom_course: str = "",
 ) -> dict:
     """Pathogenicity engine v3 — is this isolate an infection, colonisation or
     contamination?
@@ -1781,7 +1934,7 @@ def assess_pathogenicity(
                 pus_cells_text=pus_cells_text, references=references, sci=sci, sex=sex,
                 special_flags=special_flags, symptoms=symptoms,
                 threshold_text=threshold_text, urinalysis_result=urinalysis_result,
-                uro_procedure=uro_procedure)
+                uro_procedure=uro_procedure, symptom_course=symptom_course or "")
 
     # ══════════════════════════════════════════════════════════════════
     # SPUTUM / RESPIRATORY
@@ -1846,14 +1999,24 @@ def assess_pathogenicity(
     else:
         missing.append("Specimen type not recognised")
 
+    # v7.4 (external case review): in urine from a catheter or a neurogenic
+    # bladder, pure growth and WBCs on the stain are expected with colonisation
+    # too -- they no longer carry infection-level weight there.
+    _cl = collection_method.lower()
+    _bact_expected = ("urine" in spec_lower and age >= 2 and (
+        neurogenic or _hf(host_factors, "urinary catheter")
+        or any(k in _cl for k in ("indwelling", "foley", "intermittent", "suprapubic catheter",
+                                   "nephrostomy", "conduit"))))
     _score_purity(
         add=add, collection_method=collection_method, culture_purity=culture_purity,
-        host_factors=host_factors, spec_lower=spec_lower
+        host_factors=host_factors, spec_lower=spec_lower,
+        bacteriuria_expected=_bact_expected
     )
 
     _score_gram_stain(
         add=add, gram_stain=gram_stain, immuno=immuno, notes=notes, org_l=org_l,
-        organism=organism, special_flags=special_flags
+        organism=organism, special_flags=special_flags,
+        wbc_uninformative=_bact_expected
     )
 
     if immuno:
@@ -1878,6 +2041,12 @@ def assess_pathogenicity(
     if any(f in special_flags for f in ("INFANT_NO_PYURIA", "INFANT_PYURIA_UNKNOWN",
                                         "INFANT_MIDSTREAM")):
         score = min(score, 65)   # v7.2: AAP needs pyuria AND a catheter / SPA count: never "TRUE" without
+    # v7.4: catheter / SCI symptoms not confirmed as new, and the afebrile 8-60 day
+    # infant (outside AAP 2021): "possible" at most -- the decision is clinical.
+    if any(f in special_flags for f in ("SCI_SYMPTOMS_UNCONFIRMED", "INFANT_AFEBRILE_8_60")):
+        score = min(score, 65)
+    if "CA_SYSTEMIC_SIGNS" in special_flags and score < 45:
+        score = 45            # v7.4: systemic signs + significant catheter count: never "repeat / no treatment"
     _core_missing = [m for m in missing if m in ("Symptoms", "Colony count",
                                                  "Respiratory signs / imaging",
                                                  "Local signs of infection",
