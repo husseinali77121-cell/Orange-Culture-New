@@ -1,15 +1,15 @@
-# release v7.7 — 2026-11-20 — SDD as a note (S/I/R only) + review of v7.6
+# release v7.8 — 2026-11-20 — input- and rule-conflict protection, OCR by position + review, review of v7.7
 6e7cfd715968b88c0ee473580bc292caef3729ef0bbb85d88c3d4a34016cd356  .gitignore
-eb1986218c597cf26153d628832c7932dd7f419193b84b2dae3ea2c445babc72  ARCHITECTURE.md
-ce78d7afff657dee79514f3722cc51d9a5210730bdab985cfcf4b6fe5a9d8bff  AUDIT.md
+7846157913ed2bd22ae3aedc971bfa9992e50ed2239228e51520ea31da315ffe  ARCHITECTURE.md
+d1da9b444337667c9f937aa3096ea75c7682145f973ac92dc48d19c7cebd20e3  AUDIT.md
 8bc052dccf7b1f5cd658c4286373da4ac7be189cc1b4950a37fe0e09a430e9be  CHANGELOG_2026-11-10.md
-50c2650b6b4ae0fae62d2d69576e6f2ea31eaabae2e58ec8b7dfde89ccfc9591  CHANGELOG_2026-11-12.md
-cf06b68a88d2d6206cb1b080a61b7679b330672c668be8b183a5f392e4b97f80  DECISIONS_2026-11-14.md
+4b6fbd4efe7ed14d69711f973a657812452833baa657f93782cdc2e5642daa77  CHANGELOG_2026-11-12.md
+fa86768803aa1973787a75664a29f20e392aef8c0aa68b1dc28f8dcc2c095313  DECISIONS_2026-11-14.md
 87f107620a36ba63178468a21797e7ef79fa6060b43c98b4bd01c84a614d50bb  EUCAST_AUDIT_2026-11-19.md
 69f62ce2ed312bcb73a148af5868264b8ea7e20dcb92af3c2eebd6f381b97b02  EXE_BUILD_NOTES.md
 c95bae1d1ce0235ecccd3560b772ec1efb97f348a79f0fbe0a634f0c2ccefe2c  LICENSE
-4d053cfaef844a818ff3f63b138f76f9ae08773135c8bd977c27f8e3b76a0d93  NEW_REPO_SETUP.md
-77fbbb03ef40ef648c89e67ff518592bddedcd2d32641f46c528cff85156e8b3  README.md
+7ed6a83d06f61a199dff4157e9d7534b9db2a11fc594675a48162c550e72125e  NEW_REPO_SETUP.md
+9bf2eaf6bea1f795cc0e7e8f31cda490d89fe0c8f306410b910d51026b05396b  README.md
 916faed51d624d17de97fbd05e1b0eb1b9b3639b3f323e9d08e4b2db699697a9  launcher.py
 da0aa882efa9bb99445f711fbe193fabd6863942efd82c8e4367b8f8f0fd45bd  orange_cdss.spec
 67b4695f327cbd7049aa681e408bf36af7a941e4df07521edb9c43808e54d1c9  packages.txt
@@ -21,10 +21,10 @@ f5274524a4360150729e6e0c9d5bc7c16eff3a56d99ef691b24fa60399f8c0af  verify_upload.
 25b2fc8b4a041c39537bbbd8c67c9980a71a7bc97905bd97f124d4fcee56ae34  .devcontainer/devcontainer.json
 052d0a63a2ae58af34242875c499b061ec9fbd20bb4189d3230d74c4c2330579  .github/CODEOWNERS
 f91d02b3d4584ab685f32d4b7f3bd4900a95d7b2dead8b3bc480453f4a4134af  .github/workflows/build-exe.yml
-c137f172e22ad6def160caf1ed0d220fc13aabdebde3b70cb56d21b7ea09c97c  .github/workflows/cdss-tests.yml
+45bd5b78c99dba798aa9cd2da4fa0e1a2fa02acc86454b5a0f6a12f4a74d22a2  .github/workflows/cdss-tests.yml
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  cdss/__init__.py
 6c1d3353c6135c9de0789361e73696d543cf299cb8b582be214008d57e71dce3  cdss/health.py
-4f1f0ccc3db242b776294b6edf47bfe55592077773c12dfc72814399ebb0eb4a  cdss/pipeline.py
+39b967548a2da625b088796093ff9ed777d201f602184bae3a8cda19f635f020  cdss/pipeline.py
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  cdss/astqc/__init__.py
 eef39a3efe48652cf8d4753e4f009f00165d7a37b76aaeba2e7593e9a76b24e7  cdss/astqc/ast_consistency.py
 b893008f71a3004a6bf61806f5f61167337091656ead335857d23a83e98c2b72  cdss/astqc/ast_panel_completeness.py
@@ -40,14 +40,14 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  cdss/common/__
 8f0638a7db5242fee3d41167343a5255141696601ebec5cb6c855405ca0e4bbb  cdss/common/case_context.py
 ce9372c5a0db61fad723107ca9fee496c7ecfa547bcc98eb0e74cc50aa47d602  cdss/common/catalog.py
 6e3b80a87872c5248ab76f88b6b8980128a366cfe5cc9329bed0e79f71c9f5d9  cdss/common/clinical_utils.py
-fc15e81d89ea958ac7a64b1eeb3094117765161188bc5a19e5f9b7eae4146973  cdss/common/data_consistency.py
+454a486d125083517203f4f3feb218af069316caa9b009ecaefe60bcefd272b9  cdss/common/data_consistency.py
 a3559046c5a0f0b6a44ebd48aa554f4a48f23346ef929170d1534fdac61fbfc2  cdss/common/drug_names.py
 2f2d663849a9163b9aa69786b40c3a79cf9d11c07ec33035fdb6d266cf76fa08  cdss/common/log.py
 d06af054d5af70c366c64752829dc235547d13507e8a278137b3d5a7df54263b  cdss/common/optional_deps.py
 b907b905b27ef47d70a2dd6ae2c782b7069c62878e2d1481e508e32f90af21f0  cdss/common/patient_checks.py
 ee5f786cb0dc9783f0aa5bc445443d0d8e4cbe73cf5710848a64ba1217744457  cdss/common/renal.py
 6881c5c45da67bb7b87b9edcd831ccf8b8ce88234c1fabc0a6143c0d41bc0909  cdss/common/specimen.py
-0d391bb93eaf17ed2e77577656ac092a6cfc51bd9a1d4c53e2b0eacb36b508aa  cdss/common/util.py
+f462c985000bf23d5589c2f81c5d9f035f8debd82b847a8dbc782ba9bdf1e982  cdss/common/util.py
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  cdss/formulary/__init__.py
 020dce86b6407551cfc66681e7d3be1228612b98930830d08ab5f7faf634f59c  cdss/formulary/abx_guidelines.py
 b5dfe887b77c1e563ec7835ea57faedddb20a2755bc2493d2c81bc5d3fa7ec1f  cdss/formulary/co_medications.py
@@ -59,10 +59,10 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  cdss/guideline
 efa1386144f478a38e4814c01688bfc324424d12e8448a0e4aca590333dadc37  cdss/guidelines/eucast_audit.py
 9951d2c52b7a6a190537dca45f91557d080d4f67a48a3dd33dfebb78bb0a2f44  cdss/guidelines/guideline_registry.py
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  cdss/ocr/__init__.py
-b933c3048326a4eb4dafe15de11ca90b1683528d8ce44280efafff1f2a5b120d  cdss/ocr/detect.py
-8f0eb745729e83fc1503762e00ce4fb943cbcb0bea1975c508a3d33e5393637a  cdss/ocr/extract.py
-ebc34b90f6cd9352f7f977925201f5b412d2d96565ba1cdaa0b2f031e53f76e0  cdss/ocr/image.py
-f62652b08a5f43a8125db829281ef329a98db5aefc48cb4d927c8f0d17fa1460  cdss/ocr/ocr_parsing.py
+9ae773e77b02f1721f0bd30744a45fa37c5ee0f26145c3ab7be947631b4e510c  cdss/ocr/detect.py
+f39f36674d3dc51e75b967db4ad6d92e695f0c1afb1faf7dc1b6870a1f19a965  cdss/ocr/extract.py
+57177bc68c085e3bc8b2f9f5a79eb226f6641904c5f2a7398065bafc30ddb2f5  cdss/ocr/image.py
+8fdaf43e5101b72eb19d06a861a64615c72a9ebf07215fa964d6e4e5d79e76ec  cdss/ocr/ocr_parsing.py
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  cdss/organisms/__init__.py
 10f308d2d11ad18f987dd44ed6fc37959f87de3af68f9995b6626267e9ecb116  cdss/organisms/clinical_data.py
 2ddeed3fccd80b5b5159ff791d658c9a4676a01ea9269a0e74dede9f87fc73b6  cdss/organisms/organism_profile.py
@@ -85,7 +85,7 @@ c54b0d5f9e2cf5540f819d6216e3f96272d39414dabe08f0b252e3cfffc3d2ed  cdss/resistanc
 8ed3f7f42a33c20cfda46b5c873bddc5514acd0df4902379f10165f804900bfc  cdss/resistance/mechanism.py
 db43d1ae13e13379aae7af2967eb5cd5782c1643cdcad247eff143257b790dc0  cdss/resistance/phenotypes.py
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  cdss/security/__init__.py
-288bc9ecbaad3cb1df04fca8beac236b5c5b782d7f2f7aebb94289fed9ad76b9  cdss/security/auth_service.py
+1b330fea7ac4172058d83182b51adba193f44bc183a992d8dfeb02d9d948cd66  cdss/security/auth_service.py
 5986398cea2f369bde32f27a756ed7e23416968a87b4f22fff64da7a4ca4b748  cdss/security/passwords.py
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  cdss/stewardship/__init__.py
 afcb40ddd72bb4c16bd5c838630939f830113e77aa6103c7e4dcf92678c56dcc  cdss/stewardship/combination.py
@@ -98,7 +98,7 @@ cbfba408393fe6a3bbf53f94057cb8282ea85b77ef4942990430495a13a70454  cdss/stewardsh
 f3a54c497a6dbf6484ec2bc34632e7c4095fcba1ebe34d9e2f20b2292a893cbc  cdss/stewardship/syndrome.py
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  cdss/therapy/__init__.py
 a26c1677b5fd38582f3af442bb2e50a82bb5d9da3e67312176d1b44b870fa9bc  cdss/therapy/clinical_matrix.py
-e4d75f65a067fd1ef604c1de068f1a76f7c1e746e2c8e0953e9f3a53cbfc925b  cdss/therapy/clsi_categories.py
+46d1b6d1a5aa830c769a6e5947ac865ae2be19bda07181df43dfc81631cdee96  cdss/therapy/clsi_categories.py
 0c653f65381fd1b1e5d1517c57b4cc3831162a2733239e6efcaaa824d5e1b59e  cdss/therapy/context.py
 7ea2c41e4dd9b304e685f7d4393d3ac5ec8cbb0ae8152d4b6119106b380d7ffb  cdss/therapy/drug_classes.py
 b05ba43915e7cc4e9f4e10d18d4dbca75c615f20b8f32abd00ee3d545b97a508  cdss/therapy/engine.py
@@ -121,24 +121,24 @@ cf94ddabb465a3b41aa506a8eb0e5ea5d3595132096b824cb8d434804888808b  cdss/therapy/r
 49f18af04529270f72cba00d548ed7c7f924b3e632142b9227e71504c43ccb3c  cdss/therapy/rules/pregnancy.py
 260693fdae09aaadd077c6648710c72f9723089c0a355d8f1fdba0f1b01cac07  cdss/therapy/rules/specific.py
 5fb9706b0246c4f9a9534c2feecc71369ada1ff5e219e06a09a0ed232dab6039  cdss/validation/__init__.py
-7541a1aeebea283e453888e1ede6659c8338dfda0d521d907a5a7811a9c46096  cdss/validation/case_validator.py
+70462a4abc0f630be13e819ee4b83fe0ad7c3066c91ba4fdbe5a0e59dbbc2259  cdss/validation/case_validator.py
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  cdss_ui/__init__.py
-2eda35fcd9b8d840b3926b1fb6b93a16def557b53df6e9ec35ec06b4f15e406d  cdss_ui/analysis.py
-63bff6babc5098057fbb29739024d2ab5d1a24b826b40e68f9e0579913aace75  cdss_ui/app.py
+883bd57ed4e4d91397ae34af20ed463cdab4796834d55782608a3a6de0a21a33  cdss_ui/analysis.py
+3362c60e90ec31f8bd823809cd7390660270bd83f7f0c87003bb8e40c6e3df40  cdss_ui/app.py
 e4297876fc3e25246bd6017f2cf5829a37dd1a01ebbd9482b69c815b643aeea6  cdss_ui/auth.py
-1d5c0c544d537653fb7f52c33ca8d739a1174f1adf5b6488c6dc9f08cecfb404  cdss_ui/inputs.py
-443aeccc1104176d7fb01988ef772958dce13f62d94af734269627518075305c  cdss_ui/page_setup.py
-aeb477d13859182095a8756e437076c7d4422cd658ef92f30621f8b5dd02a9d3  cdss_ui/panel_editor.py
+2bac1ccf94e62fbc0c51f91550ce60333741707ab9c2d4b9ccfebf9281e69c69  cdss_ui/inputs.py
+aa371cbf52aa9fff8532f3a6682366d5a442dfcc7f18096124069ec56ec52b5a  cdss_ui/page_setup.py
+9c284d738f630ad3a6e5807f6129192f6ec7e27577f7f2afd9c64e235e78f589  cdss_ui/panel_editor.py
 2908784fef8dec4b63338e092eb645f24e18f578e09fb6596775bcb7eef8d594  cdss_ui/patho_view.py
 047959541eaa5292d544c95d3af4bbde08515b8b0d728e8bbb4227d229bff778  cdss_ui/pathogenicity_panel.py
-8d94377d433d718655b483996808d57934cb04e90e13331228e01b7e818f81e7  cdss_ui/recommendations.py
+d6919d4916bc0ae4ab3bb532f800fd0cb15b794689f16e3074b57871fa4c34f2  cdss_ui/recommendations.py
 c77e21f10ef59b9ad15d1b03f2de3bad39767faa555ed3cb8cef2288ad09b587  cdss_ui/release.py
-d8b8b829126c2c742dc63d5a1c9654b5e9c57fb5b8943285291c1438cb26c383  cdss_ui/release_gate.py
+1bfe4bbe566854ab6def311d5263b349be7a2a99c062f63b6a3842a422ad87ea  cdss_ui/release_gate.py
 604d1e8757fcf6f15a48b5b56a984c1e33e9c40ccfebcebb7f3a52001e5232ec  cdss_ui/report_intake.py
-0ad4598d6b62a00b156b89c1bf9ed267750b4017e18e12d616b3257b972560a3  cdss_ui/report_panels.py
+9e3bdce3f643af8d7705fedad464c3859bd4dd14931faa6545dabfe00659f55d  cdss_ui/report_panels.py
 80f81e6c83af398c5381bf7f930c2f5c79611674cc95e1f2a5c8a73abe1f39fe  cdss_ui/resistance_panels.py
-53f37da7c62ec8d64eba5885fd02b2f8940e1c34b7f987b38f99f2393a25cb25  cdss_ui/startup.py
-121302a7e1cc0b7c665d2f665e5a5986ab7da7d3ddb64b56bc132b7da551cbc2  cdss_ui/state.py
+71fe2912d636d197ebafbc5afdeae14b5b16a3cb36be9051101144251c052f4a  cdss_ui/startup.py
+b5d59aea54a7c9d00f030ea019e92dd0d6351fc885fb554b604bdf74fcfc852f  cdss_ui/state.py
 7ef1c3f29b6858fc25a66632c81d1bd3613845c5f94050051f05dd19d1008c52  cdss_ui/stewardship_panels.py
 f4c08abf56496f72904e72c6514a33adf996910f3f2fbf08b57b79e5153a98a0  fonts/Amiri-Bold.ttf
 80c5601480a70e16f8f3ad40e399c364b2c1b048fe91793b5ef899434bd8271d  fonts/Amiri-Regular.ttf
@@ -180,8 +180,10 @@ c9e5aaa7e4227051f32a901940e9dd1b514e902ec71ea653635cbcbe89ea1d41  tests/test_v7_
 63caa9454bb7f7172334ac4192ddca3c9ca14d58d4032d80709819433cc5d6ee  tests/test_v7_3_review.py
 0da3ec42f707e725eafad817caa3d83d5a801b6336a025f10c34f058a873617f  tests/test_v7_4_review.py
 60d80b88b6b311e137a1109d34ea43611003fddf316476dade2548690c6c56a7  tests/test_v7_5_review.py
-e513d640d6760f92ac0b56b5a64fb8c98cca1797646fa64e1fbae7298bd7c2d9  tests/test_v7_6_review.py
+2f212c09f6f7e7e7bcc686d341a51d1c4e7b76f2b387a18d74f5a86a990316e9  tests/test_v7_6_review.py
 5832d2b8f66c03dc5836d97d56d274c13fbd14c0968292bf7bb2dee6125f0ed2  tests/test_v7_7_review.py
+a494b8b9cc17504d79d5883c070df21c54a2c5ae20b703b356d3a4291b81b493  tests/test_v7_8_ocr.py
+2112b495ea8935e4f30f9133583ed2009b4e7a00beb735367d82ac03693b5edc  tests/test_v7_8_review.py
 cfb71c3d7782a08cce03941e4af5d6921cce424a0a8f29049d7751142db061af  tests/test_verify_upload.py
 44a21844527544ed417c4c78b00fa7daeaa4b87a345fb6428cca33cc9455ef0a  tests/legacy/legacy_names.json
 773c0dae978207864c5c6349d3b27e7afd5b2339e2bbbd450a1baeaf4313997d  tests/legacy/legacy_support.py
@@ -192,11 +194,11 @@ d0bfe2f373f67e62b5407fad365812f02a48d8254acdb891559a3bfdac01ba8c  tests/legacy/t
 e20e2f3457088eb7c539821b6849eabd629c87194a9704ba0a678f38c460b327  tests/legacy/test_clinical_matrix.py
 58f9922efd84ae48b8fdf0117ed40d0e22e6d07ff19f330f8583b73c8ce0b287  tests/legacy/test_comprehensive.py
 08c4456c23738a8e22d30690f8c7ba7a6a5609452ce907b9e047d024874d3d46  tests/legacy/test_dose_adjustment.py
-de66aa26354eb2b0c4945c93b29c2538376c8a8c9f8b98cfcf80b26a79a0fb05  tests/legacy/test_engine_agreement.py
-af70d83425e091ede14e37a40ffd559cd25e6920eb90667a5b35d3fdb03be8db  tests/legacy/test_guidelines.py
+20671d8a96c06f38c4dc89f492982a5606804b1716fafeb0e0ae2c36bfdd2fda  tests/legacy/test_engine_agreement.py
+ef803daaf82bc2bf48c4b2fc24680e5075d7d47b21868a9b66217b87eb3be155  tests/legacy/test_guidelines.py
 32ba6a00f9271a45c7d3ec4f4f5e74a9a082c6005cf82cbd411b079f601fa951  tests/legacy/test_intrinsic_invariant.py
 2802c91d49d89da4b40e9cc7ada1acf869c56669ef5d16d1258a714b400e7ab7  tests/legacy/test_intrinsic_sync.py
-956dbe3a6a4d1d28bb884e162b2ff4d97ba2baa981f315c8203aacaf52da83eb  tests/legacy/test_modules.py
+797998f17560de69f3178eae239985ba2f01d8dcb6396ca27774617544a67964  tests/legacy/test_modules.py
 bff34f505fdca5a42fa2136affe63ca4f6165933ecc75c9c5a251be99e845b76  tests/legacy/test_panel_completeness.py
 1c338ab5fbdd6fe1a156166549c822b193689a0cfce0b33640529ff822d3478a  tests/legacy/test_pipeline.py
 68a57667be93d0a8ed7d8bfb04598d84456018939eecdf07425d693256e03972  tests/legacy/test_qc_data_freshness.py
@@ -212,8 +214,9 @@ c9762bd1cb7dd4db1b3016e997e91c967ff31dbf13b9e526ff6e23af2c100de1  tests/legacy/t
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  tests/support/__init__.py
 eb483d096bcca4ad7cfe0ca63cbf083cd91751ef8403a3575b231aa3be787ec3  tests/support/cases.py
 4096e356f9594f21db3d9a84d9fdb92dccdc7e4684586056f9447d59fda6dff1  tests/support/fake_streamlit.py
-c84c8d41ec53c7a0c4f7b0e90fb64465518aa317da5b0c5b06b76c53c774f5b9  tests/support/ui_harness.py
+b3c69c31f3ca62b55f1aa96da7b80ca1a42b95450311cc605c376275371eed68  tests/support/ui_harness.py
 eb42cbdf075214e1a0b2b310b9238285d04d3dac78a79d1843b7fc735aa9c774  tools/check_report_fonts.py
+a0f6089b7f625cfc9bd32fc3e6abf3c53d07f236dffd331791302a05258a571e  tools/run_test_groups.py
 38c449e41534540e1c6fb89f9f294f03fad1ad2d1d030ec62be24d9884a39bd3  tools/differential/README.md
 69df9c134ddb988217858225eb958d0f0dba67ae8f53ef331217bd002834bc36  tools/differential/allow_release.py
 eccc162bdecd0a78281d8604c43d7bb7ed2e06ee567ac6f8cc1d7ec6b99df433  tools/differential/diff_engine.py
@@ -223,6 +226,7 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old cae6bb2846e102c85fadac31ff8727adbe456490cfe018af1310e5ec6e2d7d35  .github/workflows/build-exe.yml  single-file
 #old 8662c66b6e1cb3c1036cd0bf0dee8fa6f2229a0a0df7467afd3ca0580f49b6ee  .github/workflows/build-exe.yml  v6.7
 #old 7266133ae67d17e8edee75db35e7e17721578d4aebb76bb8b769ed1698201976  .github/workflows/cdss-tests.yml  single-file
+#old c137f172e22ad6def160caf1ed0d220fc13aabdebde3b70cb56d21b7ea09c97c  .github/workflows/cdss-tests.yml  v7.7
 #old 0dd0b5949abbae907b6df36aab64fcafcf08a269e383db86ba3979da588125de  .gitignore  single-file
 #old d2d7ae6b9fe8579dc09e7365840022a352fc7572e5066194aa85760a315574d9  ARCHITECTURE.md  v6
 #old 1fca0ab21f95076178ac9a409008b1b3e255df4af405e5f8aaf3c2f9d3cdf978  ARCHITECTURE.md  v6.6
@@ -235,6 +239,8 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old be68c52a25e5e89e102120dafd18dda13051efd3718deb170d4c58952d7e3c7f  ARCHITECTURE.md  v7.4
 #old df5ca7e5575b23ee90a206eb0a33916933174361a6bd05f42e24473f938bf1ec  ARCHITECTURE.md  v7.5
 #old f437d04514efa06b3da106d2e7b7e806f7ae68d3c2c815c175aebd5518e146a1  ARCHITECTURE.md  v7.6
+#old eb1986218c597cf26153d628832c7932dd7f419193b84b2dae3ea2c445babc72  ARCHITECTURE.md  v7.7
+#old ce78d7afff657dee79514f3722cc51d9a5210730bdab985cfcf4b6fe5a9d8bff  AUDIT.md  v7.7
 #old 40898effb37646fba6c8d16a553ef2482716688ae05b5c72a725cf78fafbf32a  CHANGELOG_2026-11-12.md  v6
 #old 92f15bd8ea6a3b99f16f8d7d6302b01e95fa0a660abc4f0113cbf140dc837aa0  CHANGELOG_2026-11-12.md  v6.1
 #old a15ed9361ac766fe33e34dce1dae74c52068e7e3ef514a238c344dcca66adbf6  CHANGELOG_2026-11-12.md  v6.2
@@ -251,6 +257,7 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old a7ebc63876116cd01a92c6e191055eed0b920b526a11dd00cff5ad47341b99dd  CHANGELOG_2026-11-12.md  v7.4
 #old cabe77cdcff82a6155e37e41fc63f552289a648d7c0265a8e7feb8fedb4203d1  CHANGELOG_2026-11-12.md  v7.5
 #old 4a6b7e831716cf4713047041e72a3ce1144aaabd5adb2fea74b7f2e03683f6e5  CHANGELOG_2026-11-12.md  v7.6
+#old 50c2650b6b4ae0fae62d2d69576e6f2ea31eaabae2e58ec8b7dfde89ccfc9591  CHANGELOG_2026-11-12.md  v7.7
 #old 1f19e30f990f78c70b1f39d95158e70052813c967a916960b2a434279001719f  DECISIONS_2026-11-14.md  v6.9
 #old de5e34cc09a75204f24b720a7c441d9bef3ded7e09de67fbe3d20953be371160  DECISIONS_2026-11-14.md  v7.0
 #old 4e9fdc4e18265394f2d787d07dcc83cf698e45c96b6db7363c926627a76b403f  DECISIONS_2026-11-14.md  v7.1
@@ -259,6 +266,7 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old 311559c6934c1f752cea94d175724192c6a90de03e13cd4155921b0c190f6940  DECISIONS_2026-11-14.md  v7.4
 #old 7982a6e0ed1fa2da615130e4e6746aa3178345ac8ef4f9a84bbfbd0b086ed2ee  DECISIONS_2026-11-14.md  v7.5
 #old bf573e1a559568bc94b09d0812829f45e17f8107952838beda14b530b6f3ba6b  DECISIONS_2026-11-14.md  v7.6
+#old cf06b68a88d2d6206cb1b080a61b7679b330672c668be8b183a5f392e4b97f80  DECISIONS_2026-11-14.md  v7.7
 #old b935ca240586a3daf87ea956d6c2a3f65be1c0492e2ba436f469088f6016c4f3  EXE_BUILD_NOTES.md  single-file
 #old 94be3b173d903dfc1f8cb849debab5b5dfe620a18c92c9cd67651877c17bfc24  EXE_BUILD_NOTES.md  v6.4
 #old e166969c05dc19066d6ea08bd8fe7bc76c8511df1b45ba5922bb378c2fb29a22  EXE_BUILD_NOTES.md  v6.7
@@ -277,6 +285,7 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old 62631577526380532dea2f366b734d8e10c17059cbe41c2641254290dc52e58f  NEW_REPO_SETUP.md  v7.4
 #old ddbe72c83e06bf28263c1a4d157610f0153f9b5ff682d2a7a8ae6e9741fc77ca  NEW_REPO_SETUP.md  v7.5
 #old 97225e82ffa45e6f54003d82d37780baec67efb1f78e3a65cbd40c19dd94e9a9  NEW_REPO_SETUP.md  v7.6
+#old 4d053cfaef844a818ff3f63b138f76f9ae08773135c8bd977c27f8e3b76a0d93  NEW_REPO_SETUP.md  v7.7
 #old c1238b9fb50a6d7192fa6d5bc6cb13b3caf8933e6c0ef8917bc4a212afe77e94  README.md  single-file
 #old 61ea7a2852018dccb7ebc6e9ecd466cc9d6efb4ea4c30520e040a40a464df198  README.md  v6.5
 #old f53f627130bc85cfeb5c1a5d102256cdcdf3aaead64e1b6cad0053f134f5c0d7  README.md  v6.8
@@ -288,6 +297,7 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old fd69c319493517dec0cfc3b1e10bcce4673f4576cf895f7973a44a27eddeac1e  README.md  v7.4
 #old aa69c1392829a44534ca093c0daff26a6b47e9952d37b9f1222ee7a520daec00  README.md  v7.5
 #old 7b2d667d2153d6e6b55d637a92c3c23ab0072845ec607e8e3f4392ba31f9f2c5  README.md  v7.6
+#old 77fbbb03ef40ef648c89e67ff518592bddedcd2d32641f46c528cff85156e8b3  README.md  v7.7
 #old 23957ded2c9fdb842e930af667f9605104320492138f6f9e99b0e99342801241  cdss/astqc/ast_consistency.py  v6.5
 #old e46c863c958c678439703e80adbc690588b351c8ac976748175cd24e1333ec95  cdss/astqc/ast_consistency.py  v6.9
 #old 7d4a699fb99d7c746b81c463b8f3fa7a823fa51a2d70d67a256ed0050afdaf68  cdss/astqc/ast_consistency.py  v7.1
@@ -316,8 +326,10 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old 90ec6a8da3947cc06b2be85d03c5eb09b7a84cddbfc2b3d278c34db539be3291  cdss/common/clinical_utils.py  v6.9
 #old e49b416c89371285dda2dfe695d30253ef18850c91e647f18e693999558a7490  cdss/common/data_consistency.py  v7.4
 #old d38184117cc2c666898d5e65c59985b2f1db3710eb37f4d2db5b6b43f945c072  cdss/common/data_consistency.py  v7.5
+#old fc15e81d89ea958ac7a64b1eeb3094117765161188bc5a19e5f9b7eae4146973  cdss/common/data_consistency.py  v7.7
 #old b6216549178b3b40884bf9fc4ff0a563d8787e3930a800946f82048131ee60e9  cdss/common/util.py  v7.4
 #old 142733b064b445dedee4283f26b4cbdbacc070f0c935c434172fa35789ae8aac  cdss/common/util.py  v7.5
+#old 0d391bb93eaf17ed2e77577656ac092a6cfc51bd9a1d4c53e2b0eacb36b508aa  cdss/common/util.py  v7.7
 #old 9d9e36bc9c23dcb05bd9b2725ac9d06ff999555fb1ca84be254542dc1c876571  cdss/formulary/abx_guidelines.py  v6.5
 #old 9ded635ec7b635d85389c6a2cfcd97426f693687cee1c38dacc89ef987f2c8b8  cdss/formulary/abx_guidelines.py  v6.8
 #old faf6f31564212245ebe2e84381193ce479e89e64fce40fbe9587f550cdb4070d  cdss/formulary/abx_guidelines.py  v6.9
@@ -337,11 +349,15 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old d04032c5eededf45f43b03e4f7fd33a6e38db2b7b3a3c19908ff2c207a66e1d9  cdss/guidelines/guideline_registry.py  v7.5
 #old 3f2a9abdb89ff787ea925ba4b699f71e13051dd40a8e740cf00b0c480c2a5570  cdss/health.py  v6
 #old e83ce48b7d6fb1e7fd07a987f1a5df3663124c9b5ec02258bc47ea25c244c163  cdss/ocr/detect.py  v6.8
+#old b933c3048326a4eb4dafe15de11ca90b1683528d8ce44280efafff1f2a5b120d  cdss/ocr/detect.py  v7.7
 #old e43786599168b7ba76c3f8f2f01244f25abbace38c49ec43a355ee47224b2135  cdss/ocr/extract.py  v6.8
 #old ee3b013c398919794094a2805f935f386b834f16c0f4380bb06b9535674eb254  cdss/ocr/extract.py  v6.9
 #old 3ce28541deed46e26e35b10c898da821a5b731edd51797532c94bcb9bf4a9d1b  cdss/ocr/extract.py  v7.3
+#old 8f0eb745729e83fc1503762e00ce4fb943cbcb0bea1975c508a3d33e5393637a  cdss/ocr/extract.py  v7.7
+#old ebc34b90f6cd9352f7f977925201f5b412d2d96565ba1cdaa0b2f031e53f76e0  cdss/ocr/image.py  v7.7
 #old a321e8ac8bc940be7ae6743f30d3b9a383aa1ace044780538f0294c1b4e442e6  cdss/ocr/ocr_parsing.py  v6.8
 #old cb0540dd52babb5967a67cc5ae91cdc8b2c948e28acf6ff09a56abf824311343  cdss/ocr/ocr_parsing.py  v6.9
+#old f62652b08a5f43a8125db829281ef329a98db5aefc48cb4d927c8f0d17fa1460  cdss/ocr/ocr_parsing.py  v7.7
 #old 466d92cbba9ab2105c2611d882032ec6807bee7a61cad2c4bb413ab044d9de29  cdss/organisms/clinical_data.py  v6.8
 #old 38f691c4f3a23fcea1494b3e336cba851b6d3e8b61416dcc0c3ef1c2f94e248a  cdss/organisms/clinical_data.py  v6.9
 #old 27df4ddd83a5e6bc0aef556a8f8b9cc74fe0a65160a36079e9b22ed1a23dff0c  cdss/organisms/clinical_data.py  v7.0
@@ -363,6 +379,7 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old cfbba647f298d1205f5702f316066a05ae0d67fcee6b5d9593f197b57a0a543d  cdss/pipeline.py  v7.2
 #old 21183c75c21b638a0c1a2e4a02d2404321bc01c4cd99102c22e84452f574e13b  cdss/pipeline.py  v7.3
 #old 1eed98218ea050e898cf657695994b3c909d2cb850ccc43801aba6a1050442d4  cdss/pipeline.py  v7.4
+#old 4f1f0ccc3db242b776294b6edf47bfe55592077773c12dfc72814399ebb0eb4a  cdss/pipeline.py  v7.7
 #old 44bc0979b69cba30f2e690db581239fea6a0e19640f2ef3acbcdcf2507637f03  cdss/reports/fit_page.py  v7.3
 #old b88330d008bb4206987e9574f3aa0a18ca087d7a430d4d51a80c424ab44387d7  cdss/reports/html_utils.py  v6.9
 #old 23935c4b930d8f05f18a615d3723698e7335373b44dfbccca61d41e22ae04763  cdss/reports/image_parts.py  v6.7
@@ -405,6 +422,7 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old 0aa13b7380bb24ace6dfdd8f2603aadb4c0a8e723a49a660366f88f2d595e9e2  cdss/resistance/mechanism.py  v7.0
 #old 8808697d80dded13cc7165ca2d8b5ac17aeca46f41633da6b35657a85abc166c  cdss/resistance/phenotypes.py  v6.8
 #old ed58acc5184fbaa6b35386fd82153ed605de302da9eb3967dd720bbc311e3427  cdss/resistance/phenotypes.py  v7.0
+#old 288bc9ecbaad3cb1df04fca8beac236b5c5b782d7f2f7aebb94289fed9ad76b9  cdss/security/auth_service.py  v7.7
 #old ae9460116556d767ebffcda5c49f0922e9ff25b20fcb5d318c042ef1d85e3f9d  cdss/stewardship/combination.py  v6.5
 #old 6b27bd708ceb1cdf01ed14d792591cc4a99aed2fa1e05ebf89595425c2883cdd  cdss/stewardship/combination.py  v7.3
 #old dcea64ade496dc81214e7cab277b7e6642e3bbde3f5c5c4cb1f3e66360830742  cdss/stewardship/duration.py  v6.8
@@ -430,6 +448,7 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old 607b4ecbf35b8dc94b143d8f63b5b43fb5b508eb202bb79e6f17a0df0de247af  cdss/therapy/clsi_categories.py  v7.0
 #old 65b82a27361dce851d0aa1fcb7ad721df15f9bed9146c96ae8c0c330bd38df72  cdss/therapy/clsi_categories.py  v7.5
 #old e2759a0ffc195ab62fb7784458dbc93a43235af4a96f6837b414e073d416fe7c  cdss/therapy/clsi_categories.py  v7.6
+#old e4d75f65a067fd1ef604c1de068f1a76f7c1e746e2c8e0953e9f3a53cbfc925b  cdss/therapy/clsi_categories.py  v7.7
 #old 95abe51f7ef6064ee24b55ad66cd8da4d431a17c7201eedf8b108a00700254d6  cdss/therapy/context.py  v6.8
 #old 2f71813556c734a3eee7eee8225de410c1d2ab835236849cbb1b8232c30c6eb2  cdss/therapy/context.py  v6.9
 #old 081a99d692609e11922a21439cd809638413d8a8f96b604dea75502be85533ba  cdss/therapy/context.py  v7.0
@@ -485,6 +504,7 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old c45824b82361e5f828cf4f248374a019913da6ca5c96f333293d2eef436f3193  cdss/validation/case_validator.py  v7.4
 #old 2a09cf753cc9c98d65337ad9dc1060bd29e973b9a126aa4cde433cf4f83ae782  cdss/validation/case_validator.py  v7.5
 #old eee4fd3f69932529940b6bee14d4af979d8b007de9a95330412bc519ca6dbc69  cdss/validation/case_validator.py  v7.6
+#old 7541a1aeebea283e453888e1ede6659c8338dfda0d521d907a5a7811a9c46096  cdss/validation/case_validator.py  v7.7
 #old 285ff6833fee09c9b8beba64e6676051f8d35b614519109b8a087ffb228d4b16  cdss_ui/analysis.py  v6.8
 #old d89052c702d1f8acc75f3df65b51584330dbd1ed57186f62ccf46191df2a8826  cdss_ui/analysis.py  v6.9
 #old 9fd6950d4d7e32c062ee527094de79cf0bcbd149be259e13ed92fa49784c36f2  cdss_ui/analysis.py  v7.0
@@ -493,17 +513,22 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old 88ee1b9d7d73f4deadc6ce3cdfeaf50584851e36747a747e9bf3e4378d9da2e2  cdss_ui/analysis.py  v7.3
 #old c9d1b4907270e2ff72c79c67ff542132f66f24dc4e35d545388b7f060d6369d2  cdss_ui/analysis.py  v7.4
 #old 06a77d8ef01a479f47b967d5dc178f12373ffdfb4c97e57be72a087e000bf811  cdss_ui/analysis.py  v7.5
+#old 2eda35fcd9b8d840b3926b1fb6b93a16def557b53df6e9ec35ec06b4f15e406d  cdss_ui/analysis.py  v7.7
 #old 2a9d5cd7f13bc62df3d4c46500f8cb25e17dbad2f9cc0adca60a0f3493f1192e  cdss_ui/app.py  v6.8
 #old 029e740376ad92364b9b3aab939f327d56e8c252288595a97c89511faeddf546  cdss_ui/app.py  v7.5
+#old 63bff6babc5098057fbb29739024d2ab5d1a24b826b40e68f9e0579913aace75  cdss_ui/app.py  v7.7
 #old 779f4281435380e270000409377f9b6cf376be64e261c1eb52fb774bfe36fb8b  cdss_ui/inputs.py  v7.1
 #old 0bcdca8e421d04eafb59bf65f5bb179769ea8246b100579b9497d22caba5f625  cdss_ui/inputs.py  v7.2
 #old 19eada4ffb877945d51f6d4d0956045c9c0803cd87f065f3969951b10676f33b  cdss_ui/inputs.py  v7.3
+#old 1d5c0c544d537653fb7f52c33ca8d739a1174f1adf5b6488c6dc9f08cecfb404  cdss_ui/inputs.py  v7.7
 #old 4e000ede6ec979bc037b30904f5691de3a155ab9f14a3df8756a4740ef265b59  cdss_ui/page_setup.py  v6
+#old 443aeccc1104176d7fb01988ef772958dce13f62d94af734269627518075305c  cdss_ui/page_setup.py  v7.7
 #old 568b36de4533a611a8065b67a6dbae694f1dcba9eace5c3c079dd240d53791c7  cdss_ui/panel_editor.py  v6.8
 #old 6da61bde31cb4b0cdfce8c788a54932ba4ba339ecd916779f9181964b3f5219e  cdss_ui/panel_editor.py  v6.9
 #old f6080c3f9561223f2fe9a97b9be8d1de03c95cd36bd185b6ca91a5f81b2a31a0  cdss_ui/panel_editor.py  v7.3
 #old edd5da5b967e52dcd93f5117b8f832b33cba654e188d725f4efd2cab9bfe0d53  cdss_ui/panel_editor.py  v7.5
 #old ee7a543ab83aebc056bd26d5ad471a4851cec9caa4e3b7040c4724b4aaebed72  cdss_ui/panel_editor.py  v7.6
+#old aeb477d13859182095a8756e437076c7d4422cd658ef92f30621f8b5dd02a9d3  cdss_ui/panel_editor.py  v7.7
 #old 4a34e278cfa45b5c4b6676dfe57359c5da4f4b39e85f1c8d8b1c508893d85467  cdss_ui/patho_view.py  v7.0
 #old 58e88c04e5f63713012cbecf1ea8a0cfda4b63e31ded6eb666285acb586ea917  cdss_ui/patho_view.py  v7.2
 #old ce1f0f3fb51a9a8a16b25228a84fd6afd2fa6fc779aded7c0690f48c5ae738d7  cdss_ui/pathogenicity_panel.py  v6.9
@@ -518,8 +543,10 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old a5323ec6204eac09b749f16407d506b11e2fa13b5f0e03d8ea77f553f302ecb4  cdss_ui/recommendations.py  v7.1
 #old 5ae8ee2755dc572765fda85699738f18f4bbd4eadbc2911c676ba34cda6b6273  cdss_ui/recommendations.py  v7.2
 #old f6d2fa512ca5da439653874a7ab400923f799332f9f07156ac37e83ee38cb389  cdss_ui/recommendations.py  v7.3
+#old 8d94377d433d718655b483996808d57934cb04e90e13331228e01b7e818f81e7  cdss_ui/recommendations.py  v7.7
 #old 1825e1770d21d78aa5e5fffe441d7ddbc0df97015175f7851509667987bb46ad  cdss_ui/release_gate.py  v7.5
 #old f2f016062c5ae84d9b86ee3b440842a1745b84ea62d7207579951f96d9dc9377  cdss_ui/release_gate.py  v7.6
+#old d8b8b829126c2c742dc63d5a1c9654b5e9c57fb5b8943285291c1438cb26c383  cdss_ui/release_gate.py  v7.7
 #old 0cf0092ae06882f6c85a4767fb040333f81a52c03a492750ea531b2af40cf413  cdss_ui/report_intake.py  v6.9
 #old 565fc325475f48d5b0ab635f211253fa4b4590d23ef1b4040d04fa919873786c  cdss_ui/report_panels.py  v6.5
 #old 262d2e11eb0d3a38d39420e5594860403b3e0d2b98c98bf4d0bbea621fe7add6  cdss_ui/report_panels.py  v6.9
@@ -529,15 +556,18 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old 69b92ce4cdd0087a16adc6d180832f7e515beae731256ab8037899948c815cdd  cdss_ui/report_panels.py  v7.3
 #old 97d6b5a75a8af11f694b97e93726a3db1980b242008c895b741a0a3f8bfcacc0  cdss_ui/report_panels.py  v7.4
 #old b30f411b5b0969d2f2c57aaa2d9b66c51b56a9d71e3eeb9960f9b438aad941ee  cdss_ui/report_panels.py  v7.5
+#old 0ad4598d6b62a00b156b89c1bf9ed267750b4017e18e12d616b3257b972560a3  cdss_ui/report_panels.py  v7.7
 #old e2d67cb04cfb8f5eb191ff024d806283c14a934b793251ef61067bdd33ae14ba  cdss_ui/resistance_panels.py  v6.5
 #old 6e77662c4d1877ad769b70c54640fd96547fed66af8fad26a66c3cbe1c9248db  cdss_ui/resistance_panels.py  v6.8
 #old 393f932a5c0c480a413534d14bd4c1f97d953e835f7170fba076e2a1455976e1  cdss_ui/resistance_panels.py  v6.9
 #old de50dcd63964ea935b6425ff0698885cbc548c2d5fc0a37e5c415697f3d538bd  cdss_ui/resistance_panels.py  v7.0
 #old 68f67dfe50daa04d95609d84cb17c14bde219b3c2366a81a6f6809111052ec2f  cdss_ui/resistance_panels.py  v7.3
+#old 53f37da7c62ec8d64eba5885fd02b2f8940e1c34b7f987b38f99f2393a25cb25  cdss_ui/startup.py  v7.7
 #old 5ff91723085767095e3a4d6c185f04a83c22b53c3eb7542bf9aaf924ab7ae8e6  cdss_ui/state.py  v6.9
 #old 0f7e63791f69f3afbda6d768439d79d1658ba343775ec0e3575fccdc65ff7922  cdss_ui/state.py  v7.1
 #old 77b07384f9d49b6b1ae69229c1c79c3bd4a6f4ae3ef0fec535d96b2216a4c823  cdss_ui/state.py  v7.2
 #old e93ed206080489ef728f473d279e970aab77d5be6fcedddba302405f409db09f  cdss_ui/state.py  v7.3
+#old 121302a7e1cc0b7c665d2f665e5a5986ab7da7d3ddb64b56bc132b7da551cbc2  cdss_ui/state.py  v7.7
 #old 0f1df5a92916753b34655c4ab2cb7238f3447551eb08bf9b6ac1632433dd85f1  cdss_ui/stewardship_panels.py  v6.9
 #old 5ac941dbfaee829ee482fd873b357cff9cbf2c2a007b45e84113c4c8ee608218  cdss_ui/stewardship_panels.py  v7.0
 #old 816368d1d604f8d5cc59fab5a049860a7f2549434aca49c442ec0309eb3973f0  cdss_ui/stewardship_panels.py  v7.1
@@ -565,11 +595,14 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old f1d5c0d6af19d2be5ec051b17ee1b2f58f1c9285d5e5d11be0d99d6430950fa3  tests/legacy/scenario_snapshot.json  v6.9
 #old 319e369b08b883be21b6c550d5933fe491ff6c3703d8b675a48380d4bcea7bf1  tests/legacy/scenario_snapshot.json  v7.0
 #old fb89e6e1de271f41894b09cbe562bd8a4fe0abc3791917457f10da4e5f2b3d76  tests/legacy/test_engine_agreement.py  v6.8
+#old de66aa26354eb2b0c4945c93b29c2538376c8a8c9f8b98cfcf80b26a79a0fb05  tests/legacy/test_engine_agreement.py  v7.7
 #old 0967a680cb516f278aa5fe884462775feb96132340eb79ce97bdbfc04af8169e  tests/legacy/test_guidelines.py  v6.5
 #old f8cde11f51a447a3f95680ab3d81c1faea216a520d88b999ab1e67e03b0490a5  tests/legacy/test_guidelines.py  v7.4
+#old af70d83425e091ede14e37a40ffd559cd25e6920eb90667a5b35d3fdb03be8db  tests/legacy/test_guidelines.py  v7.7
 #old 57868e4c4f4e763c40a406760caa6ba0b5ceed28e59b4d596941e0b44e89d25b  tests/legacy/test_intrinsic_sync.py  v6.8
 #old ad9c9eda6b46ee5e2a9c47c3ca98dab0344839c07a2e2a694e866589a1b89e93  tests/legacy/test_intrinsic_sync.py  v6.9
 #old c20147c279432844faac3d1821c69ad09a80a8280537f5580248552b5c532a01  tests/legacy/test_modules.py  v6.6
+#old 956dbe3a6a4d1d28bb884e162b2ff4d97ba2baa981f315c8203aacaf52da83eb  tests/legacy/test_modules.py  v7.7
 #old cb0c092dc9e5b5ccd5276d9484f4bb18cf02683e5de182e8f4aed27267837f38  tests/legacy/test_pipeline.py  v6.6
 #old 458f5f1c982dfcc42536a23ae3e579d988140808675e4d74a7de18e87cb3c2e5  tests/legacy/test_render_layer.py  v6.6
 #old e1b983a933e5439b35eb30f48888c71ad931e55f82fa7cb266798dbf36dc5342  tests/legacy/test_render_layer.py  v6.8
@@ -583,6 +616,7 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old e95a8a0c5e5def32ae5c03b20aa0d84dc70739da060e2599b0cbc3881a359386  tests/legacy/test_round5.py  v6.9
 #old 04dbd5faa9490bbc17670c0c4a363c0aed111c64d266157b7fb1c4efeba76cb8  tests/legacy/test_safety_invariants.py  v6.8
 #old 2cce63e29646412e38802815281302d904598de887c59283eb6190e6a916f14e  tests/legacy/test_scenarios.py  v7.0
+#old c84c8d41ec53c7a0c4f7b0e90fb64465518aa317da5b0c5b06b76c53c774f5b9  tests/support/ui_harness.py  v7.7
 #old 8c5b36e0c0d973fb6d5c04aad731757fe7e60227c8b8c46235d399461cb96a1b  tests/test_architecture.py  v6
 #old 1ff1bec14bc502ca4ecf649377fd70cbe0bf8d8d672fe0421159ee2e89e289f7  tests/test_architecture.py  v6.2
 #old bb32c5588eef11b2a8cbb2d91fc5c3fc29cb4cc8d8b67d44326619c3e6dcaf16  tests/test_architecture.py  v6.6
@@ -607,6 +641,7 @@ f5d9cac22daea4694088a776a359c179342c5df49ad45fb31d736c370251f2c7  tools/differen
 #old 72542afaa16b45d3a9ba39bd8321cb00143c7663e5fc348ab0e7eb8f053d9136  tests/test_v7_4_review.py  v7.4
 #old 5c27cfc20aa3b23fbb501cf998fd71e61d341b27456548a1b5627851f11d0605  tests/test_v7_5_review.py  v7.5
 #old 132c27b1e2f6cd46d6f98b3c34c47973c843f44514a2288c08ddacd6f3653cd5  tests/test_v7_6_review.py  v7.6
+#old e513d640d6760f92ac0b56b5a64fb8c98cca1797646fa64e1fbae7298bd7c2d9  tests/test_v7_6_review.py  v7.7
 #old a80940967ac743a2d2a6ce0c58cd14972245aa49617425c560c295b05bc9ea75  verify_upload.py  single-file
 #old c4479cad9f142cacd9a87f0a8da119be8d1fd8d52a0d19708ab42187b73ad0a4  verify_upload.py  v6.1
 #old 672b4aa6f669ca67bae0220b20bd537a3bd3049472c2874c6f0519d11bda3c70  verify_upload.py  v6.2

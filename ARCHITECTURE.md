@@ -127,6 +127,16 @@ build_context(...)  ──►  TherapyContext      الحالة مرة واحد�
 - `cdss.therapy.clsi_categories.sdd_defined / panel_display` — v7.7: الإدخال S / I / R بس؛ `panel_display` بيقول القائمة تعرض إيه والملاحظة اللي تحت المضاد. `SDD_REGIMENS` جدول واحد بيقراه الـ PL3 كمان (`NO_I_PAIRS`). V14 بيوقف التصدير لو SDD المعمل على زوج CLSI ما بيعرّفوش لسه ما اتحددش.
 - `cdss.common.util.egypt_utc_offset` — توقيت مصر بالقاعدة لو مفيش tz database.
 
+### v7.8 — طبقات الحماية من التعارض
+
+- **المدخلات:** `cdss.common.data_consistency.check_case_inputs` — بيشتغل جوه `run_analysis` (data_issues → V10) وفي
+  الصفحة (`cdss_ui/analysis._check_case_consistency`: تنبيه لكل مشكلة وتأكيد لكل واحدة لوحدها).
+- **القواعد:** `cdss.validation.case_validator.rule_base_integrity` (V16، مرة لكل تشغيل، بانر أحمر في أول الصفحة) و
+  `_case_invariants` (V17، كل حالة).
+- **OCR:** `cdss.ocr.image.run_ocr_words / read_result_cell` + `cdss.ocr.extract.read_ast_layout / merge_readings`؛
+  المراجعة في `cdss_ui.panel_editor.render_ocr_review` (V15).
+- **الاختبارات:** `tools/run_test_groups.py` — مجموعات بـ JUnit XML، والـ timeout فشل.
+
 ### الضمانات (وكل واحد عليه اختبار)
 
 | الضمان | كيف | الاختبار |
