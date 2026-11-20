@@ -35,7 +35,10 @@ from cdss.guidelines.guideline_registry import (                              # 
 )
 
 SHOW_QUEUE = "--queue" in sys.argv
-TODAY = _dt.date.today()
+# v7.5 (external review of v7.4): the machine's local date failed on a UTC CI
+# runner ("verified in the future") for a review dated in Cairo the same day.
+from cdss.common.util import lab_today  # noqa: E402
+TODAY = lab_today()
 
 failures: list[str] = []
 warnings_: list[str] = []

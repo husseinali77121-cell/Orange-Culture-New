@@ -154,12 +154,16 @@ def ui_page_source() -> str:
     import re
     ui = ROOT / "cdss_ui"
     funcs = {}                                   # section name -> (source lines, FunctionDef)
+    helpers = {}                                 # f(page, ...) -- never inlined, appended
     for path in sorted(ui.glob("*.py")):
         text = path.read_text(encoding="utf-8")
         lines = text.split("\n")
         for node in ast.parse(text).body:
             if isinstance(node, ast.FunctionDef) and [a.arg for a in node.args.args] == ["page"]:
                 funcs[node.name] = (lines, node)
+            elif (isinstance(node, ast.FunctionDef) and node.args.args
+                  and node.args.args[0].arg == "page"):
+                helpers[node.name] = (lines, node)     # page code with more arguments
     app_lines = (ui / "app.py").read_text(encoding="utf-8").split("\n")
     call_rx = re.compile(r"^(\s*)(\w+)\(page\)\s*$")
 
@@ -179,17 +183,32 @@ def ui_page_source() -> str:
                 out.append(indent + ln[4:])
         return expand(out)
 
+    inlined = set()
+
     def expand(lines: list) -> list:
         out = []
         for ln in lines:
             m = call_rx.match(ln)
             if m and m.group(2) in funcs:
+                inlined.add(m.group(2))
                 out.extend(body_of(m.group(2), m.group(1)))
             else:
                 out.append(ln)
         return out
 
-    flat = "\n".join(expand(app_lines))
+    flat_lines = expand(app_lines)
+    # v7.6: a section reached any other way (`text = build_text(page)` inside
+    # prepare_release) was invisible to every static check -- the report cache
+    # key vanished from this view when it moved. Every section function not
+    # inlined above is appended, so no page code can drop out of sight.
+    for name in sorted(set(funcs) - inlined):
+        flat_lines.append(f"if True:  # section reached outside main(): {name}")
+        flat_lines.extend(body_of(name, "    "))
+    funcs.update(helpers)
+    for name in sorted(helpers):
+        flat_lines.append(f"if True:  # page helper with arguments: {name}")
+        flat_lines.extend(body_of(name, "    "))
+    flat = "\n".join(flat_lines)
     return re.sub(r"\bpage\.(?=[A-Za-z_])", "", flat)
 
 

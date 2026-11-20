@@ -501,6 +501,15 @@ for _n in _ast10.walk(_t10):
     if (isinstance(_n, _ast10.Attribute) and isinstance(_n.value, _ast10.Attribute)
             and _n.value.attr == "session_state"):
         (_written if isinstance(_n.ctx, _ast10.Store) else _read).add(_n.attr)
+# A widget's key= is a write too: Streamlit stores the widget value under it
+# (v7.6: prepare_release reads the commercial-names checkbox by its widget key,
+# because it runs before the checkbox is drawn -- only the widget key already
+# holds this run's value).
+for _n in _ast10.walk(_t10):
+    if isinstance(_n, _ast10.Call):
+        for _kw in _n.keywords:
+            if _kw.arg == "key" and isinstance(_kw.value, _ast10.Constant):
+                _written.add(_kw.value.value)
 # A literal in any dict counts as a write: the defaults table seeds the state.
 for _n in _ast10.walk(_t10):
     if isinstance(_n, _ast10.Dict):
