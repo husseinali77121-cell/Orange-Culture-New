@@ -50,14 +50,21 @@ jobs:
       # tests/test_properties.py          partition, determinism, monotonicity
       # tests/test_ui_page.py             the page under a fake Streamlit
       # tests/test_packaging.py           the EXE spec carries every module
-      - name: "Guard 2 — unit, property, page and packaging tests"
-        run: python -m pytest tests --deselect tests/test_legacy_suites.py
+      # v7.8 (external review of v7.7): the suite runs in named groups (rules,
+      # clinical safety, resistance / pathogenicity, OCR, reports, UI, release
+      # gate, packaging, legacy) with one JUnit XML file per group. A group
+      # that times out counts as FAILED, and a test file missing from the
+      # group map fails the run -- see tools/run_test_groups.py.
+      # Guard 3 (the 21 legacy suites) is the "legacy" group of this step.
+      - name: "Guard 2 — every test group, JUnit XML per group"
+        run: python tools/run_test_groups.py --out test-results
 
-      # The 21 regression suites written before the package split (clinical
-      # facts, 2,068-case scenario snapshot, safety gate, review rounds 2-5).
-      # A suite added to tests/legacy/ is picked up automatically.
-      - name: "Guard 3 — the 21 legacy regression suites"
-        run: python -m pytest tests/test_legacy_suites.py
+      - name: Keep the JUnit results (also when a group failed)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-results
+          path: test-results/
 
       - name: "Guard 4 — the deleted parallel build stays deleted"
         run: |
