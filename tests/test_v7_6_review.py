@@ -391,6 +391,9 @@ POSITIVE = {
     "V13": ({}, {"sir_map": {"Ciprofloxacin": R},
                  "image_lists": {"preferred": ["Ciprofloxacin"]}}),
     "V14": ({"sdd_reported": ["Nitrofurantoin"], "organism": "Escherichia coli"}, {}),   # v7.7
+    "V15": ({"ocr_reviewed": False}, {}),                                                  # v7.8
+    "V17": ({"allowed": _items("Nitrofurantoin"), "organism": "E. coli",
+             "host": {"age_years": 40}}, {"specimen": "Blood", "sir_map": {"Nitrofurantoin": S}}),
 }
 NEGATIVE = {
     "V01": ({"allowed": _items("Ciprofloxacin")}, {"sir_map": {"Ciprofloxacin": S}}),
@@ -415,6 +418,9 @@ NEGATIVE = {
     "V13": ({}, {"sir_map": {"Ciprofloxacin": S},
                  "image_lists": {"preferred": ["Ciprofloxacin"]}}),
     "V14": ({"sdd_reported": ["Cefepime"], "organism": "Escherichia coli"}, {}),
+    "V15": ({"ocr_reviewed": None}, {}),          # nothing was read from an image
+    "V17": ({"allowed": _items("Nitrofurantoin"), "organism": "E. coli",
+             "host": {"age_years": 40}}, {"specimen": "Urine", "sir_map": {"Nitrofurantoin": S}}),
 }
 
 
@@ -431,7 +437,9 @@ def test_the_rule_table_covers_every_documented_rule():
     import re
     documented = set(re.findall(r"^  (V\d\d) (error|warning)", CV.__doc__, re.M))
     covered = {k.rstrip("w") for k in POSITIVE}
-    assert {d for d, _ in documented} == covered
+    # V16 is global (the rule base itself): tests/test_v7_8_review.py breaks
+    # the tables on purpose to show it fires
+    assert {d for d, _ in documented} == covered | {"V16"}
 
 
 # ── Sweep 2: random cases validate clean end to end ─────────────────────────
@@ -453,9 +461,12 @@ def _random_case(rng):
     spec = rng.choice(SPECIMENS)
     hf = rng.choice(HOST)
     coll = (FOLEY if CATH in hf else rng.choice((MSU, ""))) if spec == "Urine" else ""
-    pt = Patient(age_years=rng.choice((0.3, 4, 23, 45, 70, 88)), sex=rng.choice(("Male", "Female")),
-                 weight_kg=rng.choice((8, 18, 50, 70, 95)), host_factors=hf,
-                 collection_method=coll)
+    age = rng.choice((0.3, 4, 23, 45, 70, 88))
+    # v7.8: a weight plausible for the age -- an implausible one is now an
+    # input conflict that blocks the case (tested in tests/test_v7_8_review.py)
+    weight = {0.3: 6, 4: 16}.get(age, rng.choice((50, 70, 95)))
+    pt = Patient(age_years=age, sex=rng.choice(("Male", "Female")),
+                 weight_kg=weight, host_factors=hf, collection_method=coll)
     return pt, org, spec, panel
 
 
