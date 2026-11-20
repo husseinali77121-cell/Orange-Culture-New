@@ -27,10 +27,21 @@ ATTRIBUTION, HONESTLY
 published sources during a code review session — NOT by a clinician reading the
 standard. That is genuinely useful and genuinely not the same thing.
 
-`countersigned_by` is for the human who takes clinical responsibility. It is
-empty on every row right now. test_guidelines.py reports the count and does not
-fail, because an unsigned row is honest and a falsely signed one is not. Fill it
-in as you review; do not fill it in for rows you have not read.
+`countersigned_by` is for the human who takes clinical responsibility. Fill it
+in as you review; do not fill it in for rows you have not read. A row is in one
+of these states (v7.5: this paragraph said "empty on every row" long after the
+first signatures -- external review of v7.4; the live counts are printed by
+`python tests/legacy/test_guidelines.py --queue`, never written here):
+
+  countersigned_by           signed by the clinician (Dr. Tarek El-Shafei)
+  owner_approved             released on the lab owner's instruction after an
+                             AI-assisted source check -- NOT a clinician signature
+  awaiting_countersignature  queued for the clinician, with the reason
+  signature_withdrawn        history: a signature that no longer covers the row
+                             (its content or its status changed after signing)
+
+A signed row is never "pending": a signature on an unverified row reads as a
+verification it is not (QC003 was both until v7.5).
 
 test_guidelines.py fails when a rule has no row at all, when a row points at an
 undefined source, or when a "primary" row has gone stale. It reports the
@@ -183,6 +194,13 @@ _AI4 = "AI-assisted source check (Claude, CLSI/IDSA conversion 2026-11-14)"
 _AI71 = "AI-assisted source check (Claude, v7.1 rules review 2026-11-19)"
 _OWNER_71 = ("2026-11-19 — approved on the lab owner's instruction (Hussein): v7.1 review of "
              "every rule and recommendation. NOT a clinician countersignature -- awaiting "
+             "Dr. Tarek El-Shafei.")
+# v7.4 (2026-11-20): changes made on the lab owner's instruction after the external
+# reviews of v7.3 and of the E. coli / SCI case. Same rule as before: recorded,
+# never presented as a clinician's countersignature.
+_AI74 = "AI-assisted source check (Claude, v7.4 review of the external reviews 2026-11-20)"
+_OWNER_74 = ("2026-11-20 — approved on the lab owner's instruction (Hussein): v7.4 corrections "
+             "after the external reviews. NOT a clinician countersignature -- awaiting "
              "Dr. Tarek El-Shafei.")
 _OWNER_D = ("2026-11-14 — decision of the lab owner (Hussein): CLSI M100 Ed36 and IDSA "
             "in everything (decisions D1-D6, v6.8 decisions document). NOT a clinician "
@@ -822,10 +840,20 @@ RULES: Dict[str, Dict[str, Any]] = {
     "hier_pip_vs_tzp": {
         "assertion": "Piperacillin S with piperacillin-tazobactam R is unexpected, "
                      "for the same reason, and is verified (repeat / MIC); the two "
-                     "carry different breakpoints.",
+                     "carry different breakpoints. v7.4: applied only to Enterobacterales, "
+                     "P. aeruginosa and Acinetobacter -- the groups whose CLSI M100 tables "
+                     "list both agents.",
         "source": "EUCAST_EXPERT", "locus": "beta-lactam hierarchy",
-        "verified": "secondary", "checked_by": _AI, "checked_on": "2026-07-22",
-        "countersigned_by": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03",
+        "verified": "secondary", "checked_by": _AI74, "checked_on": "2026-11-20",
+        "source_check": "2026-11-20: scope narrowed from every organism to the CLSI M100 groups "
+                        "that carry breakpoints for both agents (Table 2A Enterobacterales, 2B-1 "
+                        "P. aeruginosa, 2B-2 Acinetobacter), as the external review of v7.3 asked. "
+                        "Each table's current wording to be read by Dr. Tarek.",
+        "owner_approved": _OWNER_74,
+        # The scope changed, so the 2026-08-03 signature (which covered "all
+        # organisms") is kept as history and the row is back in the queue.
+        "signature_withdrawn": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03 (signed the "
+                               "all-organism version; scope changed in v7.4)",
         "note": 'Same logic as hier_amp_vs_amc. Rare tazobactam inoculum effects are described, so verify rather than declare impossible. v7.3: emitted as a warning, as this row says (it was an error).',
     },
     "hier_mem_vs_etp": {
@@ -889,6 +917,7 @@ RULES: Dict[str, Dict[str, Any]] = {
         "note": "As hier_pen_vs_cro_pneumococcus.",
     },
     "unusual_czav_r_carbapenem_s": {
+        "recheck": "EUCAST v16.1 -- carbapenem breakpoints under active review; re-read against the latest official update before relying on this carbapenem rule (external review of v7.3, 2026-11-20).",
         "assertion": "Ceftazidime-avibactam R with a carbapenem S in Enterobacterales is "
                      "rare (KPC variants such as D179Y); confirm before release.",
         "source": "IDSA_AMR", "locus": "CRE section",
@@ -903,17 +932,26 @@ RULES: Dict[str, Dict[str, Any]] = {
 
     # ── Inline rules in streamlit_app.py ─────────────────────────────────────
     "QC003": {
+        "recheck": "EUCAST v16.1 -- carbapenem breakpoints under active review; re-read against the latest official update before relying on this carbapenem rule (external review of v7.3, 2026-11-20).",
         "assertion": "A carbapenem susceptible while colistin is resistant amid broad "
                      "resistance is an atypical pattern; confirm the identification.",
         "source": "EUCAST_EXPERT", "locus": "unusual phenotypes",
         "verified": "pending",
-        "countersigned_by": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03",
+        # v7.5 (external review of v7.4): "pending" AND signed. The 2026-08-03
+        # signature predates the 2026-11-10 finding that this is a laboratory
+        # heuristic with no guideline text behind it; kept as history, row queued.
+        "signature_withdrawn": "Dr. Tarek El-Shafei, Laboratory Director — 2026-08-03 (signed "
+                               "before the row was found to be a heuristic, 2026-11-10)",
+        "awaiting_countersignature": "2026-11-20: re-confirm as a LABORATORY HEURISTIC (no "
+                                     "guideline locus exists; informational flag only, never "
+                                     "changes a recommendation).",
         "source_check": ("2026-11-10: NOT verifiable as written. This is a laboratory "
                          "plausibility heuristic, not a quotation from a guideline; no "
                          "primary locus exists to check it against. It only raises an "
                          "informational flag and never changes a recommendation."),
     },
     "QC004": {
+        "recheck": "EUCAST v16.1 -- carbapenem breakpoints under active review; re-read against the latest official update before relying on this carbapenem rule (external review of v7.3, 2026-11-20).",
         "assertion": "Meropenem or ertapenem R with a cephalosporin S in "
                      "Enterobacterales is uncommon (OXA-48-like or porin loss) and "
                      "should be confirmed by a carbapenemase assay. (Imipenem moved "
@@ -924,6 +962,7 @@ RULES: Dict[str, Dict[str, Any]] = {
         "source_check": "EUCAST guidelines for detection of resistance mechanisms v1.0 (eucast.org): with OXA-48-like enzymes 'the organisms may appear fully susceptible to cephalosporins'; meropenem screening cut-off > 0.12 mg/L.",
     },
     "QC004b": {
+        "recheck": "EUCAST v16.1 -- carbapenem breakpoints under active review; re-read against the latest official update before relying on this carbapenem rule (external review of v7.3, 2026-11-20).",
         "assertion": "Imipenem R with a cephalosporin S in Enterobacterales OTHER than "
                      "Proteeae is uncommon and should be confirmed by a carbapenemase "
                      "assay. Proteus/Morganella/Providencia are excluded: their imipenem "
@@ -1116,6 +1155,50 @@ RULES: Dict[str, Dict[str, Any]] = {
         "source_check": 'CLSI archived Tables 1A-1C (https://clsi.org/media/swcaq1ra/m100_archived_tables_1a-1c.pdf): Haemophilus Group A = ampicillin; ceftriaxone/cefotaxime in Group B; amoxicillin-clavulanate, azithromycin and TMP-SMX in Group C. Ceftriaxone as primary is a local curation. The tiered Ed36 table was not opened.',
     },
 }
+
+# ── v7.6 (2026-11-20): the owner's decision on every row awaiting Dr. Tarek ──
+# The lab owner (Hussein) asked that every row still pending Dr. Tarek's
+# countersignature be reviewed against the main recommendations and approved,
+# choosing by the guidelines wherever a row left a choice. Each row was re-read
+# against CLSI M100 Ed36 (decision D1), IDSA AMR Guidance 2026 and EUCAST v16.1
+# (AI-assisted, this session; the review line says what was checked). This is
+# the OWNER's approval. It is NOT a clinician countersignature: countersigned_by
+# stays empty until Dr. Tarek El-Shafei signs, and every rule already ran before
+# (these fields document governance, they switch nothing on or off).
+_OWNER_76 = ("2026-11-20 — approved on the lab owner's instruction (Hussein), v7.6: reviewed "
+             "against CLSI M100 Ed36 / IDSA AMR 2026 / EUCAST v16.1 and approved; where the row "
+             "left a choice, the guideline option was taken. NOT a clinician countersignature -- "
+             "awaiting Dr. Tarek El-Shafei.")
+_CARB_76 = ("2026-11-20: EUCAST's carbapenem / ceftazidime-avibactam review is still open "
+            "(proposal planned for breakpoint tables v17.0); this lab reads CLSI M100 Ed36 (D1), "
+            "so nothing changes now -- re-read when v17.0 is published.")
+V76_REVIEW: Dict[str, str] = {
+    "intr_aerobes_nitroimidazoles": "CLSI M100 Ed36 Appendix B / EUCAST expected phenotypes: no aerobic activity -- confirmed.",
+    "intr_proteus_vulgaris_penneri": "CLSI M100 Ed36 Appendix B, P. vulgaris / P. penneri row -- consistent.",
+    "intr_nonfermenter_unspeciated": "Intersection of three countersigned rows; reports only what all three share -- the conservative choice, kept.",
+    "intr_hafnia_colistin": "EUCAST expected resistant phenotypes (Hafnia alvei: colistin); CLSI gives no contrary statement -- kept.",
+    "intr_acinetobacter": "CLSI M100 Ed36: doxycycline / tetracycline removed and archived for Acinetobacter, cefotaxime / ceftriaxone keep breakpoints -- the row's CLSI wording is the guideline choice.",
+    "nobp_cefoperazone": "No CLSI or EUCAST criterion for cefoperazone-sulbactam -- unchanged.",
+    "nobp_cefoperazone_non_enterobacterales": "CLSI archived-drugs table (P. aeruginosa after M100-S20, staphylococci) -- unchanged.",
+    "nobp_gentamicin_pseudomonas": "CLSI M100 Ed33+ removed it; the FDA also removed its STIC for P. aeruginosa (FDA notices) -- confirmed.",
+    "nobp_tetracycline_doxycycline_acinetobacter": "Confirmed (CLSI M100 Ed36; AST subcommittee minutes 2025). Ed36 adds: doxycycline MIC <=1 or tetracycline MIC <=4 predicts minocycline S -- never the reverse.",
+    "nobp_sulbactam_durlobactam_non_acinetobacter": "CLSI breakpoints for the A. baumannii-calcoaceticus complex only -- consistent.",
+    "nobp_aztreonam_avibactam_non_enterobacterales": "CLSI M100 Ed36 added Enterobacterales only; FDA STIC Enterobacterales -- confirmed.",
+    "hier_pip_vs_tzp": "Scope = the CLSI groups that carry both agents (v7.4); a verify warning, not an error -- kept.",
+    "hier_van_vs_tei_enterococcus": "No described van phenotype is vancomycin-S / teicoplanin-R; verify flag only -- kept.",
+    "hier_pen_vs_cro_pneumococcus": "Choice by the guideline: CLSI M100 Table 2G and EUCAST agree that the inference holds for penicillin S at MIC <=0.06 (oxacillin >=20 mm); a CLSI non-meningitis S up to 2 is repeated by MIC -- kept as a verify warning.",
+    "hier_pen_vs_ctx_pneumococcus": "As hier_pen_vs_cro_pneumococcus (cefotaxime).",
+    "unusual_czav_r_carbapenem_s": "Mechanism documented (KPC D179Y restores carbapenem S; Shields 2017); verify warning -- kept. " + _CARB_76,
+    "QC003": "Choice: approved as a LABORATORY HEURISTIC (no guideline locus exists) -- an informational flag that never changes a recommendation. " + _CARB_76,
+    "QC004b": "Proteeae excluded per the CDC CRE definition; EUCAST detection guidance -- consistent. " + _CARB_76,
+}
+for _rid, _review in V76_REVIEW.items():
+    _row = RULES[_rid]
+    assert not _row.get("countersigned_by"), _rid       # only rows still awaiting him
+    if _row.get("owner_approved"):
+        _row["owner_history"] = _row["owner_approved"]
+    _row["owner_approved"] = _OWNER_76
+    _row["review_v76"] = _review
 
 # ── Citation strings the engine must NOT use in free text ────────────────────
 # Each maps an ambiguous or incorrect string to the row that replaces it. The
