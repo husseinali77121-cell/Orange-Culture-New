@@ -318,7 +318,7 @@ SPECIMEN_SHORT = {
 
 def header_html(page_lbl: str, *, mdr_class, mdr_result, _hdr_ph_labels, esbl_conf, esbl_prob,
                 esbl_result, lab_name, lab_city, specimen_short, date_in, now_str,
-                organism) -> str:
+                organism, esbl_state=None, carbapenemase_type=None) -> str:
     """The navy masthead: lab, specimen, date, patient, organism and the MDR / mechanism pills."""
     mdr_pills = ""
     # MDR/XDR/PDR — deterministic category count (Magiorakos 2012), always shown
@@ -335,14 +335,24 @@ def header_html(page_lbl: str, *, mdr_class, mdr_result, _hdr_ph_labels, esbl_co
     # ESBL/AmpC/Carbapenemase — genuinely PREDICTED mechanisms (predict_esbl()).
     # Only surface in header when confidence is high; lower-confidence calls
     # remain available in the body detail, not as a prominent badge.
-    if esbl_conf >= 70:
+    # v7.4 (external case review): a predicted mechanism says so ("SUSPECTED"),
+    # a laboratory-confirmed one says "CONFIRMED" -- "ESBL+" read as a lab result.
+    if carbapenemase_type:
+        mdr_pills += pill(f"{carbapenemase_type} CONFIRMED", "background:#922b21;color:#fff")
+    elif esbl_state and esbl_state.get("state") == "confirmed":
+        mdr_pills += pill(esbl_state["pill"], "background:#b7770d;color:#fff")
+    elif esbl_conf >= 70:
         if esbl_prob == "crpa":
             mdr_pills += pill("DTR-P.aeruginosa" if (esbl_result or {}).get("dtr") else "CR-P.aeruginosa",
                               "background:#922b21;color:#fff" if (esbl_result or {}).get("dtr")
                               else "background:#b7770d;color:#fff")
-        elif esbl_prob in ("carbapenemase", "possible_carbapenemase"): mdr_pills += pill("CARBAPENEMASE","background:#922b21;color:#fff")
-        elif esbl_prob in ("ampc", "ampc_plasmid"):        mdr_pills += pill("AmpC","background:#b7770d;color:#fff")
-        elif esbl_prob in ("high","moderate"): mdr_pills += pill("ESBL+","background:#b7770d;color:#fff")
+        elif esbl_prob in ("carbapenemase", "possible_carbapenemase"):
+            mdr_pills += pill("SUSPECTED CARBAPENEMASE", "background:#922b21;color:#fff")
+        elif esbl_prob in ("ampc", "ampc_plasmid"):
+            mdr_pills += pill("SUSPECTED AmpC", "background:#b7770d;color:#fff")
+        elif esbl_prob in ("high", "moderate"):
+            mdr_pills += pill((esbl_state or {}).get("pill") or "SUSPECTED ESBL",
+                              "background:#b7770d;color:#fff")
     _pills_html = ("<div class='hdr-pills'>" + mdr_pills + "</div>") if mdr_pills else ""
     return f"""<div class="hdr">
   <div>
@@ -424,3 +434,40 @@ def section_treatment_gate(*, H, _EN, gate) -> None:
              + '<br><span style="font-size:8.4pt">Treatment options were withheld; the '
                'susceptibility result is for information. Re-assess if symptoms or signs '
                'of infection develop.</span></div>')
+
+
+def section_data_issues(*, H, issues) -> None:
+    """v7.4: laboratory report vs entered case -- the alert, or the physician's confirmation."""
+    for i in issues or []:
+        if i.get("confirmed"):
+            H.append('<div class="alert al-warn" style="font-size:8.6pt;line-height:1.45">'
+                     '<b>⚠ Data check — physician confirmed:</b> '
+                     f'{_esc(i.get("confirmed_en", ""))}</div>')
+        else:
+            H.append('<div class="alert al-danger" style="font-size:9pt;line-height:1.5">'
+                     f'<b>⛔ CRITICAL DATA MISMATCH — DO NOT RELEASE.</b> {_esc(i.get("message_en", ""))}'
+                     f'<br><span style="font-size:8.2pt">{_esc(i.get("hint_en", ""))}</span></div>')
+
+
+def section_resistance_line(*, H, mdr_result, esbl_state, carbapenemase_type=None) -> None:
+    """v7.4 (external case review): the header said "MDR" and nothing in the
+    physician PDF said how it was counted or which categories it covered (the
+    image named three of six). One line: the level, the count, every category,
+    the rule -- and the ESBL evidence level."""
+    from cdss.resistance.mdr import mdr_short_categories, physician_mdr_level
+    parts = []
+    lvl = physician_mdr_level(mdr_result) if (mdr_result or {}).get("level") else None
+    if lvl:
+        cats = mdr_short_categories((mdr_result or {}).get("resistant_categories") or [])
+        parts.append(f"<b>{_esc(lvl)}</b> — NS in {(mdr_result or {}).get('resistant_count', 0)} of "
+                     f"{(mdr_result or {}).get('total_tested', 0)} tested categories "
+                     f"(Magiorakos 2012): {_esc(', '.join(cats))}")
+    if carbapenemase_type:
+        parts.append(f"<b>{_esc(carbapenemase_type)}</b> carbapenemase confirmed by the laboratory")
+    elif esbl_state:
+        parts.append(f"<b>{_esc(esbl_state.get('label_en', ''))}</b>")
+    if parts:
+        H.append('<div style="font-size:7.6pt;line-height:1.3;color:#5d4037;background:#fff8e1;'
+                 'border-radius:1.2mm;padding:0.4mm 2mm;margin:0.4mm 0">Resistance: '
+                 + " · ".join(parts) + '</div>')
+

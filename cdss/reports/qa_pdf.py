@@ -7,6 +7,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from cdss.common.drug_names import tag_with_ast as _tag_with_ast
 from cdss.organisms.organism_profile import ORGANISM_PROFILE
 from cdss.common.optional_deps import (
     WEASYPRINT_AVAILABLE,
@@ -68,6 +69,12 @@ def generate_qa_report_pdf(
             _pc = None
     _op_qa = ORGANISM_PROFILE.get(organism) or {}
     _sdd = set(sdd or ())
+    try:
+        from cdss.resistance.mdr import classify_mdr, mdr_breakdown
+        _mdr = classify_mdr(organism, sir_map or {}) if sir_map else {}
+        _mdr_rows = mdr_breakdown(_mdr, sir_map or {}) if (_mdr or {}).get("total_tested") else []
+    except Exception:
+        _mdr, _mdr_rows = {}, []
 
     def _ar(text: str) -> str:
         return _md_inline(bidi_isolate(text))
@@ -162,9 +169,24 @@ table.cols > tbody > tr > td.gap {{ width:4mm; }}
             _miss = _pc.missing_primary + _pc.missing_supplemental
             _reflex = getattr(_pc, "reflex_missing", {}) or {}
             left.append('<div class="sec-ttl">🧫 AST Panel Completeness</div>')
+            # v7.4 (external case review): "Tested 10" beside "14 antibiotics tested"
+            # read as a counting error. The line now reconciles with the panel:
+            # expected = covered + missing; entered = covered + additional.
+            _extra = list(getattr(_pc, "extra_tested", []) or [])
+            _total = getattr(_pc, "total_tested", 0) or len(sir_map or {})
             left.append(f'<div class="small">Group: <b>{_esc(_pc.organism_group)}</b> · Expected '
-                        f'<b>{_pc.expected_total}</b> · Tested <b>{_pc.tested_count}</b> · Missing '
-                        f'<b>{len(_miss)}</b></div>')
+                        f'<b>{_pc.expected_total}</b> · Covered <b>{_pc.tested_count}</b> · Missing '
+                        f'<b>{len(_miss)}</b> · Additional (not on the standard panel) '
+                        f'<b>{len(_extra)}</b> · Total entered <b>{_total}</b></div>')
+            _alias = [f"{_esc(', '.join(v))} → {_esc(k)}"
+                      for k, v in (getattr(_pc, "covered_by", {}) or {}).items()
+                      if any(x != k for x in v)]
+            if _alias:
+                left.append('<div class="small" style="color:#555">Counted as the same agent: '
+                            + "; ".join(_alias) + '</div>')
+            if _extra:
+                left.append(f'<div class="small" style="color:#555">Additional: '
+                            f'{_esc(", ".join(_extra))}</div>')
             if not _miss:
                 left.append('<div class="sir-line" style="color:#1e8449">✅ Panel adequate — every '
                             'expected agent was tested.</div>')
@@ -210,9 +232,31 @@ table.cols > tbody > tr > td.gap {{ width:4mm; }}
         else:
             H.extend(right)
 
+        # ── MDR calculation (v7.4, external case review) ─────────────────────
+        # "MDR 6/9" was printed with three category names and no way to check
+        # it. The internal sheet shows the count: each tested category, its
+        # agents with their results, and whether it counted as non-susceptible.
+        if _mdr_rows:
+            _lvl = (_mdr or {}).get("level") or "not MDR"
+            H.append(f'<div class="sec-ttl">🧮 MDR classification — {_esc(str(_lvl))}: '
+                     f'non-susceptible in {(_mdr or {}).get("resistant_count", 0)} of '
+                     f'{(_mdr or {}).get("total_tested", 0)} tested categories</div>')
+            H.append('<div class="small">Magiorakos 2012: a category is non-susceptible when '
+                     '&ge; 1 agent in it is I or R; MDR = non-susceptible in &ge; 3 categories. '
+                     'Several resistant agents in ONE category count once.</div>')
+            for _row in _mdr_rows:
+                _ag = ", ".join(f"{_esc(d)} <span class='sir-{r}'>{_esc(r)}</span>"
+                                for d, r in _row["agents"])
+                H.append(f'<div class="sir-line">{"❌" if _row["non_susceptible"] else "✅"} '
+                         f'<b>{_esc(_row["category"])}</b>: {_ag}</div>')
+
         # ── Organism summary (2026-11-11), last: reference, not a finding ─────
         if _op_qa:
-            H.append('<div class="sec-ttl">📌 Organism Summary</div>')
+            # v7.4 (external case review): general guidance for the organism, NOT
+            # this isolate's options -- every agent carries this isolate's result
+            # (or "not tested"), and salt forms are not listed as separate drugs.
+            H.append('<div class="sec-ttl">📌 Organism Summary — general guidance, NOT adjusted '
+                     'to this isolate (tags = this isolate\'s result)</div>')
             H.append('<div class="org-box">')
             if _op_qa.get("note"):
                 H.append(f'<div class="ar">{_ar(_op_qa["note"])}</div>')
@@ -222,8 +266,7 @@ table.cols > tbody > tr > td.gap {{ width:4mm; }}
             for _lbl, _key in (("First-line", "first_line"), ("Second-line", "second_line"),
                                ("Third-line", "third_line"), ("Avoid", "avoid")):
                 if _op_qa.get(_key):
-                    _names = [(f"{d} [{sir_map.get(d)}]" if (sir_map or {}).get(d) in ("I", "R") else d)
-                              for d in _op_qa[_key]]
+                    _names = _tag_with_ast(_op_qa[_key], sir_map or {})
                     H.append(f'<div class="ln"><b>{_lbl}:</b> {_esc(", ".join(_names))}</div>')
             if "urine" in str(specimen).lower() and _op_qa.get("urine_note"):
                 H.append(f'<div class="ar">{_ar(_op_qa["urine_note"])}</div>')

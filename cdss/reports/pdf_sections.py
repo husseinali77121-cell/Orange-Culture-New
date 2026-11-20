@@ -51,11 +51,15 @@ def section_ranked(
     ranked,
     sir_map,
     specimen,
+    basis="",
 ) -> None:
     """Recommended therapy, ranked (FIRST-LINE / ALTERNATIVE rows)."""
     # ── RECOMMENDED THERAPY — RANKED (Page 1 — compact like orange_lab) ──────
     if ranked:
         H.append(f'<div class="sec-ttl">{_T["recommended"]}</div>')
+        if basis:      # v7.4 (case review): what the ranking was built for
+            H.append('<div style="font-size:7.4pt;line-height:1.25;color:#555;margin:-0.3mm 0 0.4mm 0">'
+                     f'Ranked for: {_esc(basis)}</div>')
         # ── Line-of-therapy label is SITE-SPECIFIC, not AWaRe ────────────────
         # AWaRe (Access/Watch/Reserve) is a stewardship/conservation class, NOT a
         # clinical preference rank for this infection. Using it as the "line" made an
@@ -161,19 +165,26 @@ def section_avoid(
             f'{_T["avoid"]}</div>'
         )
         _avoid_rows = []
-        for _bd in banned:
+        # v7.4 (case review): tested-S-but-not-appropriate agents show their S, first.
+        _s_first = sorted(banned, key=lambda b: 0 if str(sir_map.get(b.get("name", ""), "")).upper() == "S" else 1)
+        for _bd in _s_first:
             _nm   = _esc(_bd.get("name",""))
             _tag, _clr = _ban_reason(_bd)
+            _is_s = str(sir_map.get(_bd.get("name", ""), "")).upper() == "S"
             _avoid_rows.append(
                 f'<span style="display:inline-block;margin:0.3mm 1mm 0.3mm 0;'
                 f'padding:0.2mm 2mm;background:#fff;border:0.4pt solid {_clr};'
                 f'border-radius:1.5mm;font-size:8pt;max-width:90mm;overflow-wrap:anywhere;vertical-align:top">'
                 f'<b style="color:#1a1a2e">{_nm}</b> '
-                f'<span style="color:{_clr};font-size:8.2pt">{_tag}</span></span>'
+                + ('<span style="color:#1e8449;font-size:8.2pt;font-weight:bold">S-tested</span> '
+                   if _is_s else '')
+                + f'<span style="color:{_clr};font-size:8.2pt">{_tag}</span></span>'
             )
         H.append(
             f'<div class="alert al-danger" style="font-size:8.5pt;line-height:1.6">'
-            f'{"".join(_avoid_rows)}</div>'
+            f'{"".join(_avoid_rows)}'
+            '<div style="font-size:7.4pt;color:#555">✗ (R) resistant · S-tested = susceptible but '
+            'not appropriate here (AST unchanged)</div></div>'
         )
         # Pregnancy-banned — separate line for clarity
         _preg_banned = [_bd for _bd in banned if _bd.get("category") == "pregnancy"]
@@ -400,18 +411,19 @@ def section_columns(
         # Supporting factors (compact)
         if fpos:
             H.append(f'<div style="font-size:8.5pt;color:#1e8449;margin-top:1mm"><b>{_T["supporting"]}</b></div>')
+            # v7.4 (case review): no more "..." -- short at the source, not cut at 120.
             for f in fpos[:3]:
-                H.append(f'<div style="font-size:8.5pt;color:#1e8449">{_esc(_clip(_xlate_patho(f), 120))}</div>')
+                H.append(f'<div style="font-size:8.5pt;color:#1e8449">{_esc(_clip(_xlate_patho(f), 320))}</div>')
         # Against factors
         if fneg:
             H.append(f'<div style="font-size:8.5pt;color:#b7770d;margin-top:0.5mm"><b>{_T["against"]}</b></div>')
             for f in fneg[:3]:
-                H.append(f'<div style="font-size:8.5pt;color:#b7770d">{_esc(_clip(f, 120))}</div>')
+                H.append(f'<div style="font-size:8.5pt;color:#b7770d">{_esc(_clip(f, 320))}</div>')
         # Recommendations
         if recs:
             H.append(f'<div style="font-size:8.5pt;font-weight:bold;margin-top:0.5mm">{_T["recs"]}</div>')
             for r in recs[:3]:
-                H.append(f'<div style="font-size:8.5pt">• {_clip(r, 150)}</div>')
+                H.append(f'<div style="font-size:8.5pt">• {_clip(r, 320)}</div>')
     else:
         # Non-urine: show ESBL / MDR / resistance summary instead of pathogenicity
         _is_urine_pdf = "urine" in (specimen or "").lower()
@@ -592,20 +604,26 @@ def section_combo_hepatic_footer(
     combo_suggestions,
     hepatic_recs,
     is_hepatic,
+    sir_map=None,
 ) -> None:
-    """Combination therapy, hepatic dosing and the footer."""
-    # Combination + Hepatic (compact)
+    """Treatment options by site (resistance phenotype), hepatic dosing and the footer."""
+    # v7.4 (case review): was "Combination Therapy — MDR" with R / untested agents and
+    # "()" (stars dropped by the glyph guard). Now titled by site, AST-tagged, ref cited.
     if combo_suggestions:
-        H.append('<hr class="dv" style="margin:0.5mm 0"><div class="sec-ttl">Combination Therapy — MDR</div>')
+        from cdss.stewardship.combination import OPTIONS_SECTION_TITLE, annotate_with_ast
+        H.append('<hr class="dv" style="margin:0.5mm 0"><div class="sec-ttl">'
+                 f'{_esc(OPTIONS_SECTION_TITLE)}</div>')
         for cs in combo_suggestions[:2]:
             data = cs["data"]
             H.append(f'<div class="alert al-danger" style="font-size:8.5pt">'
                      f'<b>{_esc(data["urgency"])} — {_esc(data["title"])}</b></div>')
             for opt in data["options"][:3]:
                 avoid = "AVOID" in opt.get("evidence","") or "AVOID" in opt["combo"].upper()
+                _ref = str(opt.get("ref") or "").strip()
                 H.append(f'<div style="font-size:8.5pt;margin:0.3mm 0;color:{"#922b21" if avoid else "#1a1a2e"}">'
-                         f'{"⊘ " if avoid else "• "}<b>{_esc(opt["combo"])}</b>'
-                         f' <span style="color:#888">({_esc(opt["evidence"])})</span></div>')
+                         f'{"⊘ " if avoid else "• "}<b>{_esc(annotate_with_ast(opt["combo"], sir_map))}</b>'
+                         + (f' <span style="color:#888">— {_esc(_ref)}</span>' if _ref else '')
+                         + '</div>')
 
     if is_hepatic and hepatic_recs:
         action_recs = [r for r in hepatic_recs if r.get("requires_action")][:3]

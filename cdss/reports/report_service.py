@@ -138,16 +138,21 @@ from cdss.reports.pdf_sections import (
     section_ranked,
     section_warned,
 )
-from cdss.reports.pdf_parts import section_treatment_gate
+from cdss.reports.pdf_parts import section_data_issues, section_treatment_gate
+from cdss.reports.pdf_parts import section_resistance_line
 from cdss.reports.fonts import with_bundled_fonts
 from cdss.reports.html_utils import (
     _esc,
     pdf_glyph_guard,
 )
+from cdss.common.data_consistency import report_lines_en
+from cdss.resistance.esbl_status import esbl_status
+from cdss.stewardship.ranking import ranking_basis
 from cdss.resistance.mdr import (
     MDR_INFO,
     mdr_display_label,
     physician_mdr_categories,
+    mdr_short_categories,
     physician_mdr_label,
     physician_mdr_level,
     classify_mdr,
@@ -202,6 +207,9 @@ def generate_pdf_html_report(
     carbapenemase_type: Optional[str] = None,
     uti_syndrome: Optional[str] = None,
     treatment_gate: Optional[Dict[str, Any]] = None,
+    data_issues: Optional[List[Dict[str, Any]]] = None,
+    aux_tests: Optional[Dict[str, Any]] = None,
+    case: Any = None,
 ) -> Optional[bytes]:
     # `return_html` exists so this document can be INSPECTED without WeasyPrint.
     # Added 2026-08-03: the function returns rendered bytes, so in any
@@ -242,7 +250,9 @@ def generate_pdf_html_report(
     # Header pills must reflect only confirmed/high-confidence findings —
     # weak/fallback inferences (e.g. "Possible MRSA" without Oxacillin/Cefoxitin
     # confirmation) stay in the body detail, not the prominent header badge.
-    _WEAK_HEADER_PHENOTYPES = {"Possible MRSA"}
+    # v7.4: ESBL / AmpC are predicted MECHANISMS -- printed once, by the mechanism
+    # pill, with their evidence level (they were printed twice: "ESBL | ESBL+").
+    _WEAK_HEADER_PHENOTYPES = {"Possible MRSA", "ESBL", "AMPC"}
     _hdr_ph_labels = [p for p in ph_labels if p not in _WEAK_HEADER_PHENOTYPES]
     # Flags for Avoid-reason tagging (derived from passed-in results)
     _is_esbl_like     = esbl_prob in ("high", "ampc", "ampc_plasmid")
@@ -259,12 +269,17 @@ def generate_pdf_html_report(
 
     specimen_short = SPECIMEN_SHORT.get(specimen, f"{specimen} C/S" if specimen else "")
 
+    # v7.4 (external case review): one ESBL label from the evidence available --
+    # "Suspected ESBL" unless the confirmatory test was entered (never "ESBL+").
+    _esbl_st = esbl_status(esbl_result, aux_tests)
+
     def hdr_html(page_lbl: str) -> str:
         return header_html(page_lbl, mdr_class=mdr_class, mdr_result=mdr_result,
                            _hdr_ph_labels=_hdr_ph_labels, esbl_conf=esbl_conf,
                            esbl_prob=esbl_prob, esbl_result=esbl_result, lab_name=lab_name,
                            lab_city=lab_city, specimen_short=specimen_short, date_in=date_in,
-                           now_str=now_str, organism=organism)
+                           now_str=now_str, organism=organism, esbl_state=_esbl_st,
+                           carbapenemase_type=carbapenemase_type)
 
     # Resolve the footer lab-name token (see P1) -- quotes stripped so the
     # value cannot break out of the CSS content string.
@@ -288,6 +303,11 @@ def generate_pdf_html_report(
     # ════════════════════════════════════════════════════════════════
     H.append(hdr_html("CLINICAL ADVISORY"))
     H.append('<div class="content">')
+    # v7.4 (external case review): a report / case mismatch is printed first,
+    # then how the resistance label was reached.
+    section_data_issues(H=H, issues=data_issues)
+    section_resistance_line(H=H, mdr_result=mdr_result, esbl_state=_esbl_st,
+                            carbapenemase_type=carbapenemase_type)
 
     # v7.2 (second external review): "do not treat" reaches the PDF.
     _withheld = gate_suppresses(treatment_gate)
@@ -313,7 +333,10 @@ def generate_pdf_html_report(
             preg_warn_items=preg_warn_items,
             ranked=ranked,
             sir_map=sir_map,
-            specimen=specimen)
+            specimen=specimen,
+            basis=ranking_basis(specimen, uti_syndrome, case, _esbl_st, sir_map,
+                                carbapenemase_type,
+                                "AmpC" if esbl_prob in ("ampc", "ampc_plasmid") else ""))
 
     section_avoid(
         H=H,
@@ -367,7 +390,8 @@ def generate_pdf_html_report(
         child_pugh=child_pugh,
         combo_suggestions=combo_suggestions,
         hepatic_recs=hepatic_recs,
-        is_hepatic=is_hepatic)
+        is_hepatic=is_hepatic,
+        sir_map=sir_map)
 
     _full_html = "".join(H)
     if _EN:
@@ -427,6 +451,21 @@ def generate_pdf_html_report(
 
 
 
+def pdf_html_to_bytes(guarded_html: str) -> Optional[bytes]:
+    """v7.5: the HTML generate_pdf_html_report(return_html=True) returned, as PDF bytes.
+
+    The page renders the HTML first, validates what it says (case_validator
+    V12), and only then turns that same HTML into the file -- the checked
+    document and the downloaded one cannot differ.
+    """
+    if not WEASYPRINT_AVAILABLE:
+        return None
+    try:
+        return _wp.HTML(string=with_bundled_fonts(guarded_html)).write_pdf()
+    except Exception:
+        return None
+
+
 def generate_decision_tree_image(
     patient_name:    str,
     age:             int,
@@ -460,6 +499,7 @@ def generate_decision_tree_image(
     is_hepatic:          bool = False,
     case:                Any = None,
     carbapenemase_type:  Optional[str] = None,
+    aux_tests:           Optional[Dict[str, Any]] = None,
 ) -> bytes:
     # v7.0: `case` is the one record of the case facts (cdss.common.case_context):
     # collection method and host factors reach the image instead of a
@@ -541,7 +581,8 @@ def generate_decision_tree_image(
             else "Renal:         IMPAIRED  CrCl:not measured")
     elif getattr(case, "low_muscle_mass", False):
         # creatinine overestimates GFR in low muscle mass: never a bare "Normal"
-        p_lines.append("Renal:         Cr normal* (low muscle mass: use TDM)")
+        # v7.4 (external case review): TDM does not replace renal assessment
+        p_lines.append("Renal:         Cr normal* (low muscle mass)")
     else:
         p_lines.append("Renal:         Normal")
     p_lines.append(f"Hepatic:       {'IMPAIRED' if is_hepatic else 'Normal'}")
@@ -590,7 +631,9 @@ def generate_decision_tree_image(
     elif _esbl_prob == "possible_carbapenemase":
         alert_title = "⚠  CARBAPENEMASE SUSPECTED"
     elif _has_esbl:
-        alert_title = "⚠  ESBL ALERT"
+        # v7.4: a prediction is titled as one (external case review)
+        _st_t = (esbl_status(esbl_result, aux_tests) or {}).get("state")
+        alert_title = "⚠  ESBL ALERT" if _st_t == "confirmed" else "⚠  SUSPECTED ESBL"
     else:
         alert_title = "⚠  IMPORTANT ALERT"
 
@@ -606,10 +649,12 @@ def generate_decision_tree_image(
         # v7.0: physician-facing -- provisional XDR prints as MDR; categories
         # name the agents in them that are still S.
         _lvl_txt = physician_mdr_level(mdr_result) or mdr_lvl
-        alerts.append(f"{_lvl_txt}: non-susceptible {rc}/{rt} categories")
+        # v7.4 (external case review): "6/9" was printed beside THREE category
+        # names (the list was cut at 3). Every counted category is named now,
+        # in short form, with the rule that produced the level.
+        alerts.append(f"{_lvl_txt}: NS in {rc} of {rt} tested categories (Magiorakos)")
         if mdr_cats:
-            _usable_img = {str(x).split(" [")[0].split(" (")[0] for x in (preferred or []) + (use_caution or [])}
-            alerts.append(f"NS-cats: {', '.join(physician_mdr_categories(mdr_result, sir_map, _usable_img)[:3])}")
+            alerts.append("NS: " + ", ".join(mdr_short_categories(mdr_cats, compact=True)))
 
     # ── ESBL / AmpC / Carbapenemase ────────────────────────────────────────────
     _esbl_mech = (esbl_result or {}).get("mechanism", "")
@@ -627,9 +672,14 @@ def generate_decision_tree_image(
         alerts.append("Possible AmpC β-lactamase")
         alerts.append("Avoid 3rd-gen cephalosporins; use Cefepime/Carbapenem")
     elif _esbl_prob == "high":
-        alerts.append("ESBL phenotype " + ("highly suggestive" if _esbl_conf_img >= 85 else "suspected")
-                      + " (predicted, not confirmed)")
-        alerts.append("Use Carbapenems for severe cases")
+        _est = esbl_status(esbl_result, aux_tests) or {}
+        if _est.get("state") == "confirmed":
+            alerts.append("ESBL confirmed (confirmatory test positive)")
+        elif _est.get("state") == "test_negative":
+            alerts.append("ESBL pattern, confirmatory test NEGATIVE - consider AmpC")
+        else:
+            alerts.append("ESBL: pattern only - not confirmed")
+        alerts.append("Serious / bloodstream infection: a carbapenem (IDSA 2026)")
     elif _esbl_prob == "moderate":
         alerts.append("ESBL confirmation recommended")
         alerts.append("Double Disk Synergy Test")
@@ -650,7 +700,8 @@ def generate_decision_tree_image(
     # ── Phenotypes ────────────────────────────────────────────────────────────
     for ph in (phenotypes or [])[:2]:
         ph_name = ph.get("phenotype","")
-        if ph_name not in ("Possible MRSA",):
+        # v7.4: ESBL / AmpC are already stated above with their evidence level
+        if ph_name not in ("Possible MRSA", "ESBL", "AMPC"):
             alerts.append(f"Phenotype: {ph_name}")
 
     # ── Organism-specific baseline alerts ────────────────────────────────────
@@ -745,10 +796,13 @@ def generate_decision_tree_image(
 
     # Dynamic column titles based on pregnancy
     avoid_title    = "🚫 AVOID IN PREGNANCY" if is_preg else "🚫 AVOID / CONTRAINDICT."
-    avoid_subtitle = "Contraindicated / Not recommended" if is_preg else "Due to other factors"
+    # v7.4 (external case review): resistant vs tested-S-but-not-appropriate
+    avoid_subtitle = ("Contraindicated / Not recommended" if is_preg
+                      else "(R) resistant · (S·...) tested S, not for this case")
 
+    # v7.4: "SAFE" overstated it (AWaRe is stewardship, not patient safety)
     columns = [
-        ("✅ PREFERRED (SAFE)",  "Ranked for this site · route shown",  preferred,  GREEN_BD, GREEN_BG, GREEN_TXT),
+        ("✅ APPROPRIATE (AST S)", "Ranked for this site · route shown",  preferred,  GREEN_BD, GREEN_BG, GREEN_TXT),
         ("⚠️  USE WITH CAUTION", "Use with caution",         use_caution,     AMBER_BD, AMBER_BG, AMBER_TXT),
         (avoid_title,            avoid_subtitle,             contraindicated,  RED_BD,   RED_BG,   RED_TXT),
         ("🛡️  RESERVE (WHO)",     "Last-resort agents (MDR/XDR)", reserve,      BLUE_BD,  BLUE_BG,  BLUE_TXT),
@@ -786,7 +840,7 @@ def generate_decision_tree_image(
     rbox(draw, (fx1, FY1, fx2, FY2), FOOT_BG, FOOT_BD, radius=12, width=2)
     draw.text((fx1+10*S, FY1+10*S), "SUMMARY", fill=DARK, font=F_SUBTITL)
     sum_items = [
-        (f"{len(preferred)}",        "Preferred",   GREEN_TXT),
+        (f"{len(preferred)}",        "Options",     GREEN_TXT),
         (f"{len(use_caution)}",      "Caution",     AMBER_TXT),
         (f"{len(contraindicated)}",  "Avoided",     RED_TXT),
         (f"{len(reserve)}",          "Reserve",     BLUE_TXT),
@@ -1026,8 +1080,14 @@ def _text_panel_completeness(*, L, organism, sep2, sir_map, specimen):
             L += ["\nAST PANEL COMPLETENESS", sep2,
                   f"Organism : {_pc_report.organism_group}",
                   f"Expected : {_pc_report.expected_total}    "
-                  f"Tested: {_pc_report.tested_count}    "
-                  f"Missing: {len(_pc_report.missing_primary) + len(_pc_report.missing_supplemental)}"]
+                  f"Covered: {_pc_report.tested_count}    "
+                  f"Missing: {len(_pc_report.missing_primary) + len(_pc_report.missing_supplemental)}    "
+                  f"Additional: {len(getattr(_pc_report, 'extra_tested', []) or [])}    "
+                  f"Total entered: {getattr(_pc_report, 'total_tested', 0) or len(sir_map)}"]
+            # v7.4: salt forms / formulations counted as the expected agent
+            for _slot, _names in (getattr(_pc_report, "covered_by", {}) or {}).items():
+                if any(n != _slot for n in _names):
+                    L.append(f"Counted as {_slot}: {', '.join(_names)}")
             if not (_pc_report.missing_primary or _pc_report.missing_supplemental):
                 L.append("Panel adequate -- all expected agents for this organism were tested.")
             else:
@@ -1051,6 +1111,14 @@ def _text_panel_completeness(*, L, organism, sep2, sir_map, specimen):
                 except Exception:
                     pass
     return L
+
+
+def _text_esbl_title(esbl_r, aux_tests) -> str:
+    """v7.4 (external case review): suspected / confirmed / test-negative ESBL."""
+    _st = (esbl_status(esbl_r, aux_tests) or {}).get("state")
+    return {"confirmed": "ESBL PRODUCER -- CONFIRMED (confirmatory test positive)",
+            "test_negative": "ESBL PATTERN -- CONFIRMATORY TEST NEGATIVE (consider AmpC)",
+            }.get(_st, "SUSPECTED ESBL PRODUCER (resistance pattern only -- not confirmed)")
 
 
 def generate_report(
@@ -1082,6 +1150,8 @@ def generate_report(
     case:                  Any = None,
     treatment_gate:        Optional[Dict[str, Any]] = None,
     uti_note:              str = "",
+    data_issues:           Optional[List[Dict[str, Any]]] = None,
+    aux_tests:             Optional[Dict[str, Any]] = None,
 ) -> str:
     now  = datetime.now().strftime("%Y-%m-%d %H:%M")
     sep  = "=" * 60
@@ -1093,6 +1163,7 @@ def generate_report(
     if patient_name:
         L.append(f"Patient  : {patient_name}")
     L.append(sep)
+    L += [("!! " if d.startswith("CRITICAL") else "") + d for d in report_lines_en(data_issues)]
 
     L += ["\nPATIENT DETAILS", sep2,
           (f"Age      : {age_months} months" if age_months is not None
@@ -1140,8 +1211,9 @@ def generate_report(
         # v7.0: agree with the AST -- generic first-line agents this isolate is
         # R / I to are not printed as first line under its own results.
         _fl_disp = _drop_tested_ns(_fl_gen, sir_map)
-        _banned_nm = {str(b.get("name", "")).lower() for b in (banned or [])}
-        _fl_disp = [d for d in _fl_disp if d.lower() not in _banned_nm]
+        # v7.4: only agents the advice OFFERS (a cUTI caution is not "first line")
+        _fl_disp = [d for d in _fl_disp
+                    if d.lower() in {str(a.get("name", "")).lower() for a in (allowed or [])}]
         if _fl_disp:
             L.append(f"First-line : {', '.join(_fl_disp)}  (organism default, AST-filtered)")
         elif _fl_gen:
@@ -1189,8 +1261,8 @@ def generate_report(
         elif prob in ("ampc", "ampc_plasmid"):
             L += ["\n⚠️  POSSIBLE AmpC β-LACTAMASE PRODUCER", sep2,
                   esbl_r["detail"], f"Action: {esbl_r['action']}", ""]
-        elif prob == "high":
-            L += ["\n⚠️  HIGH PROBABILITY ESBL PRODUCER", sep2,
+        elif prob == "high":     # v7.4: a prediction is labelled as one
+            L += [f"\n⚠️  {_text_esbl_title(esbl_r, aux_tests)}", sep2,
                   esbl_r["detail"], f"Action: {esbl_r['action']}", ""]
         elif prob == "crpa":
             L += [f"\n{'🚨' if esbl_r.get('dtr') else '⚠️ '} "

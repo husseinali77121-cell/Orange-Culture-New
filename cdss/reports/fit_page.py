@@ -21,6 +21,9 @@ from cdss.reports.html_utils import pdf_glyph_guard
 
 # 1.0 -> 0.70: below ~0.7 the 8.5 pt base would fall under 6 pt.
 SCALES: Tuple[float, ...] = (1.0, 0.93, 0.86, 0.80, 0.75, 0.70)
+# v7.4 (external case review): a short sheet left half the A4 page empty. When
+# the normal size fits, the largest of these that still fits one page is used.
+GROW: Tuple[float, ...] = (1.18, 1.1)
 
 
 def pt(base: float, scale: float) -> str:
@@ -39,11 +42,17 @@ def render_one_page(build: Callable[[float], str],
     if not WEASYPRINT_AVAILABLE or _wp is None:
         return None
     doc = None
-    for sc in scales:
+    for i, sc in enumerate(scales):
         doc = _wp.HTML(string=with_bundled_fonts(pdf_glyph_guard(build(sc)))).render()
         if len(doc.pages) <= 1:
+            if i == 0:                       # fits at normal size: use the space
+                for g in GROW:
+                    big = _wp.HTML(string=with_bundled_fonts(pdf_glyph_guard(build(g)))).render()
+                    if len(big.pages) <= 1:
+                        doc = big
+                        break
             break
     return doc.write_pdf() if doc is not None else None
 
 
-__all__ = ["render_one_page", "pt", "mm", "SCALES"]
+__all__ = ["render_one_page", "pt", "mm", "SCALES", "GROW"]
