@@ -33,9 +33,25 @@ def uniq_keep_order(items: List[str]) -> List[str]:
             result.append(x)
     return result
 
-def best_default_index(options: List[str], preferred: Optional[str]) -> int:
-    if preferred and preferred in options:
+def best_default_index(options: List[str], preferred: Optional[str], match=None) -> int:
+    """The option the report names. v7.8: an exact-string test sent anything
+    else -- "Wound swab" for "Wound Swab", an organism not offered for the
+    specimen -- SILENTLY to the first option (a wound case opened as urine).
+    Now: exact, then case-insensitive, then `match(option, preferred)` when it
+    singles out exactly ONE option. Otherwise 0, and the input check
+    (data_consistency.check_case_inputs) flags the disagreement with the report.
+    """
+    if not preferred:
+        return 0
+    if preferred in options:
         return options.index(preferred)
+    folded = [o for o in options if str(o).strip().casefold() == str(preferred).strip().casefold()]
+    if len(folded) == 1:
+        return options.index(folded[0])
+    if match is not None:
+        hits = [o for o in options if match(o, preferred)]
+        if len(hits) == 1:
+            return options.index(hits[0])
     return 0
 
 

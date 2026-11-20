@@ -101,7 +101,7 @@ _UNLABELLED = (
 def check_case_consistency(*, specimen: str, report_collection: Optional[str],
                            entered_collection: Optional[str],
                            host_factors: Optional[Iterable[str]] = None,
-                           confirmed: bool = False) -> List[Dict[str, Any]]:
+                           confirmed: Any = False) -> List[Dict[str, Any]]:
     """Critical disagreements between the laboratory report and the entered case.
 
     Each issue: {code, severity, blocking, message_en, message_ar, report_value,
@@ -168,7 +168,9 @@ def check_case_consistency(*, specimen: str, report_collection: Optional[str],
 
 def _issue(code, report_value, entered_value, confirmed, *, en, ar,
            confirmable: bool = True, confirmed_en: str = "") -> Dict[str, Any]:
-    confirmed = bool(confirmed) and confirmable
+    # v7.8: `confirmed` may be the set of codes the physician confirmed (each
+    # issue its own confirmation); a bool still means "all of them"
+    confirmed = _confirmed(confirmed, code) and confirmable
     return {
         "code": code, "severity": "critical", "blocking": not confirmed,
         "confirmed": confirmed, "confirmable": confirmable,
@@ -184,6 +186,177 @@ def _issue(code, report_value, entered_value, confirmed, *, en, ar,
         "hint_ar": ("صحّح الإدخال أو أكّده: مثلاً القسطرة اتشالت خلال آخر 48 ساعة واتاخدت عينة "
                     "midstream (IDSA CA-UTI 2009)."),
     }
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# v7.8 -- contradictions INSIDE the case inputs (owner's request after the
+# external review of v7.7: "protect the program against conflicts in the
+# inputs themselves"). Same issue format and the same release rule as above:
+#   * IMPOSSIBLE (not confirmable): fix the entry -- nothing releases meanwhile;
+#   * IMPLAUSIBLE (confirmable): released only after the physician confirms
+#     THAT issue (each its own confirmation, printed in the reports).
+# ═════════════════════════════════════════════════════════════════════════
+# Weight plausible for age -- wide on purpose: it catches a typo or a unit slip
+# (a dose is computed from it), not an unusual patient. (age upper bound, min, max)
+_WEIGHT_FOR_AGE = ((1, 1.0, 15.0), (3, 6.0, 25.0), (6, 9.0, 40.0), (12, 13.0, 100.0),
+                   (18, 22.0, 180.0), (200, 30.0, 250.0))
+
+
+def _confirmed(confirmed: Any, code: str) -> bool:
+    """True / False for every issue, or the set of codes the physician confirmed."""
+    if isinstance(confirmed, (set, frozenset, list, tuple)):
+        return code in confirmed
+    return bool(confirmed)
+
+
+def _input_issue(code, entered, report, confirmed, *, en, ar, hint_ar,
+                 confirmable=True, confirmed_en=""):
+    i = _issue(code, report, entered, _confirmed(confirmed, code), en=en, ar=ar,
+               confirmable=confirmable,
+               confirmed_en=confirmed_en or f"{en} -- confirmed by the physician.")
+    i["hint_ar"] = hint_ar
+    i["hint_en"] = "Correct the entry" + (", or confirm it." if confirmable else ".")
+    i["kind"] = "input"
+    return i
+
+
+def _org_tokens(name: Any) -> List[str]:
+    t = re.sub(r"[^a-z ]+", " ", str(name or "").lower().replace("spp", " "))
+    return [w for w in t.split() if w]
+
+
+def same_organism(a: Any, b: Any) -> bool:
+    """'E. coli' = 'Escherichia coli'; 'Klebsiella' (genus) = 'Klebsiella pneumoniae'."""
+    x, y = _org_tokens(a), _org_tokens(b)
+    if not x or not y:
+        return True                                   # nothing to compare
+    if x == y or " ".join(x) in " ".join(y) or " ".join(y) in " ".join(x):
+        return True
+    if len(x) >= 2 and len(y) >= 2 and x[1] == y[1]:
+        return x[0][0] == y[0][0]                      # genus initial + species
+    return False
+
+
+def check_case_inputs(patient: Any, *, specimen: str = "", organism: str = "",
+                      panel: Optional[Dict[str, Any]] = None,
+                      symptoms: Optional[Iterable[str]] = None,
+                      report: Optional[Dict[str, Any]] = None,
+                      confirmed: Any = False) -> List[Dict[str, Any]]:
+    """Contradictions between the inputs, and between the inputs and the
+    laboratory report the OCR read. [] when the case is coherent."""
+    from cdss.common.specimen import classify_specimen
+    out: List[Dict[str, Any]] = []
+    rep = report or {}
+    sex = str(getattr(patient, "sex", "") or "")
+    age = getattr(patient, "effective_age_years", None)
+    preg = bool(getattr(patient, "is_pregnant", False))
+    hosts = [str(h) for h in (getattr(patient, "host_factors", None) or [])]
+
+    # ── pregnancy ─────────────────────────────────────────────────────────
+    if preg and sex.lower().startswith("m"):
+        out.append(_input_issue(
+            "INPUT_PREGNANCY_MALE", "pregnant, male", "", False, confirmable=False,
+            en="Pregnancy is recorded for a male patient.",
+            ar="حمل مُسجَّل لمريض ذكر.", hint_ar="صحّح النوع أو شيل علامة الحمل."))
+    if preg and age is not None and age < 10:
+        out.append(_input_issue(
+            "INPUT_PREGNANCY_AGE", f"pregnant, {age:g} y", "", False, confirmable=False,
+            en=f"Pregnancy is recorded at {age:g} years of age.",
+            ar=f"حمل مُسجَّل لعمر {age:g} سنة.", hint_ar="صحّح العمر أو شيل علامة الحمل."))
+    elif preg and age is not None and (age < 12 or age > 55):
+        out.append(_input_issue(
+            "INPUT_PREGNANCY_AGE_UNUSUAL", f"pregnant, {age:g} y", "", confirmed,
+            en=f"Pregnancy at {age:g} years -- outside the usual range.",
+            ar=f"حمل في عمر {age:g} سنة — خارج المعتاد.",
+            hint_ar="راجع العمر وعلامة الحمل، أو أكّدهم."))
+    if "Pregnant" in hosts and not preg:
+        # the pathogenicity panel's host factor with the pregnancy flag unset:
+        # the score assumes pregnancy, the drug safety gates do not
+        out.append(_input_issue(
+            "INPUT_PREGNANT_HOST_ONLY", "host factor 'Pregnant'", "", False, confirmable=False,
+            en=("'Pregnant' is ticked as a host factor but the patient is not marked "
+                "pregnant -- the pregnancy drug-safety rules are not applied."),
+            ar=("«Pregnant» متعلّمة في عوامل المضيف، والمريضة مش متعلّم عليها حمل — قواعد أمان "
+                "الأدوية في الحمل مش شغالة."),
+            hint_ar="علّم «Patient is Pregnant» في بيانات المريض، أو شيل «Pregnant» من عوامل المضيف."))
+
+    # ── weight, renal function ───────────────────────────────────────────
+    w = getattr(patient, "weight_kg", None)
+    if w is not None and age is not None:
+        for upper, lo, hi in _WEIGHT_FOR_AGE:
+            if age < upper:
+                if not (lo <= float(w) <= hi):
+                    out.append(_input_issue(
+                        "INPUT_WEIGHT_AGE", f"{float(w):g} kg at {age:g} y", "", confirmed,
+                        en=f"Weight {float(w):g} kg is implausible at {age:g} years (doses use it).",
+                        ar=f"الوزن {float(w):g} كجم غير منطقي لعمر {age:g} سنة (الجرعات بتتحسب منه).",
+                        hint_ar="صحّح الوزن أو العمر، أو أكّدهم."))
+                break
+    crcl = getattr(patient, "cl_cr", None)
+    if crcl is not None and float(crcl) < 0:
+        out.append(_input_issue(
+            "INPUT_CRCL_NEGATIVE", f"CrCl {float(crcl):g}", "", False, confirmable=False,
+            en=f"Creatinine clearance {float(crcl):g} ml/min is impossible.",
+            ar=f"CrCl {float(crcl):g} مستحيل.", hint_ar="صحّح الكرياتينين أو الوزن."))
+    elif crcl is not None and float(crcl) > 250:
+        out.append(_input_issue(
+            "INPUT_CRCL_HIGH", f"CrCl {float(crcl):g}", "", confirmed,
+            en=f"Creatinine clearance {float(crcl):g} ml/min is implausibly high (a creatinine typo?).",
+            ar=f"CrCl {float(crcl):g} عالي بشكل غير منطقي (غلطة في الكرياتينين؟).",
+            hint_ar="راجع الكرياتينين والوزن والعمر، أو أكّد."))
+
+    # ── symptoms ─────────────────────────────────────────────────────────
+    sym = [str(x) for x in (symptoms or [])]
+    if "Asymptomatic" in sym and len(sym) > 1:
+        out.append(_input_issue(
+            "INPUT_SYMPTOMS_CONTRADICT", ", ".join(sym), "", False, confirmable=False,
+            en="'Asymptomatic' is selected together with symptoms.",
+            ar="«Asymptomatic» متختارة مع أعراض في نفس الوقت.",
+            hint_ar="شيل «Asymptomatic» أو شيل الأعراض — الاتنين مع بعض بيقلبوا الحكم."))
+
+    # ── the entry against the laboratory report (what the OCR read) ─────
+    r_org = rep.get("Organism")
+    if r_org and organism and not same_organism(r_org, organism):
+        out.append(_input_issue(
+            "INPUT_REPORT_ORGANISM", organism, r_org, confirmed,
+            en=f"The report names {r_org}; the case is analysed as {organism}.",
+            ar=f"التقرير مكتوب فيه {r_org}، والتحليل شغال على {organism}.",
+            hint_ar="اختار الكائن اللي في التقرير، أو أكّد إن قراءة الـ OCR غلط."))
+    r_spec = rep.get("Specimen")
+    if r_spec and specimen:
+        a, b = classify_specimen(r_spec), classify_specimen(specimen)
+        if a and b and a != b:
+            out.append(_input_issue(
+                "INPUT_REPORT_SPECIMEN", specimen, r_spec, confirmed,
+                en=f"The report says {r_spec}; the case is analysed as {specimen}.",
+                ar=f"التقرير مكتوب فيه عينة {r_spec}، والتحليل شغال على {specimen}.",
+                hint_ar="اختار العينة اللي في التقرير، أو أكّد إن القراءة غلط."))
+    r_sex = str(rep.get("Sex") or "")
+    if r_sex and sex and r_sex[:1].lower() != sex[:1].lower():
+        out.append(_input_issue(
+            "INPUT_REPORT_SEX", sex, r_sex, confirmed,
+            en=f"The report says {r_sex}; the patient is entered as {sex}.",
+            ar=f"التقرير مكتوب فيه {r_sex}، والمريض متسجّل {sex}.",
+            hint_ar="صحّح النوع، أو أكّد إن القراءة غلط."))
+    r_age = rep.get("Age")
+    if (r_age is not None and age is not None and not rep.get("AgeAmbiguous")
+            and rep.get("AgeMonths") is None):
+        try:
+            if abs(float(r_age) - float(age)) > 1:
+                out.append(_input_issue(
+                    "INPUT_REPORT_AGE", f"{age:g} y", f"{float(r_age):g} y", confirmed,
+                    en=f"The report says {float(r_age):g} years; the patient is entered as {age:g}.",
+                    ar=f"التقرير مكتوب فيه {float(r_age):g} سنة، والمريض متسجّل {age:g}.",
+                    hint_ar="صحّح العمر، أو أكّد إن القراءة غلط."))
+        except (TypeError, ValueError):
+            pass
+    if rep.get("NoGrowth") and panel:
+        out.append(_input_issue(
+            "INPUT_REPORT_NO_GROWTH", f"{len(panel)} AST results", "no growth", confirmed,
+            en="The report says no growth, yet an organism and AST results are entered.",
+            ar="التقرير مكتوب فيه «No growth»، ومع ذلك فيه كائن ونتائج حساسية متسجلة.",
+            hint_ar="راجع التقرير: لو مفيش نمو مفيش علاج بالنتايج دي — أو أكّد إن القراءة غلط."))
+    return out
 
 
 def blocking(issues: Optional[List[Dict[str, Any]]]) -> bool:
@@ -202,4 +375,5 @@ def report_lines_en(issues: Optional[List[Dict[str, Any]]]) -> List[str]:
 
 
 __all__ = ["collection_group", "detect_collection_method", "check_case_consistency",
-           "blocking", "report_lines_en", "GROUP_LABEL", "CATHETER_GROUPS"]
+           "check_case_inputs", "same_organism", "blocking", "report_lines_en", "GROUP_LABEL",
+           "CATHETER_GROUPS"]
