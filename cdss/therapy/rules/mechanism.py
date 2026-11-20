@@ -16,18 +16,35 @@ from cdss.therapy.therapy_rules import carb_tx_text as _carb_tx_text
 
 
 def rule_esbl_not_excluded(cx, dg, out):
-    """ESBL 'moderate' (not excluded): say so on the beta-lactams outside cystitis."""
-    # ── ESBL "moderate" = not excluded: say so on the beta-lactams ───────
-    if (not out.skip_mech and cx.mech_prob == "moderate" and dg.result in ("S", "I")
-            and not (cx.spec_cat == "urine" and not cx.uti_upper)
-            and dg.name not in NOVEL_BL_AGENTS and "carbapenem" not in dg.cls
-            and ("cephalosporin" in dg.cls
-                 or dg.name in ("Piperacillin + Tazobactam", "Aztreonam",
-                             "Amoxicillin + Clavulanic acid", "Ampicillin/Sulbactam"))):
+    """ESBL 'moderate' (not excluded): say so on every ESBL-labile beta-lactam.
+
+    v7.6 (random end-to-end sweep, V05): two gaps let an ESBL-labile agent be
+    RANKED under the "Suspected ESBL" heading the same report printed --
+      * the class list named cephalosporins and the BL/BLI pairs but not the
+        plain penicillins, so ampicillin S was ranked while cefuroxime S was
+        cautioned (an ESBL hydrolyses ampicillin first);
+      * in cystitis nothing was said at all, while an ESBL called "high" is
+        already "an option for cystitis only" (rule below).
+    Now every penicillin / cephalosporin / aztreonam S or I gets the caution;
+    in cystitis it stays an option, under caution, not first-ranked.
+    """
+    if (out.skip_mech or cx.mech_prob != "moderate" or dg.result not in ("S", "I")
+            or dg.name in NOVEL_BL_AGENTS or "carbapenem" in dg.cls
+            or not (_is_penicillin_or_ceph(dg.info, dg.name) or "cephalosporin" in dg.cls
+                    or dg.name in ("Piperacillin + Tazobactam", "Aztreonam",
+                                   "Amoxicillin + Clavulanic acid", "Ampicillin/Sulbactam"))):
+        return
+    if cx.spec_cat == "urine" and not cx.uti_upper:
         out.note(dg.name, "warn", (
-            "ESBL غير مستبعد (مقاومة سيفالوسبورين بلوحة محدودة): في العدوى الغازية لا "
-            "يُعتمد على هذا البيتا-لاكتام قبل نفي ESBL (اختبر Ceftriaxone/Ceftazidime أو "
-            "DDST) — الكاربابينيم أضمن (IDSA AMR Guidance 2026)."), "organism_caution")
+            "ESBL غير مستبعد: هذا البيتا-لاكتام حسّاس معملياً ويُبلَّغ كما هو — خيار لالتهاب "
+            "المثانة البسيط فقط (المفضّل: Nitrofurantoin أو TMP-SMX؛ Fosfomycin لـ E. coli). "
+            "لو ظهرت حرارة أو ألم في الجنب أو تجرثم دم لا يُعتمد عليه قبل نفي ESBL "
+            "(IDSA AMR Guidance 2026)."), "esbl_not_excluded_cystitis")
+        return
+    out.note(dg.name, "warn", (
+        "ESBL غير مستبعد (مقاومة سيفالوسبورين بلوحة محدودة): في العدوى الغازية لا "
+        "يُعتمد على هذا البيتا-لاكتام قبل نفي ESBL (اختبر Ceftriaxone/Ceftazidime أو "
+        "DDST) — الكاربابينيم أضمن (IDSA AMR Guidance 2026)."), "esbl_not_excluded")
 
 
 def rule_ampc_cefepime(cx, dg, out):
@@ -220,18 +237,38 @@ def rule_esbl_or_carbapenemase_bli(cx, dg, out):
                 and dg.result in ("S", "I")):
             _w = dict(dg.info)
             _w["warning_reason"] = "esbl_bli_uti_only"
+            # v7.4 (external case review): the note named TMP-SMX and ciprofloxacin
+            # as "preferred when susceptible" on an isolate R to both, and gave
+            # 4.5 g q6h as if renal function did not matter. It now reads THIS
+            # isolate's results and says the dose is for normal renal function.
+            _pref = [(n, str((cx.sir or {}).get(n) or "")) for n in
+                     ("Trimethoprim/Sulfamethoxazole", "Ciprofloxacin", "Levofloxacin")]
+            _pref_s = [n for n, r in _pref if r == "S"]
+            _pref_state = ", ".join(f"{'TMP-SMX' if n.startswith('Trim') else n} "
+                                    f"{r or 'not tested'}" for n, r in _pref)
+            if _pref_s:
+                _pref_en = (f"{', '.join(_pref_s)} tested S on this isolate and is preferred over "
+                            "piperacillin-tazobactam (IDSA 2026).")
+                _pref_ar = (f"{', '.join(_pref_s)} حساس في هذه المزرعة ومفضّل على Pip-Tazo "
+                            "(IDSA 2026).")
+            else:
+                _pref_en = (f"Preferred agents unavailable here ({_pref_state}): a carbapenem "
+                            "is preferred.")
+                _pref_ar = (f"الأدوية المفضّلة غير متاحة في هذه المزرعة ({_pref_state})؛ "
+                            "الكاربابينيم مفضّل، و Pip-Tazo بديل (IDSA 2026).")
             _w["esbl_note"] = (
-                (f"كائن {cx.mech_label} + التهاب حويضة / cUTI: Pip-Tazo بديل مقبول (IDSA 2026) "
-                 "بجرعة 4.5 g q6h وتسريب ممتد، والمفضّل TMP-SMX أو Ciprofloxacin/Levofloxacin إذا كانت "
-                 "حساسة. في حالة الصدمة أو تجرثم الدم: Carbapenem.")
+                (f"اشتباه {cx.mech_label} + التهاب حويضة / cUTI: Pip-Tazo بديل (IDSA 2026) فقط "
+                 "لو المريض مش في حالة حرجة ومفيش تجرثم دم؛ احتمال فشل العلاج قائم — تابِع "
+                 f"الاستجابة. {_pref_ar} الجرعة 4.5 g q6h بتسريب ممتد لوظائف كلى طبيعية — "
+                 "تُعدَّل حسب CrCl. في الصدمة أو تجرثم الدم: Carbapenem.")
                 if cx.mech_label == "ESBL" else
                 ("AmpC + التهاب حويضة: Cefepime (إذا S) مقدَّم على Pip-Tazo (IDSA 2026)."))
             # v6.7: the English PDF had no English form of this note.
             _w["esbl_note_en"] = (
-                ("ESBL organism + pyelonephritis / cUTI: piperacillin-tazobactam is an acceptable "
-                 "alternative (IDSA 2026) at 4.5 g q6h by extended infusion; TMP-SMX or "
-                 "ciprofloxacin/levofloxacin are preferred when susceptible. In shock or "
-                 "bacteraemia: a carbapenem.")
+                (f"Suspected {cx.mech_label} + pyelonephritis / cUTI: pip-tazo is an alternative "
+                 "(IDSA 2026) if not critically ill and not bacteraemic - monitor the response. "
+                 f"{_pref_en} 4.5 g q6h extended infusion if renal function is normal - adjust to "
+                 "CrCl. Shock / bacteraemia: a carbapenem.")
                 if cx.mech_label == "ESBL" else
                 ("AmpC + pyelonephritis: cefepime (if S) is preferred over "
                  "piperacillin-tazobactam (IDSA 2026)."))
