@@ -10,10 +10,14 @@ from cdss.common.aux_tests import is_aux_key
 from cdss.common.case_context import (
     LOW_MUSCLE_CRCL_NOTE_AR,
     LOW_MUSCLE_CRCL_NOTE_EN,
+    LOW_MUSCLE_TDM_SHORT_AR,
+    LOW_MUSCLE_TDM_SHORT_EN,
     TDM_AGENTS,
     build_case_context,
 )
 from cdss.therapy.clsi_categories import canonical_panel
+from cdss.common.data_consistency import blocking as data_blocking
+from cdss.common.data_consistency import check_case_consistency
 from cdss.organisms.pathogenicity import gate_suppresses, treatment_gate
 from cdss.common.specimen import (
     classify_specimen,
@@ -88,6 +92,8 @@ def run_analysis(
     uti_syndrome: Optional[str] = None,
     pathogenicity: Optional[Dict[str, Any]] = None,
     treat_override: bool = False,
+    report_collection_method: Optional[str] = None,
+    consistency_confirmed: bool = False,
 ) -> Dict[str, Any]:
     """Run the full clinical pipeline and return every panel the UI shows.
 
@@ -106,6 +112,13 @@ def run_analysis(
     `ranked` and `duration` -- the drug-safety buckets are still returned, so a
     physician who overrides (`treat_override=True`, recorded in the gate) sees
     the same lists.
+
+    `report_collection_method` (v7.4) is the urine collection method printed on
+    the laboratory report (OCR). When it disagrees with the method entered for
+    the case, `data_issues` carries a CRITICAL issue and `data_blocked` is True
+    until `consistency_confirmed` (the physician confirmed the entered method;
+    the confirmation is printed). The analysis itself still runs on the entered
+    data -- what is blocked is the release of the physician-facing reports.
     """
     # D-test / penicillinase travel in the panel as Positive / Negative. The
     # therapy engine reads them from the panel as entered; every other step
@@ -120,11 +133,25 @@ def run_analysis(
     # v7.0: ONE record of the case facts (collection method, host factors).
     case = build_case_context(specimen, list(getattr(patient, "host_factors", None) or []),
                               getattr(patient, "collection_method", ""))
+    # v7.4 (external case review): the laboratory report and the entered case
+    # must describe the same specimen before any catheter rule is trusted.
+    data_issues = check_case_consistency(
+        specimen=specimen, report_collection=report_collection_method,
+        entered_collection=getattr(patient, "collection_method", ""),
+        host_factors=list(getattr(patient, "host_factors", None) or []),
+        confirmed=consistency_confirmed)
     # v7.1 (IDSA cUTI 2025): a urinary catheter / nephrostomy makes the UTI
     # complicated. With no explicit choice the engine now treats it as one --
     # the same rule the UI applies (therapy_rules.resolve_uti_syndrome).
     # v7.2 (second external review): complicated, not pyelonephritis -- "cuti".
     # v7.3 (third review): a device keeps an explicit "lower" complicated too.
+    # v7.4 (whole-case validation): called without a resolved syndrome, the
+    # fever / flank pain / rigors the pathogenicity assessment recorded make it
+    # upper -- the UI already resolved it this way (classify_uti); a direct
+    # caller left a febrile catheter UTI as "cuti" with bladder agents on caution.
+    if (uti_syndrome is None and isinstance(pathogenicity, dict)
+            and "UPPER_UTI_FEATURES" in (pathogenicity.get("special_flags") or [])):
+        uti_syndrome = "upper"
     if uti_syndrome in (None, "lower") and case.cuti_device:
         uti_syndrome = "cuti"
 
@@ -219,7 +246,13 @@ def run_analysis(
     # not only on a page the caller may never render. Callers can then refuse to
     # report, and a test can assert the gate ran.
     degraded = []
-    if not SAFETY_GATE_AVAILABLE:
+    if not apply_gate:
+        # v7.5 (external review of v7.4): skipping the gate on purpose left
+        # `degraded` empty, so nothing downstream could tell the result was not a
+        # complete clinical result. It is declared like any missing layer.
+        degraded.append("safety_gate deliberately skipped (apply_gate=False) — test / "
+                        "diagnostic use only; this is NOT a complete clinical result")
+    elif not SAFETY_GATE_AVAILABLE:
         degraded.append("safety_gate + clinical_matrix — no site-penetration "
                         "check and no host-state demotion were applied")
     elif apply_gate and not gate_report:
@@ -243,10 +276,15 @@ def run_analysis(
         "gate_applied": bool(apply_gate and SAFETY_GATE_AVAILABLE),
         # v7.2: None, or the no-treatment gate (see treatment_gate()).
         "treatment_gate": treat_gate,
+        # v7.4: laboratory report vs entered case (critical issues block release)
+        "data_issues": data_issues,
+        "data_blocked": data_blocking(data_issues),
     }
 
 def _add_tdm_notes(items: List[Dict[str, Any]]) -> None:
-    """Low muscle mass: creatinine overestimates GFR -> levels, not CrCl (v7.0)."""
+    """Low muscle mass: creatinine-based eGFR may overestimate GFR (v7.0; v7.4 wording:
+    cystatin C / measured GFR, TDM for dose individualisation -- TDM does not
+    replace renal assessment)."""
     for it in items:
         if not isinstance(it, dict) or it.get("name") not in TDM_AGENTS:
             continue
@@ -255,8 +293,8 @@ def _add_tdm_notes(items: List[Dict[str, Any]]) -> None:
             old = str(it.get(key) or "").strip()
             if txt not in old:
                 it[key] = f"{old}  \n{txt}" if old else txt
-        it["tdm_note"] = LOW_MUSCLE_CRCL_NOTE_AR
-        it["tdm_note_en"] = LOW_MUSCLE_CRCL_NOTE_EN
+        it["tdm_note"] = LOW_MUSCLE_TDM_SHORT_AR
+        it["tdm_note_en"] = LOW_MUSCLE_TDM_SHORT_EN
 
 
 def duration_syndrome_key(syndrome: Any, uti_syndrome: Optional[str], specimen: str) -> str:
