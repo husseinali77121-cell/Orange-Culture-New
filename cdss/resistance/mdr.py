@@ -506,6 +506,53 @@ def physician_mdr_categories(mdr_result: Dict[str, Any], sir_map: Dict[str, Any]
     return out
 
 
+# v7.4 (external case review): the image printed "MDR: non-susceptible 6/9
+# categories" beside three category names. Every counted category is named
+# now, and the QA sheet shows the calculation (agent results per category).
+_SHORT_CAT = {
+    "Extended-Sp Cephalosporins": "3rd/4th-gen cephalosporins",
+    "Non-Extended-Sp Cephalosporins": "1st/2nd-gen cephalosporins",
+    "Antipseudomonal Penics": "anti-pseudomonal penicillin+BLI",
+    "Penicillins+BLI": "penicillins+BLI",
+    "Folate PI": "folate-pathway inhibitors",
+    "Fluoroquinolones": "fluoroquinolones",
+    "Tetracyclines": "tetracyclines",
+    "Aminoglycosides": "aminoglycosides",
+    "Carbapenems": "carbapenems",
+}
+
+
+_COMPACT_CAT = {
+    "Extended-Sp Cephalosporins": "3rd/4th-gen ceph", "Non-Extended-Sp Cephalosporins": "1st/2nd-gen ceph",
+    "Antipseudomonal Penics": "pip-tazo", "Penicillins+BLI": "pen+BLI", "Folate PI": "folate PI",
+    "Fluoroquinolones": "FQ", "Aminoglycosides": "aminoglycosides", "Carbapenems": "carbapenems",
+    "Tetracyclines": "tetracyclines",
+}
+
+
+def mdr_short_categories(categories, compact: bool = False) -> List[str]:
+    """Short, readable names for category labels (image / compact lines)."""
+    table = _COMPACT_CAT if compact else _SHORT_CAT
+    return [table.get(c, _SHORT_CAT.get(c, c)) for c in (categories or [])]
+
+
+def mdr_breakdown(mdr_result: Dict[str, Any], sir_map: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Per tested category: the agents in it with their results, and the verdict.
+
+    [{category, agents: [(drug, result)], non_susceptible: bool}] -- resistant
+    categories first, in the order classify_mdr() reports them. A category is
+    non-susceptible when ONE agent in it is I or R (Magiorakos 2012).
+    """
+    sir = {str(k): str(v or "").strip().upper() for k, v in (sir_map or {}).items()}
+    out: List[Dict[str, Any]] = []
+    for cats, ns in (((mdr_result or {}).get("resistant_categories") or [], True),
+                     ((mdr_result or {}).get("susceptible_categories") or [], False)):
+        for cat in cats:
+            agents = [(d, sir[d]) for d in MDR_CATEGORIES.get(cat, []) if d in sir]
+            out.append({"category": cat, "agents": agents, "non_susceptible": ns})
+    return out
+
+
 MDR_INFO = {
     "MDR": {
         "label":  "MDR -- Multi-Drug Resistant",
