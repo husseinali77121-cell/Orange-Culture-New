@@ -53,8 +53,11 @@ def is_proteeae(organism: Optional[str]) -> bool:
 # UTI complicated, but without fever or flank pain it is not a pyelonephritis.
 # The fourth choice ("cuti") keeps the bladder-only agents as cautions instead
 # of bans; the third ("upper") is the systemic / upper-tract syndrome.
+# v7.4 (external review of v7.3): the third choice is the SYSTEMIC / upper-tract
+# syndrome -- fever, rigors or hypotension show a systemic infection but do not
+# by themselves prove pyelonephritis (keep looking for another source).
 UTI_SYNDROME_OPTIONS = ("تلقائي (من الأعراض)", "التهاب مثانة (سفلي)",
-                        "التهاب حويضة / إنتان بولي (حمى أو ألم خاصرة)",
+                        "عدوى بولية جهازية / علوية — حويضة أو إنتان (حمى، رعشة، ألم خاصرة)",
                         "cUTI بلا حمى أو ألم خاصرة (قسطرة / حصوة / دعامة)")
 
 
@@ -80,6 +83,10 @@ class UtiClass:
     upper_signs: bool
     conflict: bool
     confirmed: bool
+    # v7.4: 'flank' when flank / loin pain was entered (localises to the kidney),
+    # 'systemic' when only fever / rigors / hypotension were -- a systemic /
+    # upper-tract UTI syndrome, not proof of pyelonephritis.
+    basis: Optional[str] = None
 
 
 def classify_uti(choice: Optional[str], symptoms: Optional[List[str]] = None,
@@ -122,7 +129,17 @@ def classify_uti(choice: Optional[str], symptoms: Optional[List[str]] = None,
         value = "cuti"
     else:
         value = site
-    return UtiClass(site, complicated, value, upper_signs, conflict, confirmed)
+    basis = None
+    if upper_signs:
+        basis = "flank" if any(k in sym for k in ("flank", "loin", "خاصرة")) else "systemic"
+    return UtiClass(site, complicated, value, upper_signs, conflict, confirmed, basis)
+
+
+SYSTEMIC_UTI_NOTE_EN = ("Systemic / upper-tract UTI syndrome: fever, rigors or hypotension show a "
+                        "systemic infection but do not by themselves prove pyelonephritis - "
+                        "keep looking for another source.")
+SYSTEMIC_UTI_NOTE_AR = ("عدوى بولية جهازية / علوية: الحمى أو الرعشة أو هبوط الضغط تدل على عدوى "
+                        "جهازية ولا تثبت وحدها التهاب الحويضة — استمر في البحث عن مصدر آخر.")
 
 
 def resolve_uti_syndrome(choice: Optional[str], symptoms: Optional[List[str]] = None,
@@ -151,6 +168,15 @@ CLINICAL_NOTE_EN = {
                          "reliable on the susceptibility result alone (species identification, "
                          "resistance mechanism or the need for combination therapy) - CLSI M100 / "
                          "IDSA. Review before use."),
+    "esbl_not_excluded": ("ESBL not excluded (cephalosporin resistance on the panel): in an invasive "
+                          "infection do not rely on this beta-lactam before ESBL is excluded "
+                          "(ceftriaxone / ceftazidime result or a confirmatory test) - a carbapenem "
+                          "is more reliable (IDSA AMR Guidance 2026)."),
+    "esbl_not_excluded_cystitis": ("ESBL not excluded: susceptible in vitro and reported as tested - an "
+                                   "option for uncomplicated cystitis only (preferred: nitrofurantoin "
+                                   "or TMP-SMX; fosfomycin for E. coli). With fever, flank pain or "
+                                   "bacteraemia do not rely on it before ESBL is excluded "
+                                   "(IDSA AMR Guidance 2026)."),
     "allergy": "Recorded drug allergy or cross-reactivity: avoid, or use only after allergy assessment.",
     "uti_upper": ("Upper urinary tract / systemic infection: agents that reach only bladder urine "
                   "are not adequate (IDSA cUTI 2025)."),

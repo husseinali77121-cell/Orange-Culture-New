@@ -121,7 +121,8 @@ def warned_note_for(item: Dict[str, Any], lang: str = "ar") -> str:
                       "aminoglycoside_pseudomonas", "colistin", "penicillinase_unconfirmed",
                       "no_breakpoint", "ampc_sdd", "ampc_cefepime", "child_fq",
                       "idsa_new_agent", "label_population", "legacy_breakpoint",
-                      "fq_low_level", "saureus_bsi_tmp_smx", "cuti_bladder_agent"):
+                      "fq_low_level", "saureus_bsi_tmp_smx", "cuti_bladder_agent",
+                      "esbl_not_excluded", "esbl_not_excluded_cystitis"):
             if not ar:
                 return (pick("clinical_note_en")
                         or "Clinical caution applies to this agent for this organism / site - review before use.")
