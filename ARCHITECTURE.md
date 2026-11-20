@@ -95,6 +95,38 @@ build_context(...)  ──►  TherapyContext      الحالة مرة واحد�
 - **`cdss_ui.state.treat_override_key()`** — مفتاح الموافقة = بصمة مدخلات التقييم.
 - **`ast_consistency`** — الـ `severity` لكل قاعدة لازم يطابق كلام السجل (`test_v7_3_review`).
 
+### v7.4 — الحالة كلها متسقة: تقرير المعمل، الحساب، والتقارير
+
+- **`cdss/common/data_consistency.py`** — `detect_collection_method()` (من نص الـ OCR) و `check_case_consistency()`:
+  تعارض طريقة الجمع بين تقرير المعمل والحالة = issue حرج. `run_analysis(..., report_collection_method=,
+  consistency_confirmed=)` بيرجّع `data_issues` و `data_blocked`؛ الصفحة بتوقف التقرير النصي والـ PDF والصورة
+  لحد التصحيح أو التأكيد (والتأكيد بيتطبع).
+- **`cdss/common/drug_names.py`** — خانة اللوحة لكل دواء (الملح / الشكل الدوائي)، `tag_with_ast()` للإرشاد العام.
+  `ast_panel_completeness` بيقرا منه وبيرجّع `extra_tested` / `total_tested` / `covered_by` و `reconciles()`.
+- **`cdss/astqc/reconciliation.py`** — pass 0 في `run_ast_qc`: التكرار، النتائج غير المقروءة، تطابق الأرقام — قبل الثقة.
+- **`cdss/resistance/esbl_status.py`** — suspected / confirmed / test_negative (اختبار التأكيد = aux test جديد)؛
+  الـ header والصورة والتقرير النصي بيقروا منه.
+- **`pathogenicity` v3.3** — `symptom_course` لأعراض القسطرة / النخاع؛ أوزان أقل للـ pyuria / الصبغة / النقاء / العدّ
+  مع القسطرة أو المثانة العصبية؛ أرضية 45 مع حمى + عدّ معنوي؛ الرضيع 8–60 يوم بدون حمى بحد أقصى «possible».
+- **`cdss/validation/case_validator.py`** — `validate_case(result, ..., report_text=, pdf_html=)`: 12 فحص متقاطع على
+  الحالة كاملة؛ الصفحة بتحطه في قائمة المراجعة النهائية، و `test_v7_4_review.py` بيشغّله على حالات كاملة.
+
+### v7.5 — مفيش تقرير يطلع والفحص فيه خطأ
+
+- **`cdss_ui/release_gate.py`** — `reports_blocked()` قبل كل تصدير (TXT / PDF / صورة): تعارض بيانات المعمل، **أو** أي
+  error من `validate_case()`، **أو** إن الـ validation ما اشتغلتش (fail closed). `post_render_block()` بيفحص النص والـ PDF
+  بعد ما يتولّدوا (V11 / V12)، والـ PDF بيتعمل من نفس الـ HTML اللي اتفحص (`pdf_html_to_bytes`).
+- `run_analysis(apply_gate=False)` بيسجّل نفسه في `degraded`؛ و `check_case_consistency()` بيعتبر «طريقة الجمع مش
+  متحددة» قدام تقرير بيذكرها تعارض حرج.
+
+### v7.6 — قرار إصدار واحد
+
+- **`cdss_ui/release.py`** — `prepare_release(page)` بيشتغل قبل قائمة المراجعة وقبل أي قسم تصدير: بيبني النص والـ PDF HTML
+  وقوائم الصورة، ويفحصهم مع التحليل (`validate_case` V01–V13)، ويحط **قرار واحد** في `page.release`. `reports_blocked()`
+  بيقرا القرار ده بس (`post_render_block` اتشال). الـ PDF بيتعمل من نفس الـ HTML اللي اتفحص، ولو توقيع الخيارات اتغيّر بيرفض.
+- `cdss.therapy.clsi_categories.sdd_defined / panel_display` — v7.7: الإدخال S / I / R بس؛ `panel_display` بيقول القائمة تعرض إيه والملاحظة اللي تحت المضاد. `SDD_REGIMENS` جدول واحد بيقراه الـ PL3 كمان (`NO_I_PAIRS`). V14 بيوقف التصدير لو SDD المعمل على زوج CLSI ما بيعرّفوش لسه ما اتحددش.
+- `cdss.common.util.egypt_utc_offset` — توقيت مصر بالقاعدة لو مفيش tz database.
+
 ### الضمانات (وكل واحد عليه اختبار)
 
 | الضمان | كيف | الاختبار |

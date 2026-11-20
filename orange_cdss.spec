@@ -112,6 +112,7 @@ COLLECT_ALL_PACKAGES = [
     "bidi",              # python-bidi: native extension
     "cv2",
     "pytesseract",
+    "tzdata",            # v7.6: Windows has no tz database; lab_today() reads Africa/Cairo
 ]
 
 collected_datas, collected_binaries, collected_hidden = [], [], []

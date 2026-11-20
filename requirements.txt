@@ -21,3 +21,5 @@ Pillow>=8.0.0          # draw.rounded_rectangle() requires 8.0.0+
 weasyprint
 arabic-reshaper
 python-bidi
+tzdata                 # v7.6: Africa/Cairo on Windows (no system tz database); the code
+                       # falls back to Egypt's DST rule without it, but the EXE bundles it
