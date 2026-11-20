@@ -111,14 +111,62 @@ def _save(data: Dict[str, Any]) -> bool:
                     os.unlink(tmp)
                 except OSError:
                     pass
-        try:
-            os.chmod(p, 0o600)           # the file is boring, but not public
-        except OSError:
-            pass
+        # v7.8 (external review of v7.7): chmod(0o600) does nothing on Windows
+        # beyond the read-only flag; the store is now restricted with an NTFS
+        # ACL there, and the result is VERIFIED on both systems.
+        global STORE_PROTECTED
+        STORE_PROTECTED = restrict_to_owner(p)
         return True
     except Exception as exc:
         logger.error("auth store unwritable (%s) — throttle degraded to "
                      "session-only for this attempt", exc)
+        return False
+
+
+# ── Restricting the store to the account that runs the app (v7.8) ────────
+_IS_WINDOWS = os.name == "nt"
+STORE_PROTECTED: Any = None            # None = not written yet; True / False after
+# SIDs, not names: "Administrators" / "SYSTEM" are spelled differently on a
+# non-English Windows, their SIDs are not.
+_SYSTEM_SID, _ADMINS_SID = "*S-1-5-18", "*S-1-5-32-544"
+_BROAD = ("everyone", "builtin\\users", "authenticated users", "nt authority\\authenticated",
+          "s-1-1-0", "s-1-5-32-545", "s-1-5-11")
+
+
+def restrict_to_owner(path: str) -> bool:
+    """Owner-only access to `path`, verified. Never raises.
+
+    POSIX: mode 0600, read back. Windows: inheritance removed and full control
+    granted to the current user, SYSTEM and Administrators only (icacls), then
+    the ACL is read back and must name none of Everyone / Users / Authenticated
+    Users. A failure is logged and reported at start-up; the store still works.
+    """
+    try:
+        if not _IS_WINDOWS:
+            os.chmod(path, 0o600)
+            return (os.stat(path).st_mode & 0o077) == 0
+        import subprocess
+        user = os.environ.get("USERNAME") or ""
+        dom = os.environ.get("USERDOMAIN") or ""
+        who = f"{dom}\\{user}" if dom and user else user
+        if not who:
+            return False
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)   # no console flash in the EXE
+        r = subprocess.run(["icacls", path, "/inheritance:r", "/grant:r", f"{who}:(F)",
+                            f"{_SYSTEM_SID}:(F)", f"{_ADMINS_SID}:(F)"],
+                           capture_output=True, text=True, timeout=20, creationflags=flags)
+        if r.returncode != 0:
+            logger.warning("icacls could not restrict %s: %s", path, (r.stderr or r.stdout)[:200])
+            return False
+        r = subprocess.run(["icacls", path], capture_output=True, text=True, timeout=20,
+                           creationflags=flags)
+        acl = (r.stdout or "").lower()
+        ok = r.returncode == 0 and user.lower() in acl and not any(b in acl for b in _BROAD)
+        if not ok:
+            logger.warning("the auth store ACL is broader than the owner: %s", acl[:300])
+        return ok
+    except Exception as exc:                                  # never break login
+        logger.warning("could not restrict %s: %s", path, exc)
         return False
 
 
