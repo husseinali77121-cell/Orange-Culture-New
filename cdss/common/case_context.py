@@ -128,18 +128,27 @@ def build_case_context(specimen: str, host_factors: Optional[List[str]] = None,
 
 
 LOW_MUSCLE_CRCL_NOTE_AR = (
-    "⚠️ كتلة عضلية منخفضة (إصابة النخاع الشوكي / شلل / بتر): الكرياتينين «الطبيعي» يبالغ في "
-    "تقدير الـ GFR — «الكلى طبيعية» قد يكون غير صحيح. للأمينوجليكوزيد والفانكومايسين: "
-    "قِس المستوى (TDM) ولا تعتمد على CrCl المحسوب؛ فكّر في Cystatin C أو CrCl مقاس من بول 24 ساعة.")
+    "⚠️ كتلة عضلية منخفضة (إصابة النخاع الشوكي / شلل / بتر): الـ eGFR المحسوب من الكرياتينين قد "
+    "يبالغ في تقدير وظائف الكلى — «الكلى طبيعية» قد يكون غير دقيق. فكّر في Cystatin C أو GFR مقاس "
+    "(بول 24 ساعة). للأمينوجليكوزيد والفانكومايسين: قِس المستوى (TDM) لضبط الجرعة الفردية — "
+    "والـ TDM لا يُغني عن تقييم وظائف الكلى لاختيار الجرعة وتعديلها.")
 LOW_MUSCLE_CRCL_NOTE_EN = (
-    "Low muscle mass (spinal cord injury / paralysis / amputation): a 'normal' creatinine "
-    "overestimates GFR, so 'renal function normal' may be wrong. For aminoglycosides and "
-    "vancomycin use therapeutic drug monitoring, not the estimated CrCl; consider cystatin C "
-    "or a measured 24-h urine CrCl.")
+    "Low muscle mass (spinal cord injury / paralysis / amputation): creatinine-based eGFR may "
+    "overestimate renal function, so 'renal function normal' may be wrong. Consider cystatin C "
+    "or a measured GFR (24-h urine). Use therapeutic drug monitoring to individualise "
+    "aminoglycoside / vancomycin dosing; renal function assessment remains necessary for dose "
+    "selection and adjustment.")
+
+# v7.4: the one-line form printed beside the agent in the ranked list (PDF / image).
+LOW_MUSCLE_TDM_SHORT_EN = ("Low muscle mass: eGFR may overestimate GFR - cystatin C / measured GFR; "
+                           "TDM to individualise dosing (renal assessment still required).")
+LOW_MUSCLE_TDM_SHORT_AR = ("كتلة عضلية منخفضة: الـ eGFR قد يبالغ — Cystatin C أو GFR مقاس؛ TDM لضبط "
+                           "الجرعة (مع تقييم وظائف الكلى).")
 
 # Agents whose dosing depends on an accurate GFR and that need levels.
 TDM_AGENTS = ("Gentamicin", "Amikacin", "Tobramycin", "Vancomycin", "Teicoplanin",
               "Colistin", "Polymyxin B")
 
 __all__ = ["CaseContext", "build_case_context", "LOW_MUSCLE_CRCL_NOTE_AR",
-           "LOW_MUSCLE_CRCL_NOTE_EN", "TDM_AGENTS"]
+           "LOW_MUSCLE_CRCL_NOTE_EN", "LOW_MUSCLE_TDM_SHORT_EN", "LOW_MUSCLE_TDM_SHORT_AR",
+           "TDM_AGENTS"]

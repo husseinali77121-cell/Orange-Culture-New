@@ -7,6 +7,7 @@ alongside it with a Positive / Negative answer:
 
     D-test          inducible clindamycin resistance (erythromycin R, clindamycin S)
     Penicillinase   zone-edge / nitrocefin / blaZ, for penicillin-S staphylococci
+    ESBL test       v7.4: phenotypic ESBL confirmation (CLSI combination disk / DDST)
 
 `normalize_sir_map()` keeps S/I/R only, so these two were thrown away before
 the rules that ask for them ever ran: a recorded "D-test: Negative" could not
@@ -17,6 +18,12 @@ from typing import Any, Dict, Mapping, Optional
 
 D_TEST_KEYS = ("D-test", "D test", "D-Test", "D Test", "Dtest", "D-zone test")
 PENICILLINASE_KEYS = ("Penicillinase", "Beta-lactamase", "blaZ")
+# v7.4 (external case review): the ESBL phenotypic confirmatory test (CLSI M100
+# Table 3A combination disk -- ceftazidime / cefotaxime +/- clavulanate -- or a
+# double-disk synergy test). Without it every ESBL call is a PREDICTION from the
+# resistance pattern and is labelled "suspected", never "ESBL+".
+ESBL_CONFIRM_KEYS = ("ESBL confirmation", "ESBL confirmatory test", "ESBL test", "DDST",
+                     "Combination disk", "ESBL")
 
 _POSITIVE = {"positive", "pos", "+", "+ve", "موجب", "إيجابي", "ايجابي"}
 _NEGATIVE = {"negative", "neg", "-", "-ve", "سالب", "سلبي"}
@@ -48,9 +55,10 @@ def read_aux_tests(raw_panel: Optional[Mapping[str, Any]]) -> Dict[str, str]:
     return {
         "d_test": _first(raw_panel, D_TEST_KEYS),
         "penicillinase": _first(raw_panel, PENICILLINASE_KEYS),
+        "esbl_confirm": _first(raw_panel, ESBL_CONFIRM_KEYS),
     }
 
 
 def is_aux_key(key: Any) -> bool:
     k = str(key or "").strip().lower()
-    return k in {x.lower() for x in D_TEST_KEYS + PENICILLINASE_KEYS}
+    return k in {x.lower() for x in D_TEST_KEYS + PENICILLINASE_KEYS + ESBL_CONFIRM_KEYS}
