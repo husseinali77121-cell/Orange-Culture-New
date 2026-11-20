@@ -27,7 +27,8 @@ Rules (Enterobacterales unless stated):
        meropenem becomes critical missing.
   PL3  A CLSI "no-I" pair reported I: cefepime and piperacillin-tazobactam in
        Enterobacterales, ceftaroline in S. aureus, daptomycin in E. faecium.
-       CLSI M100 Ed36 has SDD there, not I. The program reads it as SDD.
+       CLSI M100 Ed36 has SDD there, not I. The I may be SDD or R by the
+       breakpoint version: obtain the MIC. The program never converts it.
   PL4  Fluoroquinolone discordance: ofloxacin or norfloxacin S while another
        quinolone is I/R (or ciprofloxacin/levofloxacin I/R while ofloxacin
        is S). CLSI revised the ciprofloxacin/levofloxacin breakpoints for
@@ -48,13 +49,10 @@ _CARBA_TESTS = ("Meropenem", "Imipenem/Cilastatin")
 _FQ_OLD = ("Ofloxacin", "Norfloxacin")
 _FQ_NEW = ("Ciprofloxacin", "Levofloxacin")
 
-# CLSI M100 Ed36 pairs that have SDD and no I.
-NO_I_PAIRS: Dict[str, tuple] = {
-    "Cefepime": _ENTERO,
-    "Piperacillin + Tazobactam": _ENTERO,
-    "Ceftaroline": ("staphylococcus aureus", "mrsa", "mssa"),
-    "Daptomycin": ("enterococcus faecium", "e. faecium"),
-}
+# CLSI M100 Ed36 pairs that have SDD and no I. v7.7 (external review of v7.6):
+# read from the SDD table itself -- the two copies disagreed on "VRE".
+from cdss.therapy.clsi_categories import SDD_REGIMENS as _SDD_REGIMENS  # noqa: E402
+NO_I_PAIRS: Dict[str, tuple] = {drug: reg[0] for drug, reg in _SDD_REGIMENS.items()}
 
 _REF_CARBA = "CLSI M100 Ed36 Tables 3B / 3C (mCIM / eCIM) · IDSA AMR Guidance 2026"
 
@@ -99,17 +97,24 @@ def check_plausibility(organism: str, sir_map: Dict[str, Any],
         if _v(sir, name) == "I" and name not in sdd_set and no_i_pair(name, organism):
             out.append({
                 "id": f"PL3:{name}", "severity": "warning", "drugs": [name],
-                "title_en": f"{name} reported I -- CLSI has no I here: the category is SDD",
-                "title_ar": f"{name} مُبلَّغ I — لا توجد فئة I في CLSI هنا: الفئة SDD",
-                "detail_en": (f"CLSI M100 Ed36 defines {name} against this organism as S / SDD / R "
-                              "(no Intermediate). An 'I' is the SDD range written with the old "
-                              "label. The program reads it as SDD and names the high-exposure "
-                              "regimen."),
-                "detail_ar": (f"CLSI M100 Ed36 يعرّف {name} مع هذا الكائن كـ S / SDD / R بلا "
-                              "Intermediate. الـ I هنا هو مدى الـ SDD بالاسم القديم — البرنامج يقرأه "
-                              "SDD ويكتب نظام الجرعة العالية."),
-                "action_en": "Correct the laboratory report to SDD (and the LIS breakpoint table).",
-                "action_ar": "صحّح التقرير إلى SDD (وجدول الـ breakpoints في نظام المعمل).",
+                # v7.7 (external review of v7.6): this text still said "the
+                # program reads it as SDD" -- untrue since v7.1, and it invited
+                # correcting the report to SDD without an MIC.
+                "title_en": f"{name} reported I -- CLSI M100 Ed36 has no I here (SDD or R)",
+                "title_ar": f"{name} مُبلَّغ I — CLSI M100 Ed36 مالوش I هنا (SDD أو R)",
+                "detail_en": ("CLSI M100 Ed36 does not define an Intermediate (I) category for "
+                              "this organism-drug combination. The reported I may correspond to "
+                              "SDD or R depending on the breakpoint version. Obtain the MIC and "
+                              "verify the breakpoint edition. Do not automatically convert I to "
+                              "SDD."),
+                "detail_ar": ("لا يعرّف CLSI M100 Ed36 فئة Intermediate (I) لهذا المضاد مع هذا "
+                              "الكائن. قد تمثل النتيجة SDD أو R طبقاً لإصدار معايير الحساسية "
+                              "المستخدم. يجب مراجعة الـ MIC وإصدار الـ Breakpoints، ولا يجوز "
+                              "تحويل I تلقائياً إلى SDD."),
+                "action_en": ("Obtain the MIC and the breakpoint edition; report SDD only if the "
+                              "MIC falls in the CLSI SDD range, otherwise R."),
+                "action_ar": ("اطلب الـ MIC وإصدار الـ breakpoints؛ SDD فقط لو الـ MIC في مدى SDD "
+                              "عند CLSI، وإلا R."),
                 "reference": "CLSI M100 Ed36 (SDD: Tables 2A / 2C / 2D)",
                 "reflex": [],
             })

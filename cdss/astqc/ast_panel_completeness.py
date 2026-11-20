@@ -60,10 +60,13 @@ LaboratoryTests.org, Feb-Mar 2026, itself citing CLSI M100 36th ed. 2026
 directly per organism). Each such row is marked verified="secondary" in
 guideline_registry.py, and Dr. Tarek countersigned all six on 2026-08-22
 (see countersigned_by on each row). The remaining four (Stenotrophomonas,
-S. pneumoniae, beta-haemolytic Streptococcus, H. influenzae) are still a
-clinically-reasoned DRAFT, informed by CLSI M100 Table 1 conventions but not
-independently re-verified against Ed36 or reviewed by him yet — marked
-verified="pending", unsigned.
+S. pneumoniae, beta-haemolytic Streptococcus, H. influenzae) were checked
+against CLSI's archived Group A-C tables (Ed34) -- not the tiered Ed36 table --
+and countersigned by him on 2026-08-22 (v7.6: this text said "pending,
+unsigned" long after the signature; corrected). Two of them keep a local
+choice he signed: ceftriaxone as a primary agent for S. pneumoniae and
+H. influenzae, where CLSI Group A lists only erythromycin / penicillin /
+TMP-SMX and ampicillin.
 
 "Grounded" does not mean "every CLSI-eligible agent is listed as primary".
 CLSI's Tier 1 lists what is APPROPRIATE for routine testing and reporting —
@@ -94,8 +97,7 @@ plainly rather than re-deriving from memory each time:
     Ed36 tabulation, not assumed from an older edition's convention.
 Every group is registered in guideline_registry.RULES. See its module
 docstring for what "secondary" vs "pending" verified status means. The four
-still-pending rows raise the exact same "worth a look, not an accusation"
-caveat as before — they just haven't reached him yet.
+rows raise the same "worth a look, not an accusation" caveat as the others.
 
 Architecture:
   OCR → AST parsing → AST-QA (contradictions) → [PANEL COMPLETENESS]
@@ -112,14 +114,15 @@ _NORM = re.compile(r"[^a-z0-9]")
 
 
 def _nk(s: str) -> str:
-    """Normalize a drug name for matching: lowercase, alphanumerics only.
+    """Normalize a drug name for matching: the PANEL SLOT it fills (v7.4).
 
-    Same normalization ast_reportability.py uses internally, kept local
-    rather than imported so this module has zero dependency on the private
-    surface of another module — only ENTEROBACTERALES (a plain public
-    constant) is imported from it, below.
+    Was: lowercase, alphanumerics only. A salt form or formulation of a tested
+    agent ("Cefuroxime sodium") then counted as a different, untested drug and
+    the sheet reported "Cefuroxime" missing beside "Cefuroxime sodium (R)"
+    (external case review, 2026-11-20). cdss.common.drug_names is the one table.
     """
-    return _NORM.sub("", (s or "").lower())
+    from cdss.common.drug_names import panel_slot_key
+    return panel_slot_key(s)
 
 
 # ── Organism family reused from ast_reportability.py ────────────────────────
@@ -268,9 +271,8 @@ GROUPS: List[Dict[str, Any]] = [
                     "Minocycline"],
         "supplemental": [],
         "reference": ("CLSI M100 Ed36 Table 1B — Stenotrophomonas maltophilia "
-                       "(Orange Lab draft; minocycline tier corrected via "
-                       "CLSI's own 2024 AST News Update worked example — "
-                       "still pending full Ed36 re-verification)"),
+                       "(Orange Lab panel, countersigned 2026-08-22; minocycline "
+                       "tier per CLSI's 2024 AST News Update worked example)"),
     },
     {
         # GROUNDED — CLSI M100 Ed36 (2026) table, verified secondary.
@@ -340,7 +342,7 @@ GROUPS: List[Dict[str, Any]] = [
         "supplemental": ["Clindamycin", "Trimethoprim/Sulfamethoxazole",
                           "Levofloxacin", "Vancomycin"],
         "reference": ("CLSI M100 Ed36 Table 1G — Streptococcus pneumoniae "
-                       "(Orange Lab draft, pending review)"),
+                       "(Orange Lab panel, countersigned 2026-08-22)"),
     },
     {
         "id": "panel_beta_hemolytic_strep",
@@ -353,7 +355,7 @@ GROUPS: List[Dict[str, Any]] = [
         "primary": ["Penicillin", "Clindamycin", "Erythromycin"],
         "supplemental": ["Vancomycin"],
         "reference": ("CLSI M100 Ed36 Table 1F — beta-haemolytic streptococci "
-                       "(Orange Lab draft, pending review)"),
+                       "(Orange Lab panel, countersigned 2026-08-22)"),
     },
     {
         "id": "panel_haemophilus",
@@ -363,7 +365,7 @@ GROUPS: List[Dict[str, Any]] = [
         "supplemental": ["Amoxicillin + Clavulanic acid", "Azithromycin",
                           "Trimethoprim/Sulfamethoxazole"],
         "reference": ("CLSI M100 Ed36 Table 1D — Haemophilus spp. "
-                       "(Orange Lab draft, pending review)"),
+                       "(Orange Lab panel, countersigned 2026-08-22)"),
     },
 ]
 
@@ -383,7 +385,7 @@ _GROUPS_BY_ID: Dict[str, Dict[str, Any]] = {g["id"]: g for g in GROUPS}
 #
 # The underlying panel DATA (primary/supplemental drug lists, citations,
 # Dr. Tarek's countersignatures) is unchanged by this -- this is a naming
-# layer on top of the same six Ed36-grounded + four pending groups, not a
+# layer on top of the same six Ed36-grounded + four archived-table groups (all ten countersigned), not a
 # second copy of the clinical content. A future organism added to
 # organism_profile.py without a matching line here still falls through to
 # the substring fallback below (see test_panel_completeness.py's coverage
@@ -480,6 +482,27 @@ class PanelCompletenessResult:
     # reflex tests -- e.g. meropenem after ertapenem I). They are also listed in
     # missing_primary, so every renderer of that list shows them.
     reflex_missing: Dict[str, str] = field(default_factory=dict)
+    # v7.4 (external case review): the counts reconcile with the panel as
+    # entered. `tested_count` = expected slots covered; `extra_tested` = tested
+    # agents that are not on the expected panel; `total_tested` = every agent
+    # entered (covered + extra + duplicates of a covered slot);
+    # `covered_by` = expected slot -> the name(s) that filled it.
+    extra_tested: List[str] = field(default_factory=list)
+    total_tested: int = 0
+    covered_by: Dict[str, List[str]] = field(default_factory=dict)
+
+    @property
+    def covered_count(self) -> int:
+        return self.tested_count
+
+    def reconciles(self) -> bool:
+        """covered + missing == expected and the extras account for the rest."""
+        if self.status == "not_evaluated":
+            return True
+        missing = len(self.missing_primary) + len(self.missing_supplemental)
+        filled = sum(len(v) for v in self.covered_by.values())
+        return (self.tested_count + missing == self.expected_total
+                and filled + len(self.extra_tested) == self.total_tested)
 
 
 def check_panel_completeness(
@@ -500,7 +523,9 @@ def check_panel_completeness(
     if group is None:
         return PanelCompletenessResult(status="not_evaluated")
 
-    tested_norm: Dict[str, tuple] = {_nk(k): (k, v) for k, v in (sir_map or {}).items()}
+    tested_norm: Dict[str, tuple] = {}
+    for _k, _v in (sir_map or {}).items():
+        tested_norm.setdefault(_nk(_k), (_k, _v))
 
     # Drop anything intrinsically resistant for THIS specific reported
     # organism before it can ever be called "expected" — see the guard's
@@ -538,6 +563,17 @@ def check_panel_completeness(
 
     expected_total = len(primary) + len(supplemental)
     tested_count = expected_total - len(missing_primary) - len(missing_supplemental)
+    # v7.4: account for every agent entered, so "Tested" never disagrees with
+    # the panel printed beside it.
+    _expected_keys = {_nk(d): d for d in primary + supplemental}
+    covered_by: Dict[str, List[str]] = {}
+    extra_tested: List[str] = []
+    for _k in (sir_map or {}):
+        _slot = _expected_keys.get(_nk(_k))
+        if _slot is not None:
+            covered_by.setdefault(_slot, []).append(_k)
+        else:
+            extra_tested.append(_k)
 
     ref = group.get("reference", "")
     issues: List[Dict[str, Any]] = []
@@ -610,6 +646,9 @@ def check_panel_completeness(
         missing_supplemental=missing_supplemental,
         issues=issues,
         reflex_missing=reflex_missing,
+        extra_tested=extra_tested,
+        total_tested=len(sir_map or {}),
+        covered_by=covered_by,
     )
 
 

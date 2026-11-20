@@ -220,7 +220,8 @@ HIERARCHY_RULES: List[Dict[str, Any]] = [
     },
     {
         "id": "hier_pip_vs_tzp",
-        "organisms": [],
+        # v7.4 (review of v7.3): was [] (all). Only groups whose CLSI tables list both agents.
+        "organisms": ENTEROBACTERALES + ["pseudomonas aeruginosa", "acinetobacter"],
         "better": "piperacillin", "better_exclude": _INHIBITORS,
         "worse": "piperacillin", "worse_needle_extra": "tazobactam",
         # v7.3: "verify", as the registry says (inoculum effect; different breakpoints).

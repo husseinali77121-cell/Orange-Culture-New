@@ -208,11 +208,23 @@ def run_ast_qc(organism: str, sir_map: Dict[str, str], specimen: str = "",
     recommendations, so it can flag freely without affecting any decision.
     Returns a de-duplicated list of {id, severity, message, fix}.
     """
+    _raw_panel = dict(sir_map or {})
     sir_map = normalize_sir_map(sir_map)
     if not sir_map:
         return []
     org_lower = (organism or "").lower()
     issues: List[Dict[str, Any]] = []
+
+    # ── Pass 0 (v7.4): the panel is counted and named consistently ───────────
+    # External case review 2026-11-20: "Errors: 0" beside counts that did not
+    # reconcile and one agent listed as both tested and missing.
+    try:
+        from cdss.astqc.reconciliation import mandatory_checks
+        from cdss.astqc.ast_panel_completeness import check_panel_completeness
+        issues.extend(mandatory_checks(organism, specimen, _raw_panel,
+                                       check_panel_completeness(organism, specimen, sir_map)))
+    except Exception as _e:
+        logger.warning("reconciliation pass failed: %s", _e, exc_info=True)
 
     # ── Pass 1: reportability (shared module) ────────────────────────────────
     if AST_RULES_MODULES_AVAILABLE and _check_reportability_ext:
