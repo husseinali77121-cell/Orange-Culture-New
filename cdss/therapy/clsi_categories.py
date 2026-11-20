@@ -43,28 +43,19 @@ def is_sdd(value: Any) -> bool:
 
 
 def sdd_drugs(panel: Optional[Mapping[str, Any]], organism: str = "") -> Set[str]:
-    """The drugs a raw panel reports as SDD (names trimmed, like the engine trims them).
+    """The drugs the LABORATORY wrote as SDD (names trimmed, like the engine trims them).
 
-    v7.0 (review 2026-11-19): with `organism`, an "I" on a pair CLSI M100 Ed36
-    defines as S / SDD / R -- cefepime or piperacillin-tazobactam in
-    Enterobacterales, ceftaroline in S. aureus, daptomycin in E. faecium -- is
-    the SDD range under the old label, and is read as SDD (the QC panel asks
-    the laboratory to correct it: phenotype_plausibility PL3).
+    SDD is a result the laboratory reports, never one entered in the app: the
+    entry form offers S / I / R only (v7.7), and a laboratory SDD read by the
+    OCR is shown as a note under the drug. An "I" is never read as SDD (since
+    v7.1): on a pair CLSI defines as S / SDD / R it may be SDD or R by the
+    breakpoint version, so it stays I with the "obtain the MIC" note
+    (intermediate_note) and the QC flag (phenotype_plausibility PL3).
+    `organism` is accepted for older callers and ignored.
     """
-    # v7.1 (external review 2026-11-19): an "I" on such a pair is NO LONGER read
-    # as SDD. The breakpoint version behind it is unknown: under the pre-2014
-    # CLSI cefepime and pre-2022 pip-tazo criteria an "I" is R today, so
-    # SDD dosing on it could treat a resistant isolate. It stays I and carries
-    # the "no I category -- get the MIC" note (intermediate_note) plus the QC
-    # flag (phenotype_plausibility PL3). `organism` is kept for the callers.
     del organism
     return {str(d or "").strip() for d, v in (panel or {}).items()
             if is_sdd(v) and str(d or "").strip()}
-
-
-def reported_sdd(panel: Optional[Mapping[str, Any]]) -> Set[str]:
-    """Only the drugs the laboratory itself wrote as SDD (for the QC check)."""
-    return sdd_drugs(panel)
 
 
 def canonical_panel(panel: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
