@@ -123,6 +123,12 @@ pending: list[str] = []
 primary: list[str] = []
 unsigned: list[str] = []
 owner_approved: list[str] = []      # released by the lab owner, not clinician-signed
+primary_verified: list[str] = []    # checked against the source document itself
+secondary_verified: list[str] = []  # checked through secondary sources
+pending_heuristic: list[str] = []   # not a published rule (QC003) / not yet checked
+clinician_signed: list[str] = []
+owner_approved_unsigned: list[str] = []
+awaiting_countersignature: list[str] = []
 
 for rid, row in sorted(RULES.items()):
     if row.get("source") not in SOURCES:
@@ -131,6 +137,19 @@ for rid, row in sorted(RULES.items()):
         fail(f"rule '{rid}' has no assertion text")
 
     level = row.get("verified")
+    # v7.8 (external review of v7.7): the counts were merged ("checked vs
+    # source = 71" added primary and secondary; "awaiting human = 0" left out
+    # the owner-approved rows). Each status is counted on its own now.
+    (primary_verified if level == "source" else secondary_verified
+     if level == "secondary" else pending_heuristic).append(rid)
+    if row.get("countersigned_by"):
+        clinician_signed.append(rid)
+        if "NOT a clinician countersignature" in str(row["countersigned_by"]):
+            fail(f"rule '{rid}': an owner approval was written as a clinician signature")
+    else:
+        awaiting_countersignature.append(rid)
+        if row.get("owner_approved"):
+            owner_approved_unsigned.append(rid)
     if level in ("source", "secondary"):
         primary.append(rid)
         if not row.get("checked_by"):
@@ -176,13 +195,16 @@ for path in sorted(ROOT.rglob("*.py")):
             hits.setdefault(bad, []).append((path.name, n))
 
 # ── Report ───────────────────────────────────────────────────────────────────
-print(f"  rules in engine   : {len(ENGINE_IDS)}")
-print(f"  citation rows     : {len(RULES)}")
-print(f"  checked vs source : {len(primary)}")
-print(f"  pending review    : {len(pending)}")
-print(f"  awaiting human    : {len(unsigned)}  (checked, not yet countersigned)")
-print(f"  owner-approved    : {len(owner_approved)}  (AI source check + lab owner's "
-      f"instruction; NOT a clinician signature)")
+print(f"  rules in engine           : {len(ENGINE_IDS)}")
+print(f"  citation rows             : {len(RULES)}")
+print(f"  primary_verified          : {len(primary_verified)}  (the source document itself)")
+print(f"  secondary_verified        : {len(secondary_verified)}  (through secondary sources)")
+print(f"  pending_heuristic         : {len(pending_heuristic)}  (not a published rule / not checked)")
+print(f"  clinician_signed          : {len(clinician_signed)}")
+print(f"  owner_approved_unsigned   : {len(owner_approved_unsigned)}  (lab owner's approval; "
+      f"NOT a clinician signature)")
+print(f"  awaiting_countersignature : {len(awaiting_countersignature)}  (every row without "
+      f"a clinician's signature)")
 
 if hits:
     total = sum(n for v in hits.values() for _, n in v)
@@ -211,8 +233,14 @@ print("\n" + "=" * 68)
 if failures:
     print("RESULT: traceability incomplete")
 else:
-    print(f"RESULT: every rule traced. {len(primary)} checked against published "
-          f"sources, {len(pending)} not yet checked, {len(unsigned)} awaiting a "
-          f"clinician's countersignature. Run --queue for the review list.")
+    print(f"RESULT: every rule traced. {len(primary_verified)} checked against the source "
+          f"itself, {len(secondary_verified)} through secondary sources, "
+          f"{len(pending_heuristic)} not yet checked; {len(clinician_signed)} signed by a "
+          f"clinician, {len(awaiting_countersignature)} awaiting a clinician's countersignature "
+          f"({len(owner_approved_unsigned)} of them approved by the lab owner only). "
+          f"Run --queue for the review list.")
+# the counts must add up -- a row cannot fall between two statuses
+assert len(primary_verified) + len(secondary_verified) + len(pending_heuristic) == len(RULES)
+assert len(clinician_signed) + len(awaiting_countersignature) == len(RULES)
 if __name__ == "__main__":
     sys.exit(1 if failures else 0)

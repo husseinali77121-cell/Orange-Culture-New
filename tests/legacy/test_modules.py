@@ -387,11 +387,13 @@ check("every decision is recorded in the audit trail",
 # access to their own machine already), but it is a real, honest gap, not a
 # false alarm -- worth an ACL-based fix later if multi-user Windows machines
 # ever run this.
+# v7.8 (external review of v7.7): the gap above is closed. auth_service now
+# restricts the store with an NTFS ACL on Windows (icacls: inheritance removed,
+# the current user + SYSTEM + Administrators only) and READS IT BACK; the
+# result is AU.STORE_PROTECTED, also reported at start-up when False.
 if os.name == "nt":
-    print("  SKIP  world-readable check (Windows: os.chmod() cannot set "
-          "POSIX permission bits at all -- see the 2026-08-22 note above; "
-          "this is a real, undone gap for Windows deployments, not a test "
-          "workaround)")
+    check("the store is restricted to the owner (NTFS ACL, verified)",
+          AU.STORE_PROTECTED is True, str(AU.STORE_PROTECTED))
 else:
     check("the store is not world-readable",
           oct(os.stat(AU.store_path()).st_mode)[-3:] == "600",

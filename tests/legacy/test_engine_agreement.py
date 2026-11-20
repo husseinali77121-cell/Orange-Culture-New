@@ -507,8 +507,14 @@ _wf = os.path.join(str(_REPO_ROOT), ".github", "workflows", "cdss-tests.yml")
 _runner = os.path.join(str(_REPO_ROOT), "tests", "test_legacy_suites.py")
 _yml = open(_wf, encoding="utf-8").read()
 _run_src = open(_runner, encoding="utf-8").read()
+# v7.8: the workflow runs tools/run_test_groups.py, whose group map holds the
+# legacy runner and every other test file -- and which fails the run when a
+# test file is in no group (so none can be orphaned there either).
+_groups_src = open(os.path.join(str(_REPO_ROOT), "tools", "run_test_groups.py"),
+                   encoding="utf-8").read()
 check("the workflow runs the legacy-suite runner and the unit suites",
-      "tests/test_legacy_suites.py" in _yml and "python -m pytest tests" in _yml)
+      "tools/run_test_groups.py" in _yml and '"test_legacy_suites.py"' in _groups_src
+      and "def unassigned" in _groups_src)
 check("the runner discovers every suite by glob -- none can be orphaned",
       'LEGACY.glob("test_*.py")' in _run_src and "parametrize" in _run_src)
 
