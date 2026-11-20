@@ -13,6 +13,7 @@ os.environ.setdefault("ORANGE_AUTH_STORE", os.path.join(tempfile.gettempdir(), "
 
 import cdss_ui.app as app                                   # noqa: E402  (after the fake is installed)
 from cdss.common.util import make_file_hash                  # noqa: E402
+from cdss_ui.panel_editor import OCR_REVIEW_LABEL              # noqa: E402
 
 UPLOAD = b"not-a-real-image: the OCR payload is preset, so this is never decoded"
 FILE_HASH = make_file_hash(UPLOAD)
@@ -39,7 +40,9 @@ def run_page(pl=None, *, runs=1, script=None, seed=1, explore=0.0, click=0.0, au
              "sir_map_edited": dict(pl["sir_map"])})
     traces, errors = [], []
     for r in range(runs):
-        s = {"تسجيل خروج": False, **(script or {})}
+        # v7.8: the OCR review is confirmed by default (as an operator would);
+        # tests of V15 script it False
+        s = {"تسجيل خروج": False, OCR_REVIEW_LABEL: True, **(script or {})}
         fake_streamlit.R.reset(seed * 1000 + r, script=s, explore=explore, click=click,
                                upload=UPLOAD if pl is not None else None)
         try:
