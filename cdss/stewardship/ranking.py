@@ -346,3 +346,48 @@ def rank_sensitive_antibiotics(
         for item in allowed
     ]
     return sorted(scored, key=sort_key)
+
+
+def ranking_basis(specimen: str, uti_syndrome=None, case=None, esbl_state=None,
+                  sir_map=None, carbapenemase_type=None, mechanism_label: str = "") -> str:
+    """One line saying what the ranking was built for (v7.4, external case review).
+
+    "First-line: imipenem" was printed without the facts that made it first --
+    the syndrome, the device, the suspected mechanism, and the preferred agents
+    that were resistant or not tested. The physician can now check each one.
+    """
+    from cdss.common.specimen import classify_specimen
+    parts = []
+    if classify_specimen(specimen) != "urine":
+        # v7.6 (random sweep): outside urine the line was EMPTY when no mechanism
+        # was suspected -- the PDF then said nothing about what the ranking was
+        # for, and V12 blocked every such report. The site is the basis there.
+        parts.append(f"{str(specimen or '').strip() or 'specimen not specified'} isolate")
+    if classify_specimen(specimen) == "urine":
+        u = str(uti_syndrome or "").lower()
+        if not u and getattr(case, "cuti_device", False):
+            u = "cuti"                       # a device makes it complicated (pipeline rule)
+        parts.append({"upper": "systemic / upper-tract UTI", "cuti": "complicated UTI",
+                      "lower": "cystitis"}.get(u, "UTI site not specified"))
+        _lbl = getattr(case, "collection_label", "") if case is not None else ""
+        if _lbl:
+            parts.append(_lbl)
+    if carbapenemase_type:
+        parts.append(f"{carbapenemase_type} confirmed")
+    elif esbl_state:
+        parts.append({"confirmed": "ESBL confirmed", "suspected": "suspected ESBL",
+                      "test_negative": "ESBL test negative"}.get(esbl_state.get("state"), ""))
+    elif mechanism_label:
+        parts.append(f"suspected {mechanism_label}")
+    else:
+        parts.append("no ESBL / carbapenemase pattern")
+    sir = {str(k): str(v or "").upper() for k, v in (sir_map or {}).items()}
+    if classify_specimen(specimen) == "urine" and (esbl_state or mechanism_label):
+        _pref = []
+        for n, short in (("Trimethoprim/Sulfamethoxazole", "TMP-SMX"),
+                         ("Ciprofloxacin", "ciprofloxacin"), ("Levofloxacin", "levofloxacin"),
+                         ("Nitrofurantoin", "nitrofurantoin")):
+            _pref.append(f"{short} {sir.get(n) or 'not tested'}")
+        parts.append(", ".join(_pref))
+    return " · ".join(p for p in parts if p)
+

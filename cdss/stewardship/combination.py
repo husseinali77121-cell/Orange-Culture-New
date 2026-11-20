@@ -491,3 +491,60 @@ def get_combination_therapy(
                 _panel["data"]["options"] = _opts
 
     return results
+
+
+# ── v7.4 (external case review): options tied to THIS isolate's AST ─────────
+# The PDF section "COMBINATION THERAPY — MDR" listed single agents by site,
+# including TMP-SMX and ciprofloxacin (R on this isolate) and levofloxacin,
+# meropenem and ertapenem (not tested), with nothing to tell them apart; the
+# evidence stars were dropped by the PDF glyph guard, leaving "()". The
+# options are now headed "treatment options by infection site" and every agent
+# named carries the isolate's result: [S] / [R] / [I] / [not tested].
+_OPTION_TOKENS = (
+    (r"Ceftazidime[\s\-]*Avibactam", ("Ceftazidime + Avibactam",)),
+    (r"Ceftolozane[\s\-]*Tazobactam", ("Ceftolozane + Tazobactam",)),
+    (r"Meropenem[\s\-]*Vaborbactam", ("Meropenem + Vaborbactam",)),
+    (r"Imipenem[\s\-]*Relebactam", ("Imipenem + Relebactam",)),
+    (r"Aztreonam[\s\-]*Avibactam", ("Aztreonam + Avibactam",)),
+    (r"Cefepime[\s\-]*Enmetazobactam", ("Cefepime + Enmetazobactam",)),
+    (r"Sulbactam[\s\-]*Durlobactam", ("Sulbactam + Durlobactam",)),
+    (r"Ampicillin[\s\-]*Sulbactam", ("Ampicillin/Sulbactam",)),
+    (r"Piperacillin[\s\-]*Tazobactam|Pip[\s\-]*Tazo", ("Piperacillin + Tazobactam",)),
+    (r"TMP[\s\-]*SMX|Trimethoprim[\s\-/]*Sulfamethoxazole", ("Trimethoprim/Sulfamethoxazole",)),
+    (r"Imipenem(?:[\s\-/]*Cilastatin)?", ("Imipenem/Cilastatin",)),
+    (r"an? aminoglycosides?|aminoglycosides?", ("Gentamicin", "Amikacin", "Tobramycin")),
+    (r"an? fluoroquinolones?|fluoroquinolones?", ("Ciprofloxacin", "Levofloxacin", "Ofloxacin",
+                                                  "Moxifloxacin")),
+)
+_SINGLE_AGENTS = ("Nitrofurantoin", "Fosfomycin", "Ciprofloxacin", "Levofloxacin", "Meropenem",
+                  "Ertapenem", "Cefepime", "Ceftazidime", "Ceftriaxone", "Cefiderocol", "Colistin",
+                  "Minocycline", "Linezolid", "Vancomycin", "Daptomycin", "Ceftaroline",
+                  "Ampicillin", "Aztreonam", "Gentamicin", "Amikacin", "Tigecycline",
+                  "Polymyxin B", "Rifampicin")
+
+
+def _ast_tag(names, sir) -> str:
+    tested = [(n, sir[n]) for n in names if sir.get(n)]
+    if len(names) == 1:
+        return f"[{tested[0][1]}]" if tested else "[not tested]"
+    return ("[" + ", ".join(f"{n} {r}" for n, r in tested) + "]") if tested else "[none tested]"
+
+
+def annotate_with_ast(text: str, sir_map) -> str:
+    """Append this isolate's result after every agent an option names."""
+    import re as _re
+    sir = {str(k): str(v or "").strip().upper() for k, v in (sir_map or {}).items()}
+    pats = [(rx, names) for rx, names in _OPTION_TOKENS]
+    pats += [(r"\b" + _re.escape(a) + r"\b(?![\s\-]*(?:Avibactam|Tazobactam|Vaborbactam|"
+              r"Relebactam|Sulbactam|Enmetazobactam|Durlobactam|Cilastatin))", (a,))
+             for a in _SINGLE_AGENTS]
+    big = _re.compile("|".join(f"(?P<g{i}>{rx})" for i, (rx, _) in enumerate(pats)), _re.I)
+
+    def _sub(m):
+        i = int(m.lastgroup[1:])
+        return f"{m.group(0)} {_ast_tag(pats[i][1], sir)}"
+    return big.sub(_sub, str(text or ""))
+
+
+OPTIONS_SECTION_TITLE = "Treatment options by infection site — tags = this isolate's AST"
+
