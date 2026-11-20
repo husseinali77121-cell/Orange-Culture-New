@@ -76,6 +76,15 @@ def render_recommendations(page):
         )
         page.ranked = ranked          # v7.0: the duration panel reads the top agent's route
         with st.expander("🏆 Smart Antibiotic Ranking", expanded=False):
+            # v7.4 (external case review): what the ranking was built for
+            from cdss.resistance.esbl_status import esbl_status
+            from cdss.stewardship.ranking import ranking_basis
+            _basis = ranking_basis(
+                page.culture_type, getattr(page, "_uti_syn_now", None), getattr(page, "case", None),
+                esbl_status(getattr(page, "esbl_result", None), getattr(page, "aux_tests", None)),
+                page.sir_map, getattr(page, "_carb_type_now", None))
+            if _basis:
+                st.info(f"🎯 Ranked for: {_basis} — لو المتلازمة أو الشدة مختلفة، الترتيب يتغيّر.")
             st.caption("مرتب حسب: نتيجة المزرعة ← المفضّل في الإرشادات للآلية والموقع (IDSA 2026؛ "
                        "التهاب المثانة: IDSA/ESCMID 2011؛ MSSA: β-lactam) "
                        "← WHO AWaRe ← طريق الإعطاء (لا أفضلية للفموي في الدم/السائل النخاعي) ← الأولوية. "
@@ -148,9 +157,12 @@ def render_recommendations(page):
             }
             for item in page.banned:
                 _cat = item.get("category", "")
+                # v7.4 (external case review): AST status kept apart from suitability
+                _s_tested = page.sir_map.get(item["name"]) == "S"
                 st.error(
-                    f"💊 {item['name']}  [{cat_labels.get(_cat, _cat)}]\n"
-                    f"{item.get('reason_short', '')}"
+                    f"💊 {item['name']}  [{cat_labels.get(_cat, _cat)}]"
+                    + ("  · **AST: S (tested) — غير مناسب هنا، النتيجة لم تتغير**" if _s_tested else "")
+                    + f"\n{item.get('reason_short', '')}"
                 )
 
     if page.warned:

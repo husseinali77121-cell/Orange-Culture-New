@@ -14,6 +14,7 @@ from cdss.organisms.pathogenicity import HOST_FACTORS_URINE
 from cdss.organisms.pathogenicity import RESPIRATORY_SIGNS
 from cdss.organisms.pathogenicity import RESP_SPECIMEN_SUBTYPES
 from cdss.organisms.pathogenicity import URINE_COLLECTION_METHODS
+from cdss.organisms.pathogenicity import SCI_TYPE_SYMPTOMS, SYMPTOM_COURSE_OPTIONS
 from cdss.organisms.pathogenicity import URINE_SYMPTOMS
 from cdss.organisms.pathogenicity import WOUND_SIGNS
 from cdss.organisms.pathogenicity import WOUND_TYPES
@@ -136,6 +137,15 @@ def render_pathogenicity(page):
                 )
                 st.session_state.patho_urinalysis = patho_urinalysis
 
+                # v7.4 (external case review): the laboratory report printed "Mid
+                # stream urine" and the case was entered as a Foley specimen. The
+                # report's method (OCR) now pre-selects this field and is shown
+                # beside it; a disagreement is a CRITICAL alert (analysis step).
+                _ocr_pt = getattr(page, "patient", None) or {}
+                _lab_coll = _ocr_pt.get("CollectionMethod") if isinstance(_ocr_pt, dict) else None
+                if (_lab_coll in URINE_COLLECTION_METHODS
+                        and "patho_coll_sel" not in st.session_state):
+                    st.session_state["patho_coll_sel"] = _lab_coll
                 patho_collection = st.selectbox(
                     "طريقة جمع العينة",
                     URINE_COLLECTION_METHODS,
@@ -143,6 +153,10 @@ def render_pathogenicity(page):
                     help="عتبة عدّ المستعمرات تختلف حسب طريقة الجمع: midstream / قسطرة "
                          "(≥10³ مع أعراض) / SPA (أي نمو) — IDSA 2009 و AAP."
                 )
+                if _lab_coll:
+                    st.caption(f"📄 تقرير المعمل: **{_lab_coll}**"
+                               + ("" if _lab_coll == patho_collection else
+                                  " — ⛔ مختلف عن الاختيار"))
                 # v7.0: the one case record (cdss.common.case_context) reads this
                 st.session_state.patho_collection = patho_collection
 
@@ -157,6 +171,16 @@ def render_pathogenicity(page):
                      "الشوكي أو القسطرة فقط."
             )
             st.session_state.patho_symptoms = patho_symptoms
+            # v7.4 (external case review): catheter / SCI symptoms count only when
+            # new or worse than baseline and unexplained (IDSA CA-UTI 2009).
+            patho_course = ""
+            if any(x in SCI_TYPE_SYMPTOMS for x in patho_symptoms):
+                patho_course = st.selectbox(
+                    "أعراض القسطرة / إصابة النخاع: جديدة ولا موجودة من قبل؟",
+                    SYMPTOM_COURSE_OPTIONS, key="patho_course_sel",
+                    help="IDSA CA-UTI 2009: التوعك / الخمول / التشنج / الـ dysreflexia / التسريب "
+                         "تُحتسب فقط لو جديدة أو أسوأ من المعتاد ومفيش سبب تاني. «موجودة من قبل» = "
+                         "bacteriuria مرتبطة بالقسطرة ولا تُعالَج. بدون إجابة: «عدوى محتملة» فقط.")
 
             # Host factors
             patho_host = st.multiselect(
@@ -190,6 +214,7 @@ def render_pathogenicity(page):
                 sex=page.sex,
                 host_factors=patho_host,
                 collection_method=patho_collection,
+                symptom_course=patho_course,
             )
             _clicked = st.button("🔬 احسب Pathogenicity Score", use_container_width=True,
                                  key="patho_calc_btn")
@@ -199,11 +224,14 @@ def render_pathogenicity(page):
                     "inputs": {
                         "Colony count": patho_kwargs.get("colony_count_text"),
                         "Collection method": patho_kwargs.get("collection_method"),
+                        # v7.4: what the laboratory report says, beside what was entered
+                        "Collection (lab report)": _lab_coll or "—",
                         "Culture purity": patho_kwargs.get("culture_purity"),
                         "Pus cells / HPF": patho_kwargs.get("pus_cells_text"),
                         "Urinalysis": patho_kwargs.get("urinalysis_result"),
                         "Gram stain": patho_kwargs.get("gram_stain"),
                         "Symptoms": patho_kwargs.get("symptoms"),
+                        "Symptom course": patho_kwargs.get("symptom_course") or "—",
                         "Host factors": patho_kwargs.get("host_factors"),
                         "Age / Sex": f"{_age_label(page)} / {patho_kwargs.get('sex')}",
                     }}

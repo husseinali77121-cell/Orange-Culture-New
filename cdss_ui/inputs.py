@@ -161,8 +161,10 @@ def render_microscopy(page):
         _ast_now = dict(st.session_state.get("sir_map_edited") or {})
 
         def _mark(names):
-            return ", ".join(f"{n} ⚠️({_ast_now[n]} في هذه المزرعة)"
-                             if _ast_now.get(n) in ("R", "I") else n for n in names)
+            # v7.4 (external case review): every agent carries this isolate's
+            # result or "not tested", and a salt form is not a second drug.
+            from cdss.common.drug_names import tag_with_ast
+            return ", ".join(tag_with_ast(list(names), _ast_now))
 
         with st.expander("📌 General organism guidance — NOT adjusted to this isolate's AST",
                          expanded=True):

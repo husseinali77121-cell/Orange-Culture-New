@@ -232,8 +232,13 @@ def render_ast_quality_check(page):
                     st.caption(f"الكائن: {_pc.organism_group}")
                     _c1, _c2, _c3 = st.columns(3)
                     _c1.metric("Expected", _pc.expected_total)
-                    _c2.metric("Tested", _pc.tested_count)
+                    _c2.metric("Covered", _pc.tested_count)
                     _c3.metric("Missing", len(_pc_missing))
+                    # v7.4: the counts reconcile with the panel as entered
+                    st.caption(f"Total entered {getattr(_pc, 'total_tested', 0)} = covered "
+                               f"{sum(len(v) for v in (getattr(_pc, 'covered_by', {}) or {}).values())}"
+                               f" + additional {len(getattr(_pc, 'extra_tested', []) or [])}"
+                               + (f" ({', '.join(_pc.extra_tested)})" if getattr(_pc, 'extra_tested', None) else ""))
                     if not _pc_missing:
                         st.success("✅ Panel adequate -- كل المضادات "
                                    "المتوقعة لهذا الكائن تم اختبارها.")
@@ -418,8 +423,12 @@ def render_ast_qc(page):
                     st.caption(f"الكائن: {_pc2.organism_group}")
                     _pc2c1, _pc2c2, _pc2c3 = st.columns(3)
                     _pc2c1.metric("Expected", _pc2.expected_total)
-                    _pc2c2.metric("Tested", _pc2.tested_count)
+                    _pc2c2.metric("Covered", _pc2.tested_count)
                     _pc2c3.metric("Missing", len(_pc2_missing))
+                    st.caption(f"Total entered {getattr(_pc2, 'total_tested', 0)} = covered "
+                               f"{sum(len(v) for v in (getattr(_pc2, 'covered_by', {}) or {}).values())}"
+                               f" + additional {len(getattr(_pc2, 'extra_tested', []) or [])}"
+                               + (f" ({', '.join(_pc2.extra_tested)})" if getattr(_pc2, 'extra_tested', None) else ""))
                     if not _pc2_missing:
                         st.success("✅ Panel adequate -- كل المضادات "
                                    "المتوقعة لهذا الكائن تم اختبارها.")

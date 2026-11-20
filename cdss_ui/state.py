@@ -105,7 +105,7 @@ _PATIENT_WIDGET_KEYS = (
     "colony_count_input", "date_in_input", "pus_cells_input", "rbcs_input",
     "ref_phys_input", "culture_cond_sel",
     "patho_purity_sel", "patho_gram_sel", "patho_ua_sel", "patho_coll_sel",
-    "patho_symp_urine", "patho_host_sel",
+    "patho_symp_urine", "patho_host_sel", "patho_course_sel",
     "np_purity_sel", "np_gram_sel", "np_sirs_ms", "np_bsrc_sel", "np_spwbc",
     "np_spepi", "np_symp_gi", "np_wtype_sel", "np_symp_wound", "np_symp_resp",
     "np_host_sel", "np_resp_sub_sel", "np_resp_cfu",

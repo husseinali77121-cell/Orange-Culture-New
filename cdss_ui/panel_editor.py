@@ -9,7 +9,42 @@ from typing import Dict
 import streamlit as st
 
 from cdss.formulary.abx_guidelines import ABX_GUIDELINES
-from cdss.therapy.clsi_categories import canonical_panel, sdd_drugs
+from cdss.therapy.clsi_categories import (canonical_panel, is_sdd, panel_display, sdd_defined,
+                                          sdd_drugs, sir_options_for)
+
+
+_ICONS = {"S": "🟢", "SDD": "🟠", "I": "🟡", "R": "🔴"}
+
+
+def _resolve(drug: str, organism: str, choice: str, cur, lab):
+    """What the panel keeps for one drug after the operator's choice (v7.7).
+
+    The form offers S / I / R only. A laboratory SDD is kept as the
+    laboratory wrote it while the operator leaves the form on what it shows
+    for it (I for a CLSI SDD pair, "--" where CLSI defines none); any other
+    choice replaces it. "--" otherwise means "not entered" (left out).
+    """
+    if choice == "--":
+        return "SDD" if is_sdd(cur) else None
+    if choice == "I" and (is_sdd(cur) or is_sdd(lab)) and sdd_defined(drug, organism):
+        return "SDD"
+    return choice
+
+
+def _result_cell(col, drug: str, cur, lab, organism: str, key: str):
+    """One drug: name, S / I / R choice, and the note under it. -> (delete column, value)."""
+    disp, _lvl, _note = panel_display(drug, organism, cur, lab)
+    opts = ["S", "I", "R"] if disp != "--" else ["--", "S", "I", "R"]
+    c1, c2, c3 = col.columns([4, 3, 1])
+    c1.markdown(f"<small>{_ICONS.get(str(cur or '').upper(), '')} **{drug}**</small>",
+                unsafe_allow_html=True)
+    choice = c2.selectbox("##", options=opts, index=opts.index(disp), key=key,
+                          label_visibility="collapsed")
+    value = _resolve(drug, organism, choice, cur, lab)
+    _d, lvl, note = panel_display(drug, organism, value, lab) if value else (disp, _lvl, _note)
+    if note:
+        (col.error if lvl == "error" else col.caption)(note)
+    return c3, value
 
 
 def render_panel_editor(page):
@@ -18,9 +53,15 @@ def render_panel_editor(page):
     # AST Input Panel -- OCR + Manual Entry موحّد
     # ══════════════════════════════════════════════════════
     ocr_sir_map = page.payload["sir_map"]
-    # v6.9 (CLSI M100, decision D4): SDD is a result of its own. It is offered
-    # for every drug; the note says when CLSI does not define it for the pair.
-    sir_options = ["S", "SDD", "I", "R"]
+    # v6.9 (CLSI M100, decision D4): SDD is a result of its own. v7.6: offered
+    # only where CLSI defines it. v7.7 (owner, after the external review of
+    # v7.6): never offered -- every list is S / I / R; a laboratory SDD read by
+    # the OCR is kept and explained in a note under the drug (_result_cell).
+    _org = getattr(page, "organism_type", "") or ""
+
+    def _opts(drug, current=None):
+        return sir_options_for(drug, _org, current)
+    sir_options = sir_options_for()
 
     st.markdown("**📊 نتائج المزرعة -- S / I / R**")
     st.caption("✅ من OCR تلقائياً -- عدّل أي قيمة خطأ أو أضف مضاد فاته الـ OCR")
@@ -43,7 +84,7 @@ def render_panel_editor(page):
             col_d = no_sir_cols[idx_d % 3]
             assign = col_d.selectbox(
                 f"⚠️ {drug_no_sir}",
-                ["--"] + sir_options,
+                ["--"] + _opts(drug_no_sir),
                 key=f"no_sir_{drug_no_sir}_{page.file_hash[:8]}",
                 help=f"OCR وجد '{drug_no_sir}' في النص -- حدد النتيجة أو اتركها"
             )
@@ -79,7 +120,7 @@ def render_panel_editor(page):
             format_func=lambda d: "اختر المضاد الناقص..." if d == "" else d,
         )
         _quick_sir = _qa_c2.selectbox(
-            "النتيجة", options=sir_options,
+            "النتيجة", options=_opts(_quick_drug) if _quick_drug else sir_options,
             key=f"quick_add_sir_{page.file_hash[:8]}", label_visibility="collapsed",
         )
         if _qa_c3.button("➕ إضافة", key=f"quick_add_btn_{page.file_hash[:8]}",
@@ -102,7 +143,7 @@ def render_panel_editor(page):
             st.rerun()
 
     manual_extra = st.multiselect(
-        "➕ أو أضف عدة مضادات دفعة واحدة (كلها هتتحط S مبدئياً وتقدر تعدّلها تحت)",
+        "➕ أو أضف عدة مضادات دفعة واحدة (حدّد نتيجة كل واحد تحت — من غير نتيجة ما بيدخلش التحليل)",
         options=[d for d in all_known if d not in ocr_drugs and d not in ocr_detected_no_sir],
         default=manual_prev,
         key=f"manual_drugs_{page.file_hash[:8]}",
@@ -137,25 +178,15 @@ def render_panel_editor(page):
                             st.rerun()
                         continue
                     cur = st.session_state.sir_map_edited.get(drug, ocr_sir_map[drug])
-                    if cur not in sir_options:
-                        cur = "S"
-                    label_icons = {"S": "🟢", "SDD": "🟠", "I": "🟡", "R": "🔴"}
-                    # 4-column: icon+name | selectbox | delete btn
-                    _c1, _c2, _c3 = col.columns([4, 3, 1])
-                    _c1.markdown(f"<small>{label_icons.get(cur,'')} **{drug}**</small>",
-                                 unsafe_allow_html=True)
-                    new_val = _c2.selectbox(
-                        "##",
-                        options=sir_options,
-                        index=sir_options.index(cur),
-                        key=f"sir_{drug}_{page.file_hash[:8]}",
-                        label_visibility="collapsed"
-                    )
+                    # v7.7: S / I / R only; a laboratory SDD is a note under the drug
+                    _c3, value = _result_cell(col, drug, cur, ocr_sir_map.get(drug), _org,
+                                              f"sir_{drug}_{page.file_hash[:8]}")
                     if _c3.button("❌", key=f"del_{drug}_{page.file_hash[:8]}",
                                   help=f"حذف {drug}"):
                         st.session_state[_del_key].add(drug)
                         st.rerun()
-                    edited_sir[drug] = new_val
+                    if value:
+                        edited_sir[drug] = value
 
         # Manual drugs
         manual_new = [d for d in manual_extra if d not in ocr_drugs]
@@ -171,25 +202,17 @@ def render_panel_editor(page):
                             st.session_state[_del_key].discard(drug)
                             st.rerun()
                         continue
-                    cur = st.session_state.sir_map_edited.get(drug, "S")
-                    if cur not in sir_options:
-                        cur = "S"
-                    label_icons = {"S": "🟢", "SDD": "🟠", "I": "🟡", "R": "🔴"}
-                    _c1, _c2, _c3 = col.columns([4, 3, 1])
-                    _c1.markdown(f"<small>{label_icons.get(cur,'')} **{drug}**</small>",
-                                 unsafe_allow_html=True)
-                    new_val = _c2.selectbox(
-                        "##",
-                        options=sir_options,
-                        index=sir_options.index(cur),
-                        key=f"sir_manual_{drug}_{page.file_hash[:8]}",
-                        label_visibility="collapsed"
-                    )
+                    # v7.7: a drug added without a result is "--" (left out) until
+                    # its result is chosen -- it used to enter the analysis as S
+                    cur = st.session_state.sir_map_edited.get(drug)
+                    _c3, value = _result_cell(col, drug, cur, None, _org,
+                                              f"sir_manual_{drug}_{page.file_hash[:8]}")
                     if _c3.button("❌", key=f"del_m_{drug}_{page.file_hash[:8]}",
                                   help=f"حذف {drug}"):
                         st.session_state[_del_key].add(drug)
                         st.rerun()
-                    edited_sir[drug] = new_val
+                    if value:
+                        edited_sir[drug] = value
 
     # ── Apply deletions to sir_map ────────────────────────────────
     _deleted = st.session_state.get(_del_key, set())
@@ -256,7 +279,8 @@ def current_aux_tests(file_hash: str) -> dict:
     editor (the left-column QA check) sees the value of this run, not the last.
     """
     out = {}
-    for panel_key, widget in (("D-test", "d_test"), ("Penicillinase", "penicillinase")):
+    for panel_key, widget in (("D-test", "d_test"), ("Penicillinase", "penicillinase"),
+                              ("ESBL confirmation", "esbl_confirm")):
         choice = st.session_state.get(f"{widget}_{(file_hash or '')[:8]}")
         if choice in ("Negative", "Positive"):
             out[panel_key] = choice
@@ -284,4 +308,15 @@ def render_aux_tests(page):
             "🧪 Penicillinase (zone-edge / nitrocefin / blaZ)", _AUX_CHOICES,
             key=f"penicillinase_{fh}",
             help="سالب: يمكن الاعتماد على Penicillin = S. موجب: يُبلَّغ مقاوماً. CLSI M100.")
+    # v7.4 (external case review): without a confirmatory test an ESBL call is a
+    # prediction from the pattern and is printed "Suspected ESBL", never "ESBL+".
+    from cdss.astqc.ast_reportability import ENTEROBACTERALES as _ENT
+    if (any(t in org_l for t in _ENT)
+            and any(sir.get(d) in ("R", "I", "SDD")
+                    for d in ("Ceftriaxone", "Cefotaxime", "Ceftazidime", "Cefepime"))):
+        st.selectbox(
+            "🧪 ESBL confirmatory test (CLSI combination disk / DDST)", _AUX_CHOICES,
+            key=f"esbl_confirm_{fh}",
+            help="موجب: «ESBL مؤكد». سالب: نمط ESBL مع اختبار سالب — فكّر في AmpC. غير معمول: "
+                 "«اشتباه ESBL» فقط. لا يغيّر نتيجة الحساسية (CLSI M100 Table 3A).")
     page.aux_tests = current_aux_tests(page.file_hash)

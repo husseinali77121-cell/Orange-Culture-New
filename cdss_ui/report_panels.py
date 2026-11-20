@@ -8,7 +8,6 @@ shared between sections (see cdss_ui.app.main).
 from datetime import datetime
 from typing import List
 import hashlib
-import json
 import streamlit as st
 
 from cdss.astqc.final_checklist import ICON as CHECK_ICON
@@ -26,13 +25,9 @@ from cdss.health import PANEL_COMPLETENESS_AVAILABLE
 from cdss.health import _check_panel_completeness_ext
 from cdss.organisms.organism_profile import ORGANISM_PROFILE
 from cdss.organisms.pathogenicity import gate_suppresses
-from cdss.pipeline import duration_syndrome_key
 from cdss.reports.report_service import generate_decision_tree_image
-from cdss.reports.report_service import generate_pdf_html_report
-from cdss.reports.report_service import generate_report
-from cdss.stewardship.combination import get_combination_therapy
-from cdss.stewardship.duration import get_treatment_duration
-from cdss.stewardship.hepatic import get_hepatic_recommendations
+from cdss.reports.report_service import pdf_html_to_bytes
+from cdss_ui.release_gate import reports_blocked
 from cdss.stewardship.ranking import rank_sensitive_antibiotics, route_label
 from cdss_ui.state import current_patho_result
 
@@ -134,11 +129,16 @@ def prepare_report_inputs(page):
                 "interaction": "(Interaction)", "intrinsic": "(Intrinsic R)"}.get(cat, "(Avoid)")
     _seen_ban = set()
     page.banned_names = []
-    for item in page.banned:
+    # v7.4 (case review): a tested-S agent not appropriate here keeps its S and comes first.
+    _ban_sorted = sorted(page.banned, key=lambda b: 0 if page.sir_map.get(b.get("name", "")) == "S" else 1)
+    for item in _ban_sorted:
         nm = item.get("name","")
         if nm and nm not in _seen_ban:
             _seen_ban.add(nm)
-            page.banned_names.append(f"{nm} {_img_ban_tag(item)}")
+            _tg = _img_ban_tag(item)
+            if page.sir_map.get(nm) == "S" and _tg.startswith("("):
+                _tg = "(S · " + _tg[1:]
+            page.banned_names.append(f"{nm} {_tg}")
     org_profile    = ORGANISM_PROFILE.get(page.organism_type, {})
     # الـ first-line في ORGANISM_PROFILE قائمة عامة للميكروب وغير مفلترة
     # بنتيجة المزرعة — قد تحتوي دواءً مقاوماً في هذه العينة. نُبقي فقط
@@ -189,9 +189,12 @@ def prepare_report_inputs(page):
         page.strategy_l.append("Replace catheter (>= 2 wk) + re-culture")
     if (_case is not None and _case.low_muscle_mass and not page.is_renal
             and any(it.get("tdm_note") for it in page.allowed + page.warned)):
-        page.strategy_l.append("TDM: levels, not CrCl (low muscle mass)")
+        page.strategy_l.append("Low muscle mass: eGFR may overestimate - cystatin C / "
+                               "measured GFR; TDM for aminoglycoside dosing")
 
     page.notes: List[str] = []
+    from cdss.common.data_consistency import report_lines_en      # v7.4: report vs case
+    page.notes.extend(report_lines_en(getattr(page, "data_issues", None)))
     if getattr(page, "uti_note", ""):
         page.notes.append(page.uti_note)
     if _withheld:
@@ -239,6 +242,11 @@ def render_final_checklist(page):
         panel_result=_panel_ck,
         preg_warn=page.preg_warn_items,
     )
+    # v7.6: the whole-case validation (analysis + text + PDF + image) was done by
+    # prepare_release() before this checklist; it is shown here, not recomputed.
+    from cdss.validation.case_validator import checklist_item
+    # None = did not run; [] = ran clean (v7.6 sweep: "x or [V00]" read a clean [] as "did not run")
+    _ck_items.append(checklist_item(getattr(page, "validation", None)))
     _ck_sum = summarize_checklist(_ck_items)
     for _ck in _ck_items:
         _line = f"{CHECK_ICON[_ck['status']]} **{_ck['title']}** — {_ck['detail']}"
@@ -261,6 +269,8 @@ def render_final_checklist(page):
 
 def render_text_report(page):
     """Clinical text report."""
+    if reports_blocked(page, "التقرير النصي"):
+        return
     # ── Commercial Names Toggle ────────────────────────────────────────
     page.show_commercial = st.checkbox(
         "📋 إضافة الأسماء التجارية (Commercial Names) في التقرير؟",
@@ -277,70 +287,8 @@ def render_text_report(page):
     # ── التقرير النصي -- cached to prevent lag on every keystroke ──────
     st.markdown("### 📋 التقرير السريري")
 
-    page._lab  = st.session_state.get("lab_name", "Your Lab Name")
-    page._city = st.session_state.get("lab_city", "")
-    page._pt   = page.patient_name.strip() or "غير محدد"
-
-    # Hash all inputs that affect the report.
-    # patho_result is serialized IN FULL (not just its score): its verdict,
-    # factors_pos/neg and recommendations depend on UI inputs (culture
-    # purity, symptoms, urinalysis, gram stain, host factors) that are NOT
-    # otherwise present in this hash — so a score-only key leaves the report
-    # stale whenever those change while the numeric score stays the same.
-    _patho_sig = json.dumps(
-        [current_patho_result() or {}, getattr(page, "treatment_gate", None)],
-        sort_keys=True, default=str, ensure_ascii=False,
-    )
-    # FIX 2026-11-11 (round 4): the buckets were hashed by their LENGTH.
-    # Two different verdicts of equal size (a drug swapping between
-    # caution and avoid after a Child-Pugh change, a novel agent's note
-    # after a carbapenemase class was entered) kept the old report, and
-    # current medications / interactions, allergies, Child-Pugh, the
-    # carbapenemase class and the UTI syndrome were not hashed at all --
-    # so adding warfarin left the interaction out of the report.
-    def _bsig(items):
-        return ";".join(
-            f"{i.get('name')}:{i.get('warning_reason') or i.get('category') or ''}"
-            f":{len(str(i.get('clinical_note') or i.get('preg_note') or ''))}"
-            for i in (items or []))
-    page._rpt_input_hash = hashlib.md5(
-        f"{page._pt}|{page.age}|{page.age_months}|{page.sex}|{page.weight}|{page.cl_cr}|{page.is_renal}|{page.is_preg}|{page.is_hepatic}"
-        f"|{page._child_pugh_now}|{sorted(page.current_meds or [])}|{sorted(page.allergies or [])}"
-        f"|{page._carb_type_now}|{page._uti_syn_now}|{getattr(page, 'uti_note', '')}"
-        f"|{page.organism_type}|{page.culture_type}|{page.colony_count}|{page.date_in}"
-        f"|{page.pus_cells_text}|{page.rbcs_text}|{str(sorted(page.sir_map.items()))}"
-        f"|{_bsig(page.allowed)}|{_bsig(page.warned)}|{_bsig(page.banned)}|{_bsig(page.preg_warn_items)}"
-        f"|{sorted(page.interactions_alerts or [])}"
-        f"|{page.show_commercial}|{page._lab}|{page._city}|{_patho_sig}"
-        f"|{getattr(page, 'case', None)!r}".encode()
-    ).hexdigest()[:16]
-
-    if st.session_state.get("_rpt_hash") != page._rpt_input_hash:
-        _new_report = generate_report(
-            patient_name=page._pt,
-            age=page.age, age_months=page.age_months, sex=page.sex, weight=page.weight,
-            cl_cr=page.cl_cr, is_renal=page.is_renal,
-            is_preg=page.is_preg, is_hepatic=page.is_hepatic,
-            allowed=page.allowed, warned=page.warned, banned=page.banned,
-            preg_warn_items=page.preg_warn_items,
-            organism=page.organism_type, specimen=page.culture_type,
-            interactions=page.interactions_alerts, sir_map=page.sir_map,
-            colony_count=page.colony_count,
-            date_in=str(page.date_in),
-            pus_cells=page.pus_cells_text,
-            rbcs=page.rbcs_text,
-            lab_name=page._lab,
-            lab_city=page._city,
-            patho_assessment=current_patho_result(),
-            show_commercial_names=page.show_commercial,
-            case=getattr(page, "case", None),
-            treatment_gate=getattr(page, "treatment_gate", None),
-            uti_note=getattr(page, "uti_note", ""),
-        )
-        st.session_state._rpt_text = _new_report
-        st.session_state._rpt_hash = page._rpt_input_hash
-
-    auto_report = st.session_state.get("_rpt_text", "")
+    # v7.6: built and validated with every other export by prepare_release()
+    auto_report = (getattr(page, "release", None) or {}).get("text", "")
 
     # معاينة للقراءة فقط
     if auto_report:
@@ -366,6 +314,8 @@ def render_text_report(page):
 
 def render_pdf_export(page):
     """PDF report."""
+    if reports_blocked(page, "تقرير الـ PDF"):
+        return
     # ── PDF Report ────────────────────────────────────────────
     st.markdown("---")
     st.markdown("#### 📄 PDF Clinical Report")
@@ -408,62 +358,16 @@ def render_pdf_export(page):
         if st.button(f"🔄 Generate PDF ({_lang_lbl})", key="gen_pdf_btn",
                      use_container_width=True,
                      help="Click to generate report -- takes a few seconds"):
-            _dur_for_pdf = get_treatment_duration(
-                specimen=page.culture_type, organism=page.organism_type,
-                syndrome=duration_syndrome_key(page.syndrome_info, page._uti_syn_now, page.culture_type),
-                age=page.age, sex=page.sex, is_renal=page.is_renal,
-                phenotypes=page.phenotypes, severity=_sev_pdf,
-                is_cath=bool(getattr(getattr(page, "case", None), "is_cath", False)
-                             and getattr(page.case, "is_urine", False)),
-                primary=(getattr(page, "ranked", None) or [None])[0],
-                is_preg=bool(page.is_preg),
-            ) if (_pdf_dur and not gate_suppresses(getattr(page, "treatment_gate", None))) else None
-            # organism= restored 2026-08-21 -- see the matching note on
-            # the UI call site above. Same missing-organism defect, same
-            # consequence (Colistin/Proteus-class intrinsic annotation
-            # silently skipped), on the PDF a clinician downloads and keeps.
-            _combo_for_pdf = get_combination_therapy(
-                page.phenotypes,
-                is_pregnant=page.is_preg, age_years=page.age, age_months=page.age_months,
-                is_renal=page.is_renal, cl_cr=page.cl_cr, is_hepatic=page.is_hepatic,
-                organism=page.organism_type,
-                carbapenemase_type=st.session_state.get("carb_type_now"),
-            ) if (_pdf_combo and not gate_suppresses(getattr(page, "treatment_gate", None))) else None
-            _hep_for_pdf   = (get_hepatic_recommendations(page.allowed, _cp_pdf)
-                              if page.is_hepatic else None)
+            # v7.6: the file is made from the HTML prepare_release() validated
+            # for these exact options -- never from a second, unchecked build.
+            _rel = getattr(page, "release", None) or {}
+            if _rel.get("pdf_sig") != _pdf_sig:
+                st.error("🛑 خيارات الـ PDF اتغيّرت بعد الفحص — أعد المحاولة.")
+                return
             with st.spinner("جاري توليد التقرير PDF..."):
                 try:
-                    _new_pdf = generate_pdf_html_report(
-                        patient_name         = page._pt,
-                        age=page.age, sex=page.sex, weight=page.weight,
-                        cl_cr=page.cl_cr, is_renal=page.is_renal,
-                        is_preg=page.is_preg, is_hepatic=page.is_hepatic,
-                        allowed=page.allowed, warned=page.warned, banned=page.banned,
-                        preg_warn_items=page.preg_warn_items,
-                        organism=page.organism_type, specimen=page.culture_type,
-                        sir_map=page.sir_map,
-                        interactions=page.interactions_alerts,
-                        mdr_result=page.mdr_result,
-                        esbl_result=page.esbl_result,
-                        phenotypes=page.phenotypes,
-                        colony_count=page.colony_count,
-                        date_in=str(page.date_in),
-                        pus_cells=page.pus_cells_text,
-                        rbcs=page.rbcs_text,
-                        lab_name=page._lab,
-                        lab_city=page._city,
-                        patho_assessment=(current_patho_result()
-                                          if _pdf_patho else None),
-                        duration_data=_dur_for_pdf,
-                        combo_suggestions=_combo_for_pdf,
-                        show_commercial_names=page.show_commercial,
-                        child_pugh=_cp_pdf,
-                        hepatic_recs=_hep_for_pdf,
-                        lang=_pdf_lang,
-                        carbapenemase_type=getattr(page, "_carb_type_now", None),
-                        uti_syndrome=getattr(page, "_uti_syn_now", None),
-                        treatment_gate=getattr(page, "treatment_gate", None),
-                    )
+                    _new_pdf = _rel.get("pdf_html") or None
+                    _new_pdf = pdf_html_to_bytes(_new_pdf) if _new_pdf else None
                     if _new_pdf:
                         st.session_state._pdf_bytes = _new_pdf
                         st.session_state._pdf_lang_used = _pdf_lang
@@ -498,6 +402,8 @@ def render_pdf_export(page):
 
 def render_summary_image(page):
     """Summary image (decision tree)."""
+    if reports_blocked(page, "صورة الملخص"):
+        return
     # ── صورة الملخص ──────────────────────────────────────────────────
     st.divider()
     st.markdown("### 🖼️ صورة ملخص الحالة")
@@ -540,6 +446,7 @@ def render_summary_image(page):
             f"|{st.session_state.get('microbiologist','')}"
             f"|{page.is_hepatic}|{getattr(page, 'case', None)!r}"
             f"|{page.mdr_result.get('provisional', False)}"
+            f"|{sorted((getattr(page, 'aux_tests', None) or {}).items())}"
             .encode()
         ).hexdigest()[:16]
 
@@ -573,6 +480,7 @@ def render_summary_image(page):
                     sir_map=page.sir_map, is_hepatic=page.is_hepatic,
                     case=getattr(page, "case", None),
                     carbapenemase_type=getattr(page, "_carb_type_now", None),
+                    aux_tests=getattr(page, "aux_tests", None),
                 )
                 st.session_state._img_bytes = _new_img
                 st.session_state._img_hash  = _img_input_hash

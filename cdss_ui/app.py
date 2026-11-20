@@ -28,6 +28,7 @@ from cdss_ui.pathogenicity_panel import render_pathogenicity
 from cdss_ui.resistance_panels import render_ast_quality_check
 from cdss_ui.recommendations import render_recommendations
 from cdss_ui.report_intake import load_report
+from cdss_ui.release import prepare_release
 from cdss_ui.report_panels import prepare_report_inputs
 from cdss_ui.report_panels import render_final_checklist
 from cdss_ui.report_panels import render_pdf_export
@@ -123,6 +124,10 @@ def main():
                 prepare_report_inputs(page)
 
                 render_stewardship(page)
+
+                # v7.6: every export is built and validated BEFORE the first
+                # download button can appear (one release decision for all).
+                prepare_release(page)
 
                 render_final_checklist(page)
 

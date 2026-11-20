@@ -17,6 +17,7 @@ from cdss.resistance.mdr import classify_mdr
 from cdss.resistance.mechanism import predict_esbl
 from cdss.therapy.therapy_rules import normalize_carbapenemase_type
 from cdss.therapy.therapy_rules import classify_uti
+from cdss.therapy.therapy_rules import SYSTEMIC_UTI_NOTE_AR, SYSTEMIC_UTI_NOTE_EN
 from cdss.organisms.pathogenicity import treatment_gate
 from cdss_ui.state import current_patho_result, treat_override_key
 
@@ -35,19 +36,62 @@ def _resolve_uti(page):
     _dev = page.case.cuti_device
     uc = classify_uti(page.uti_syndrome_choice, _sym, catheter=_dev)
     if not uc.conflict:
-        return uc.value, ""
+        # v7.4 (external review of v7.3): upper from fever / rigors alone is a
+        # systemic / upper-tract syndrome, not a proven pyelonephritis.
+        return uc.value, (SYSTEMIC_UTI_NOTE_EN if (uc.value == "upper" and uc.basis == "systemic")
+                          else "")
     _picked = "التهاب مثانة" if "مثانة" in str(page.uti_syndrome_choice) else "cUTI بلا حمى"
     st.warning(f"⚠️ اخترت «{_picked}» لكن الأعراض المُدخلة فيها حمى / ألم خاصرة / رعشة — "
-               "البرنامج بيتعامل معها كالتهاب حويضة (أدوية المثانة ممنوعة) إلا لو أكّدت إن "
-               "مصدرها غير بولي.")
+               "البرنامج بيتعامل معها كعدوى بولية جهازية / علوية (أدوية المثانة ممنوعة) إلا لو "
+               "أكّدت إن مصدرها غير بولي.")
     _ok = st.checkbox("أؤكد إكلينيكياً: الحمى / الأعراض من مصدر غير بولي — اعتمد اختياري "
                       "(يُطبع في التقرير)", key=f"uti_nonurinary_ok_{page._fh}")
     uc = classify_uti(page.uti_syndrome_choice, _sym, catheter=_dev, confirm_non_urinary=_ok)
     if uc.confirmed:
         return uc.value, (f"UTI: physician kept '{'cystitis' if uc.value == 'lower' else 'cUTI'}' "
                           "despite fever / flank pain / rigors (non-urinary source confirmed)")
-    return uc.value, ("UTI: fever / flank pain / rigors entered - treated as pyelonephritis "
-                      "(the manual cystitis / cUTI choice was not confirmed)")
+    return uc.value, ("UTI: fever / flank pain / rigors entered - treated as a systemic / "
+                      "upper-tract UTI syndrome (the manual cystitis / cUTI choice was not "
+                      "confirmed); pyelonephritis is not proven by these signs alone")
+
+
+def _check_specimen_consistency(page):
+    """(report collection method, physician confirmed) -- v7.4.
+
+    External case review 2026-11-20: the laboratory report said "Mid stream
+    urine" and the case was analysed as a Foley specimen (CA-UTI rules). The
+    OCR now reads the report's method; a disagreement is a CRITICAL alert and
+    the physician-facing reports stay blocked until the entry is corrected or
+    the physician confirms it (printed in the report).
+    """
+    from cdss.common.data_consistency import check_case_consistency
+    _payload_pt = (getattr(page, "patient", None) or {})
+    _report = _payload_pt.get("CollectionMethod") if isinstance(_payload_pt, dict) else None
+    # v7.6: the entry is checked against the host factors even without an OCR'd method
+    _issues = check_case_consistency(
+        specimen=page.culture_type, report_collection=_report,
+        entered_collection=page.case.collection_method,
+        host_factors=page.case.host_factors)
+    if not _issues:
+        return _report, False
+    for _i in _issues:
+        st.error(f"🛑 **CRITICAL — {_i['message_ar']}**  \n"
+                 + (_i['hint_ar'] if _i.get("confirmable", True)
+                    else "اختار طريقة الجمع في خانة الـ Pathogenicity — مفيش تأكيد يحل محلها."))
+    # v7.6 (external review of v7.5): "confirm" released a method never entered.
+    # When any issue is not confirmable there is no checkbox at all.
+    if not all(_i.get("confirmable", True) for _i in _issues):
+        return _report, False
+    import hashlib
+    _key = "data_confirm_" + hashlib.md5(
+        f"{_report}|{page.case.collection_method}|{sorted(page.case.host_factors)}".encode()
+    ).hexdigest()[:12]
+    _label = ("أؤكد إكلينيكياً أن طريقة الجمع المُدخلة هي الصحيحة رغم تقرير المعمل "
+              "(يُطبع في التقرير) — بدون التأكيد أو التصحيح التقارير موقوفة") if _report else (
+              "أؤكد إكلينيكياً إن العينة فعلاً midstream / تبول رغم تسجيل القسطرة (مثلاً القسطرة "
+              "اتشالت قبل أخذ العينة) — يُطبع في التقرير؛ بدون التأكيد أو التصحيح التقارير موقوفة")
+    _ok = st.checkbox(_label, key=_key)
+    return _report, bool(_ok)
 
 
 def run_case_analysis(page):
@@ -101,15 +145,27 @@ def run_case_analysis(page):
     _patho_now = current_patho_result()
     _g0 = treatment_gate(_patho_now)
     _override = bool(_g0 and st.session_state.get(treat_override_key()))
+    _report_coll, _confirmed = _check_specimen_consistency(page)
     _res = run_analysis(_patient, page.organism_type, page.culture_type,
                         {**getattr(page, "sir_map_raw", page.sir_map), **page.aux_tests},
                         drugs=page.final_drugs, carbapenemase_type=page._carb_type_now,
                         uti_syndrome=page._uti_syn_now,
-                        pathogenicity=_patho_now, treat_override=_override)
+                        pathogenicity=_patho_now, treat_override=_override,
+                        report_collection_method=_report_coll,
+                        consistency_confirmed=_confirmed)
     page.treatment_gate = _res.get("treatment_gate")
+    page.data_issues = _res.get("data_issues") or []
+    page.data_blocked = bool(_res.get("data_blocked"))
+    # v7.5 (external review of v7.4): the validator must see whether the safety
+    # layers ran -- V09 was never checked on the page.
+    page.degraded = list(_res.get("degraded") or [])
+    page.gate_applied = _res.get("gate_applied")
     if page._uti_syn_now == "upper" and classify_specimen(page.culture_type) == "urine":
-        st.info("🫘 التهاب حويضة / إنتان بولي (حمى أو ألم خاصرة) — Nitrofurantoin و Fosfomycin "
-                "الفموي و Norfloxacin مُستبعدة (لا تصل لنسيج الكلى) — IDSA cUTI 2025.")
+        st.info("🫘 عدوى بولية جهازية / علوية (حمى، رعشة، ألم خاصرة) — Nitrofurantoin و "
+                "Fosfomycin الفموي و Norfloxacin مُستبعدة (لا تصل لنسيج الكلى) — IDSA cUTI 2025. "
+                + ("" if "خاصرة" in " ".join(st.session_state.get("patho_symptoms") or [])
+                   or "Flank" in " ".join(st.session_state.get("patho_symptoms") or [])
+                   else SYSTEMIC_UTI_NOTE_AR))
     elif page._uti_syn_now == "cuti" and classify_specimen(page.culture_type) == "urine":
         # v7.2 (second external review): a catheter / stone / stent alone is a
         # COMPLICATED UTI, not a pyelonephritis.

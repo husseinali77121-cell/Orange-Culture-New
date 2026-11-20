@@ -119,8 +119,13 @@ def render_stewardship(page):
         carbapenemase_type=st.session_state.get("carb_type_now"),
     )
     if _combos:
-        with st.expander(f"🔬 Combination Therapy ({len(_combos)} phenotype)", expanded=True):
-            st.caption("MDR/XDR combination therapy -- IDSA AMR Guidance 2026")
+        # v7.4 (external case review): options by infection site, each agent
+        # tagged with this isolate's result (several are single agents, not
+        # combinations, and some may be R or not tested).
+        from cdss.stewardship.combination import OPTIONS_SECTION_TITLE, annotate_with_ast
+        with st.expander(f"🔬 {OPTIONS_SECTION_TITLE} ({len(_combos)} phenotype)", expanded=True):
+            st.caption("IDSA AMR Guidance 2026 — خيارات عامة للنمط حسب موقع العدوى؛ "
+                       "[S]/[R]/[not tested] = نتيجة هذه المزرعة. «not tested» ليس «حساس».")
             for _cs in _combos:
                 _pd = _cs["data"]
                 _urg = _pd["urgency"]
@@ -128,13 +133,13 @@ def render_stewardship(page):
                 for _op in _pd["options"]:
                     _avoid = "AVOID" in _op.get("evidence","") or "AVOID" in _op["combo"].upper()
                     if _avoid:
-                        st.error(f"🚫 **{_op['combo']}** | {_op.get('caution','')}")
+                        st.error(f"🚫 **{annotate_with_ast(_op['combo'], page.sir_map)}** | {_op.get('caution','')}")
                     else:
                         with st.container(border=True):
                             _ca, _cb = st.columns([3,1])
                             with _ca:
                                 _hf = "  ⚠️" if _op.get("host_flagged") else ""
-                                st.markdown(f"**{_op['combo']}** -- {_op['evidence']}{_hf}")
+                                st.markdown(f"**{annotate_with_ast(_op['combo'], page.sir_map)}** -- {_op['evidence']}{_hf}")
                                 st.caption(_op["indication"])
                                 # A host contraindication is an error,
                                 # not a caption: these are the only
