@@ -27,6 +27,7 @@ from cdss.organisms.organism_profile import ORGANISM_PROFILE
 from cdss.organisms.pathogenicity import gate_suppresses
 from cdss.reports.report_service import generate_decision_tree_image
 from cdss.reports.report_service import pdf_html_to_bytes
+from cdss.reports.html_utils import caution_label, top_option_line
 from cdss_ui.release_gate import reports_blocked
 from cdss.stewardship.ranking import rank_sensitive_antibiotics, route_label
 from cdss_ui.state import current_patho_result
@@ -74,23 +75,10 @@ def prepare_report_inputs(page):
     # النقطة ٣: use_caution يشمل warned + preg_warn
     preg_caution_names = [item['name'] for item in page.preg_warn_items]
     # v7.0: each caution carries WHY (the column was a bare list of names).
-    _CAUTION_TAG = {
-        "fq_low_level": "(FQ low-level R)", "esbl_bli_uti_only": "(ESBL: alternative)",
-        "intermediate_culture": "(I)", "renal_adjustment": "(Renal dose)",
-        "hepatic_adjustment": "(Hepatic dose)", "no_breakpoint": "(No breakpoint)",
-        "legacy_breakpoint": "(Old criterion)", "organism_caution": "(Organism)",
-        "possible_carbapenemase": "(Carbapenemase?)", "safety_gate": "(Site / host)",
-        "allergy": "(Allergy)", "interaction": "(Interaction)", "pregnancy": "(Pregnancy)",
-        "ampc_sdd": "(SDD dose)", "ampc_cefepime": "(AmpC)", "child_fq": "(Pediatric)",
-        "uti_upper": "(Cystitis only)", "novel_agent": "(Novel agent)",
-        "idsa_new_agent": "(IDSA 2026 note)",
-    }
+    # v7.9: the labels live in cdss.reports.html_utils (tested without the UI).
     def _caution(item):
-        _r = item.get("warning_reason") or item.get("category") or ""
-        _t = _CAUTION_TAG.get(_r, "")
-        if _r == "intermediate_culture" and item.get("name") in (getattr(page, "sdd_drugs", None) or ()):
-            _t = "(SDD)"
-        return f"{item['name']} {_t}".strip()
+        return caution_label(item, page.organism_type, page.sir_map,
+                             getattr(page, "sdd_drugs", None) or ())
     page.use_caution_names  = uniq_keep_order(
         [_caution(item) for item in page.warned if item['name'] not in page.reserve_names]
         + preg_caution_names
@@ -169,9 +157,9 @@ def prepare_report_inputs(page):
     if not page.first_line_l and ranked:
         _top = ranked[0]
         _rt = "PO" if route_label(_top, page.culture_type) == "PO" else "IV"
-        page.strategy_l.append(
-            f"{'IDSA alternative' if _top.get('_guideline_alternative') else 'Best available'}: "
-            f"{_top.get('name', '')} [{_rt}]")
+        page.strategy_l.append(top_option_line(
+            _top.get('name', ''), _rt,
+            guideline_alternative=bool(_top.get('_guideline_alternative'))))
     try:
         from cdss.astqc.phenotype_plausibility import check_plausibility as _cp
         _pl = _cp(page.organism_type, page.sir_map, getattr(page, "sdd_drugs", None))
@@ -182,7 +170,8 @@ def prepare_report_inputs(page):
     _reflex = [r for f in _pl for r in (f.get("reflex") or [])
                if not r.startswith("MIC:") and r not in (page.sir_map or {})]
     if _reflex:
-        _short = {"Carbapenemase test (mCIM / eCIM)": "mCIM/eCIM"}
+        _short = {"Carbapenemase test (mCIM / eCIM)": "mCIM/eCIM",
+                  "Species ID test (MALDI-TOF / biochemical)": "species ID"}
         page.strategy_l.append("Test now: " + ", ".join(dict.fromkeys(_short.get(r, r) for r in _reflex)))
     _case = getattr(page, "case", None)
     if _case is not None and _case.is_urine and _case.is_cath:
