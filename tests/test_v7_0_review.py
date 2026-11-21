@@ -132,7 +132,8 @@ def test_gram_negative_bacilli_is_offered_for_e_coli_and_klebsiella():
 def test_reviewer_panel_triggers_every_plausibility_rule():
     from cdss.astqc.phenotype_plausibility import check_plausibility, reflex_tests
     ids = {f["id"].split(":")[0] for f in check_plausibility(ORG, CASE)}
-    assert ids == {"PL1", "PL2", "PL3", "PL4"}
+    # v7.9: PL5 -- the reviewer's isolate is "Klebsiella spp." (genus only)
+    assert ids == {"PL1", "PL2", "PL3", "PL4", "PL5"}
     assert {"Meropenem", "Ciprofloxacin", "Levofloxacin"} <= set(reflex_tests(ORG, CASE))
     # a lab-reported SDD is not flagged as "I"
     assert not any(f["id"] == "PL3:Cefepime" for f in check_plausibility(ORG, CASE, sdd={"Cefepime"}))
@@ -331,4 +332,5 @@ def test_page_passes_one_case_record_to_the_image(monkeypatch):
     # v7.4 (external case review): a tested-S agent that is not appropriate here
     # carries its S result -- it is not a resistant agent.
     assert any("Aztreonam (S · ESBL)" == s for s in seen["contraindicated"])
-    assert any(s.startswith("Ofloxacin (FQ") for s in seen["use_caution"])
+    # v7.9: the S result is kept and the tag says what settles it (no "R", no gyrA)
+    assert "Ofloxacin (S · confirm by CIP/LEV)" in seen["use_caution"]

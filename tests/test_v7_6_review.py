@@ -189,7 +189,10 @@ def test_a_clean_validation_is_shown_as_clean_and_a_missing_one_as_a_failure():
     traces, state, errors = _page()
     assert not errors, errors
     txt = rendered_text(traces[-1])
-    assert "V00" not in txt and "كل الفحوصات المتقاطعة سليمة" in txt
+    # v7.9: as a word -- the rendered text also carries the base64 of the tree
+    # image, where "V00" can occur by chance (it did when the image changed)
+    import re
+    assert not re.search(r"\bV00\b", txt) and "كل الفحوصات المتقاطعة سليمة" in txt
     assert any("TXT" in d for d in _clinical_downloads(traces[-1]))
 
 
