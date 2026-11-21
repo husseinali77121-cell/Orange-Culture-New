@@ -541,6 +541,17 @@ def check_panel_completeness(
     _seen: set = set()
     supplemental = [d for d in supplemental if not (d in _seen or _seen.add(d))]
 
+    # v7.9 (external case review): the same QA sheet said "Fosfomycin: no
+    # breakpoints for Klebsiella" and listed Fosfomycin as a missing agent to
+    # add. An agent CLSI gives no breakpoint for THIS organism cannot be
+    # interpreted, so it is never "expected" (oral fosfomycin: E. coli only).
+    try:
+        from cdss.astqc.ast_reportability import no_breakpoint_issue as _nobp
+        primary = [d for d in primary if not _nobp(organism, d)]
+        supplemental = [d for d in supplemental if not _nobp(organism, d)]
+    except Exception:          # the check is advisory; never lose the panel over it
+        pass
+
     missing_primary = [d for d in primary if _nk(d) not in tested_norm]
     missing_supplemental = [d for d in supplemental if _nk(d) not in tested_norm]
 

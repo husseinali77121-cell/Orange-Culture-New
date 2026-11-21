@@ -169,25 +169,74 @@ def check_plausibility(organism: str, sir_map: Dict[str, Any],
                 "title_en": (f"Ertapenem {etp} -- carbapenemase test (mCIM / eCIM) and a "
                              "meropenem MIC are required"),
                 "title_ar": f"Ertapenem = {etp} — يلزم اختبار كاربابينيميز (mCIM / eCIM) و MIC للـ Meropenem",
-                "detail_en": ("A non-susceptible carbapenem in Enterobacterales is a carbapenemase "
-                              "until proven otherwise (CLSI M100 Ed36 Tables 3B / 3C). Ertapenem "
-                              "is the most sensitive indicator; meropenem decides whether a "
-                              "carbapenem is still an option and which novel agent fits (IDSA "
-                              "2026)." + (" Meropenem / imipenem were NOT tested." if carba_untested
-                                          else "")),
-                "detail_ar": ("كاربابينيم غير حساس في Enterobacterales = كاربابينيميز حتى يثبت العكس "
-                              "(CLSI M100 Ed36 Tables 3B / 3C). Ertapenem أكثرها حساسية للكشف، "
-                              "و Meropenem يحدد إن كان الكاربابينيم لا يزال خياراً وأي دواء حديث يناسب "
+                # v7.9 (external case review): "a carbapenemase until proven
+                # otherwise" turned a suspicion into a diagnosis. Carbapenem
+                # non-susceptibility TRIGGERS the test; it does not prove the
+                # enzyme -- ESBL or AmpC with porin loss gives the same result,
+                # and ertapenem is the agent most affected by it.
+                "detail_en": ("Carbapenem non-susceptibility in Enterobacterales triggers a "
+                              "carbapenemase test (CLSI M100 Ed36 Tables 3B / 3C); it does not by "
+                              "itself prove a carbapenemase - ESBL or AmpC with porin loss gives the "
+                              "same result, and ertapenem is the carbapenem most affected by it. "
+                              "Do not call the isolate carbapenemase-producing before the test. "
+                              "Meropenem decides whether a carbapenem is still an option and which "
+                              "novel agent fits (IDSA 2026)."
+                              + (" Meropenem / imipenem were NOT tested." if carba_untested else "")),
+                "detail_ar": ("عدم الحساسية لكاربابينيم في Enterobacterales يستدعي اختبار كاربابينيميز "
+                              "(CLSI M100 Ed36 Tables 3B / 3C)، لكنه لا يثبت وجود الإنزيم: ESBL أو "
+                              "AmpC مع فقد البورين يعطيان نفس النتيجة، و Ertapenem أكثر الكاربابينيمات "
+                              "تأثراً بذلك. لا تصف العزلة بأنها منتجة لكاربابينيميز قبل الاختبار. "
+                              "Meropenem يحدد إن كان الكاربابينيم لا يزال خياراً وأي دواء حديث يناسب "
                               "(IDSA 2026)." + (" Meropenem / Imipenem لم يُختبرا." if carba_untested
                                                 else "")),
-                "action_en": ("Run mCIM (+ eCIM) or a rapid carbapenemase test and add a meropenem MIC."
+                "action_en": ("Run mCIM with eCIM (the eCIM is read only when the mCIM is positive: "
+                              "serine carbapenemase vs metallo-beta-lactamase) or a rapid "
+                              "carbapenemase test, and add a meropenem MIC."
                               + (" Aztreonam S with a non-susceptible carbapenem is the metallo-"
                                  "beta-lactamase pattern: an eCIM matters here."
                                  if atm_s and not tzp_s else "")),
-                "action_ar": "اعمل mCIM (+ eCIM) أو اختبار كاربابينيميز سريع، وأضف MIC للـ Meropenem.",
+                "action_ar": ("اعمل mCIM مع eCIM (الـ eCIM يُقرأ فقط لو الـ mCIM موجب: إنزيم serine "
+                              "أم metallo) أو اختبار كاربابينيميز سريع، وأضف MIC للـ Meropenem."),
                 "reference": _REF_CARBA,
                 "reflex": (["Meropenem"] if "Meropenem" not in sir else [])
                           + ["Carbapenemase test (mCIM / eCIM)"],
+            })
+
+    # ── PL5: Klebsiella identified to genus only (v7.9) ─────────────────────
+    # External case review 2026-11-21 ("Klebsiella spp."): K. aerogenes carries
+    # an inducible chromosomal AmpC (IDSA AMR Guidance 2026 lists it with
+    # E. cloacae and C. freundii) and K. oxytoca a chromosomal OXY enzyme that
+    # can look like an ESBL. Which one it is changes how every beta-lactam
+    # result on this panel is read.
+    if ("klebsiella" in org_l and not any(sp in org_l for sp in (
+            "pneumoniae", "oxytoca", "aerogenes", "variicola", "quasipneumoniae",
+            "michiganensis", "grimontii", "ozaenae", "rhinoscleromatis"))):
+        _bl_ns = [d for d, v in sir.items()
+                  if str(v or "").strip().upper() in ("I", "R")
+                  and any(k in d.lower() for k in ("cef", "ceph", "penem", "tazobactam",
+                                                     "clavulan", "sulbactam", "aztreonam"))]
+        if _bl_ns:
+            out.append({
+                "id": "PL5:klebsiella_genus_only", "severity": "warning",
+                "short": "Klebsiella not speciated",
+                "drugs": _bl_ns[:4],
+                "title_en": "Klebsiella identified to genus only -- species decides how the "
+                            "beta-lactam results are read",
+                "title_ar": "Klebsiella معرّفة للجنس فقط — النوع يحدد قراءة نتائج البيتا-لاكتام",
+                "detail_en": ("K. aerogenes (formerly Enterobacter aerogenes) carries an inducible "
+                              "chromosomal AmpC: 3rd-generation cephalosporins and piperacillin-"
+                              "tazobactam can fail during therapy, and cephalosporin resistance is "
+                              "then AmpC rather than ESBL. K. oxytoca's chromosomal OXY enzyme can "
+                              "mimic an ESBL. K. pneumoniae has neither."),
+                "detail_ar": ("K. aerogenes (Enterobacter aerogenes سابقاً) يحمل AmpC كروموسومي قابل "
+                              "للتحفيز: الجيل الثالث و Pip-Tazo قد يفشلان أثناء العلاج، ومقاومة "
+                              "السيفالوسبورين تكون AmpC لا ESBL. و K. oxytoca إنزيمه الكروموسومي OXY "
+                              "قد يشبه الـ ESBL. و K. pneumoniae ليس فيه أيٌّ منهما."),
+                "action_en": "Identify to species (MALDI-TOF or biochemical) before choosing a "
+                             "beta-lactam.",
+                "action_ar": "عرّف للنوع (MALDI-TOF أو اختبارات بيوكيميائية) قبل اختيار أي بيتا-لاكتام.",
+                "reference": "IDSA AMR Guidance 2026 (AmpC-E: K. aerogenes) · CLSI M100 Ed36",
+                "reflex": ["Species ID test (MALDI-TOF / biochemical)"],
             })
 
     # ── PL4: fluoroquinolone discordance (any Gram-negative) ───────────────
@@ -199,19 +248,24 @@ def check_plausibility(organism: str, sir_map: Dict[str, Any],
             "id": "PL4:fq_discordance", "severity": "warning",
             "short": "quinolone discordance",
             "drugs": old_s + any_ns,
+            # v7.9 (external case review): "points to a first-step gyrA
+            # mutation" stated a genotype from two disk results. It is a
+            # possible phenotype; the mechanism is not confirmed.
             "title_en": (f"{', '.join(old_s)} S with {', '.join(any_ns)} non-susceptible -- "
-                         "low-level fluoroquinolone resistance"),
-            "title_ar": (f"{', '.join(old_s)} = S مع {', '.join(any_ns)} غير حساس — مقاومة "
+                         "possible low-level fluoroquinolone resistance"),
+            "title_ar": (f"{', '.join(old_s)} = S مع {', '.join(any_ns)} غير حساس — احتمال مقاومة "
                          "فلوروكينولون منخفضة المستوى"),
-            "detail_en": ("A split quinolone result points to a first-step QRDR (gyrA) mutation. "
-                          "CLSI revised the ciprofloxacin / levofloxacin breakpoints for "
+            "detail_en": ("Possible low-level fluoroquinolone resistance phenotype; mechanism not "
+                          "confirmed (a first-step target mutation is one explanation, not a "
+                          "finding). CLSI revised the ciprofloxacin / levofloxacin breakpoints for "
                           "Enterobacterales in 2019 (M100-Ed29); the ofloxacin and norfloxacin "
-                          "criteria were not revised and can still read S over that mutation, "
-                          "so an ofloxacin S here does not predict clinical success."),
-            "detail_ar": ("الاختلاف بين الكينولونات يشير لطفرة أولى في QRDR (gyrA). CLSI عدّل "
+                          "criteria were not revised and can still read S over low-level "
+                          "resistance, so an ofloxacin S here does not predict clinical success."),
+            "detail_ar": ("نمط يوحي باحتمال مقاومة فلوروكينولون منخفضة المستوى؛ الآلية غير مؤكدة "
+                          "(طفرة أولى في الهدف تفسير محتمل وليست نتيجة مثبتة). CLSI عدّل "
                           "breakpoints الـ Ciprofloxacin / Levofloxacin للـ Enterobacterales في 2019 "
                           "(M100-Ed29)، ولم تُعدَّل معايير Ofloxacin و Norfloxacin، فقد تُقرأ S رغم "
-                          "الطفرة — Ofloxacin S هنا لا يضمن النجاح العلاجي."),
+                          "المقاومة المنخفضة — Ofloxacin S هنا لا يضمن النجاح العلاجي."),
             "action_en": ("Test ciprofloxacin and levofloxacin (MIC) before relying on any "
                           "fluoroquinolone."),
             "action_ar": "اختبر Ciprofloxacin و Levofloxacin (MIC) قبل الاعتماد على أي فلوروكينولون.",
