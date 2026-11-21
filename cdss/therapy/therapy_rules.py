@@ -200,10 +200,12 @@ CLINICAL_NOTE_EN = {
                             "cases, with infectious-diseases advice."),
     "no_breakpoint": ("No CLSI M100 breakpoint for this organism-agent pair: the result is "
                       "uncalibrated and is not a basis for treatment."),
+    # v7.9: a possibility, not a proven gyrA mutation (external case review)
     "fq_low_level": ("Split quinolone result (ofloxacin / norfloxacin S beside a non-susceptible "
-                     "quinolone): low-level resistance from a first-step gyrA mutation. CLSI revised "
-                     "the ciprofloxacin / levofloxacin breakpoints in 2019, not these - test "
-                     "ciprofloxacin and levofloxacin (MIC) before relying on it."),
+                     "quinolone): possible low-level fluoroquinolone resistance; mechanism not "
+                     "confirmed. CLSI revised the ciprofloxacin / levofloxacin breakpoints in 2019, "
+                     "not these - test ciprofloxacin and levofloxacin (MIC) before considering this "
+                     "class. The AST result itself stays S."),
     "legacy_breakpoint": ("Cefoperazone: the CLSI M100 Enterobacterales criterion (S <= 16 / R >= 64 "
                           "mg/L) dates from the original dosing and was never re-evaluated - the "
                           "result stands, but prefer an agent with current criteria "

@@ -201,6 +201,31 @@ def intermediate_note(name: str, cls: str, spec_cat: str, uti_upper: bool,
                 "only): the printed I comes from another breakpoint version - by current CLSI it "
                 "may be SDD or R. Obtain the MIC: SDD dosing only if the MIC falls in the SDD "
                 "range, otherwise treat it as R. Not at the standard dose.")
+    # v7.9 (external case review): ertapenem I in a Klebsiella got the generic
+    # beta-lactam text ("efficacy possible at a higher dose") and nothing about
+    # the work-up the QA sheet called critical. A carbapenem I in
+    # Enterobacterales is carbapenem NON-SUSCEPTIBILITY: it triggers a
+    # carbapenemase test and a meropenem MIC, and it is not, by itself, a
+    # carbapenemase.
+    if "carbapenem" in (cls or "").lower() or name in ("Ertapenem", "Meropenem",
+                                                         "Imipenem/Cilastatin"):
+        from cdss.astqc.phenotype_plausibility import _is_entero
+        if _is_entero(org):
+            _etp_ar = (" معايير Ertapenem مبنية على 1 جم مرة يومياً ولا يوجد نظام جرعة أعلى معتمد له."
+                       if name == "Ertapenem" else "")
+            _etp_en = (" The ertapenem breakpoints assume 1 g once daily; there is no approved "
+                       "higher-dose ertapenem regimen." if name == "Ertapenem" else "")
+            return (
+                "CLSI M100: النتيجة Intermediate (I) لكاربابينيم في Enterobacterales = عدم حساسية "
+                "للكاربابينيم. ليست دليلاً على كاربابينيميز (ESBL / AmpC مع فقد البورين يعطيان نفس "
+                "النتيجة)، لكنها تستلزم اختبار كاربابينيميز (mCIM، والـ eCIM يُقرأ لو mCIM موجب) و MIC "
+                "للـ Meropenem قبل الاعتماد على أي كاربابينيم." + _etp_ar + " لا تعتمد على هذا الدواء "
+                "حتى تظهر النتيجتان، والأفضل دواء S.",
+                "CLSI M100: Intermediate (I) for a carbapenem in Enterobacterales = carbapenem "
+                "non-susceptibility. Not proof of a carbapenemase (ESBL / AmpC with porin loss gives "
+                "the same result), but a carbapenemase test (mCIM; eCIM read if the mCIM is "
+                "positive) and a meropenem MIC are required before any carbapenem is relied on."
+                + _etp_en + " Do not rely on this agent until both are back; prefer an S agent.")
     if _is_beta_lactam(name, cls):
         if urine_lower:
             return (
