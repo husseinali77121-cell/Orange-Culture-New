@@ -872,3 +872,41 @@ SDD على أزواج غلط: V14 طلع بالظبط على الأزواج ال
 | إتاحة الأدوية في مصر | ميزة مش خطأ | **مستنية قائمة الإتاحة من المعمل** |
 | مراجعة مصادر القواعد (CLSI/EUCAST/IDSA الأصلية) | مش كود | محتاجة قراءة النصوص الأصلية (مدفوعة) — شغل د. طارق |
 
+
+## 21. مراجعة حالة حقيقية (Klebsiella spp. / قسطرة فوق العانة / شلل رباعي) — v7.9 (2026-11-21)
+
+**الحالة:** Klebsiella spp. ≥ 10⁵، بول من Suprapubic catheter، سيدة 30 سنة عندها شلل رباعي، «Autonomic dysreflexia
+جديدة» اتدخلت على أساس **تعرّق** فوق مستوى الإصابة. اللوحة زي تقرير المعمل بالظبط (15-Nov-2026).
+كل نقطة في المراجعة الخارجية اتراجعت على الكود قبل التعديل، واتعادت الحالة كاملة قبل وبعد.
+اختبارات جديدة: `tests/test_v7_9_review.py` (16). الـ suite كاملة **677 ناجح** (+1 متخطّى: OCR محتاج Tesseract).
+
+### 21.1 أخطاء حقيقية واتصلحت
+
+| النقطة | السبب في الكود | اللي اتعمل |
+|---|---|---|
+| MDR في التقرير و XDR في الـ QA لنفس العزلة | المحرك كان صح: «possible XDR» (4 فئات Magiorakos ما اتختبرتش). تقرير الـ QA كان بيطبع الـ level الخام ويشيل كلمة possible | جملة واحدة لكل التقارير (`resistance/esbl_status.py`): **MDR** هو المؤكد، و «XDR pattern … NOT confirmed: 4 categories not tested» في الـ QA والـ PDF والتقرير النصي والصورة |
+| Cefepime «I» (CLSI مالوش I) داخل في عدّ الفئات | مكنش متعلّم | بيتكتب *(unverified)* في جدول الـ MDR، والـ QA بيقول هل أي فئة قايمة عليه لوحده (هنا لأ — Cefoperazone R) |
+| «Carbapenemase until proven otherwise» | نص ثابت في PL2 | «عدم الحساسية بيستدعي اختبار، مش إثبات — ESBL/AmpC + فقد بورين بيدّوا نفس النتيجة»؛ الـ eCIM يتقرا بس لو الـ mCIM موجب |
+| Ertapenem I في التقرير: «فعّال بجرعة أعلى» | نص البيتا-لاكتام العام | نص خاص بالكاربابينيم في Enterobacterales: اختبار كاربابينيميز + MIC للـ Meropenem قبل الاعتماد عليه، ومعايير Ertapenem مبنية على 1 جم مرة يومياً |
+| AD من التعرّق بس → «Likely TRUE INFECTION» بثقة High | أي عَرَض نخاع «جديد» بياخد 22 نقطة | سؤال جديد: **Confirmed** (ضغط ≥ 20 مم فوق المعتاد ومفيش محفز تاني) يتحسب · **Suspected / مش متجاوب** = «Possible» بحد أقصى وثقة Moderate · **مفسَّرة بمحفّز تاني** = مش عَرَض UTI. وسطر «AD حالة طارئة» أول توصية في كل الحالات |
+| «Suprapubic catheter» كانت بتتاخد كأنها طريقة سحب صحيحة | مفيش سؤال عن مكان السحب | سؤال جديد للقسطرة: منفذ العينات / قسطرة جديدة / الكيس / حوالين القسطرة. الكيس وحوالين القسطرة = **URINE_SPECIMEN_REJECT** (عينة مرفوضة، بتوقف التوصيات لحد إعادة السحب، والطبيب يقدر يتخطاها) |
+| Ofloxacin مكتوب «(FQ low-level R)» في الصورة وهو S | تاج ثابت | «(S · confirm by CIP/LEV)»؛ ومفيش تقرير بيقول «طفرة gyrA» — «احتمال مقاومة منخفضة، الآلية غير مؤكدة» |
+| Fosfomycin «ناقص» لـ Klebsiella، ونفس التقرير بيقول مالوش breakpoint | لوحة الاكتمال ما كانتش بتسأل فحص الـ no-breakpoint | أي دوا CLSI مالوش breakpoint للكائن ده مش «متوقع» في اللوحة |
+| «Best available: Gentamicin» / «PRIMARY» | تسمية | «Potential option … renal fn, severity, ID review» في الصورة، و «POTENTIAL PREFERRED OPTION — subject to renal check, severity, specialist review» في الـ PDF؛ العمود الأخضر «CANDIDATES (AST S)» |
+
+### 21.2 حاجة المراجعة ما قالتهاش
+
+- **PL5 — Klebsiella متعرّفة للجنس بس:** K. aerogenes فيها AmpC كروموسومي (الجيل التالت و Pip-Tazo ممكن يفشلوا أثناء
+  العلاج، والمقاومة تبقى AmpC مش ESBL)، و K. oxytoca إنزيمها OXY ممكن يشبه الـ ESBL. تحذير في الـ QA + «species ID» في
+  «Test now». غيّر 42 حالة في الـ scenario snapshot (كلها Klebsiella spp.، الفرق الوحيد PL5) — اتراجعت واتسجلت.
+
+### 21.3 نقط المراجعة اللي كانت متعملة أصلاً
+
+Pip-Tazo بيفضل S في الـ AST (التحذير منفصل) · Aztreonam مش اختيار أول ومربوط بالـ ESBL · Gentamicin حقن بس ومفيش
+oral step-down · فصل «Required by another result» عن «supplemental» · المدة مربوطة بالاستجابة (7 / 10–14 يوم).
+
+### 21.4 اللي اتغيّر في الـ golden outputs
+
+اتراجع نص التقارير قبل وبعد لكل الحالات: الفرق الوحيد (1) PRIMARY ← POTENTIAL PREFERRED OPTION (38 PDF إنجليزي + 38
+عربي) و (2) Fosfomycin بقى «additional» بدل «covered» للكائنات اللي مالهاش breakpoint (6 تقارير نصية). هاشات الـ
+Pathogenicity كلها اتغيرت لأن رقم إصدار المحرك (3.4) جوه النتيجة.
