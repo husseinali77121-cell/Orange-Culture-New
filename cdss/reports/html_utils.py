@@ -1,6 +1,8 @@
 # © 2025 Dr / Hussein Ali -- Orange Lab, 6 October City, Egypt
 # Microbiology CDSS -- All Rights Reserved
-"""HTML escaping and PDF glyph safety for the report writers."""
+"""HTML escaping and PDF glyph safety for the report writers; the short
+labels the Clinical Tree and the PDF print beside a drug (v7.9)."""
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 
 
@@ -175,3 +177,71 @@ def pdf_glyph_guard(html: str) -> str:
             continue
         out.append(ch)
     return "".join(out)
+
+
+# ═══════════ Clinical Tree / PDF labels (v7.9) ═══════════
+# Short labels the Clinical Tree image prints beside a drug (v7.9).
+#
+# Moved out of cdss_ui/report_panels.py so they can be tested without Streamlit.
+# Kept in this module (not a new file) so cdss/ stays within GitHub's
+# 100-files-per-browser-upload limit (NEW_REPO_SETUP.md).
+# External case review 2026-11-21 (Klebsiella spp., suprapubic catheter):
+#
+#   * "Ofloxacin (FQ low-level R)" -- an S result printed with an R and a
+#     mechanism that two disk results cannot prove. The tag now keeps the S and
+#     says what settles it: "(S · confirm by CIP/LEV)".
+#   * "Ertapenem (I)" -- carbapenem non-susceptibility looked like any other I.
+#     It now says the work-up is pending, without calling the isolate a
+#     carbapenemase producer: "(I · carbapenemase test)".
+#   * "Cefepime (I)" -- CLSI M100 Ed36 has no I for this pair; the printed I is
+#     SDD or R by MIC and cannot be used as it stands: "(I unverified · MIC)".
+#   * "Best available: Gentamicin" -- the only S agent is a candidate, not a
+#     verdict; the strategy line says what it still depends on.
+CAUTION_TAG: Dict[str, str] = {
+    "fq_low_level": "(S · confirm by CIP/LEV)", "esbl_bli_uti_only": "(ESBL: alternative)",
+    "intermediate_culture": "(I)", "renal_adjustment": "(Renal dose)",
+    "hepatic_adjustment": "(Hepatic dose)", "no_breakpoint": "(No breakpoint)",
+    "legacy_breakpoint": "(Old criterion)", "organism_caution": "(Organism)",
+    "possible_carbapenemase": "(Carbapenemase test)", "safety_gate": "(Site / host)",
+    "allergy": "(Allergy)", "interaction": "(Interaction)", "pregnancy": "(Pregnancy)",
+    "ampc_sdd": "(SDD dose)", "ampc_cefepime": "(AmpC)", "child_fq": "(Pediatric)",
+    "uti_upper": "(Cystitis only)", "novel_agent": "(Novel agent)",
+    "idsa_new_agent": "(IDSA 2026 note)", "esbl_not_excluded": "(ESBL not excluded)",
+}
+
+_CARBAPENEMS = ("Ertapenem", "Meropenem", "Imipenem/Cilastatin")
+
+# The physician PDF tier for the first ranked agent when no guideline list is
+# behind the rank (it used to say "PRIMARY").
+POTENTIAL_PREFERRED = "POTENTIAL PREFERRED OPTION — subject to renal check, severity, specialist review"
+
+
+def caution_label(item: Mapping[str, Any], organism: str = "",
+                  sir_map: Optional[Mapping[str, Any]] = None,
+                  sdd_drugs: Iterable[str] = ()) -> str:
+    """'Name (why)' for the USE WITH CAUTION column."""
+    name = str(item.get("name") or "")
+    reason = item.get("warning_reason") or item.get("category") or ""
+    tag = CAUTION_TAG.get(reason, "")
+    res = str((sir_map or {}).get(name, "") or "").strip().upper()
+    if reason == "intermediate_culture" and name in set(sdd_drugs or ()):
+        tag = "(SDD)"
+    elif res == "I" and name not in set(sdd_drugs or ()):
+        from cdss.astqc.phenotype_plausibility import _is_entero, no_i_pair
+        if no_i_pair(name, organism):
+            tag = "(I unverified · MIC)"
+        elif name in _CARBAPENEMS and _is_entero((organism or "").lower()):
+            tag = "(I · carbapenemase test)"
+    return f"{name} {tag}".strip()
+
+
+def top_option_line(name: str, route: str, *, guideline_alternative: bool = False) -> str:
+    """The CLINICAL STRATEGY line for the first ranked agent.
+
+    "Best available" read as a verdict. An S result makes an agent a candidate;
+    infection severity, renal function, the pending mechanism work-up and the
+    treating physician / ID review decide.
+    """
+    if guideline_alternative:
+        return f"IDSA alternative: {name} [{route}]"
+    return f"Potential option: {name} [{route}] - renal fn, severity, ID review"

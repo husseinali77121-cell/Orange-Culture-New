@@ -24,15 +24,16 @@ from cdss.organisms.organism_profile import ORGANISM_PROFILE
 from cdss.reports.html_utils import _esc
 from cdss.reports.html_utils import _score_color
 from cdss.reports.i18n_en import alert_en
-from cdss.resistance.mdr import MDR_INFO
 from cdss.reports.pdf_parts import avoid_reason_tag
-from cdss.resistance.mdr import (mdr_display_label, physician_mdr_categories,  # noqa: F401
+from cdss.reports.html_utils import POTENTIAL_PREFERRED
+from cdss.resistance.mdr import (MDR_INFO, mdr_display_label, physician_mdr_categories,  # noqa: F401
                                physician_mdr_label, physician_mdr_level)
 from cdss.stewardship.duration import annotate_regimen_note
 from cdss.stewardship.ranking import route_label
 from cdss.stewardship.syndrome import INFECTION_SYNDROMES
 from cdss.therapy.notes import warned_note_for
 from cdss.therapy.panel_filters import _drop_intrinsic
+
 
 
 def section_ranked(
@@ -97,10 +98,10 @@ def section_ranked(
                 _tlbl = "FIRST-LINE" if _rd.get("_guideline_preferred") else "ALTERNATIVE"
             elif _fl_norm and _fl_survives:
                 _tlbl = "FIRST-LINE" if _nm_norm in _fl_norm else "ALTERNATIVE"
-            else:                                   # no curated syndrome list -> rank by position
-                _tlbl = "PRIMARY" if i == 1 else "ALTERNATIVE"
+            else:   # no curated list -> by position; v7.9: a candidate, not "PRIMARY" (html_utils)
+                _tlbl = POTENTIAL_PREFERRED if i == 1 else "ALTERNATIVE"
             _clr  = AWARE_CLR.get(_raw,"#444")      # drug name + pill colour = AWaRe (stewardship)
-            _hclr = "#1e8449" if _tlbl in ("FIRST-LINE", "PRIMARY") else "#0d3b66"  # header colour = line
+            _hclr = "#1e8449" if _tlbl in ("FIRST-LINE", POTENTIAL_PREFERRED) else "#0d3b66"
             _ccss = AWARE_CARD.get(_raw,"")
             _sirv = sir_map.get(_rd.get("name",""),"S")
             _rte  = "PO" if route_label(_rd, specimen) == "PO" else "IV/IM"

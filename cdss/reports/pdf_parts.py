@@ -455,6 +455,7 @@ def section_resistance_line(*, H, mdr_result, esbl_state, carbapenemase_type=Non
     image named three of six). One line: the level, the count, every category,
     the rule -- and the ESBL evidence level."""
     from cdss.resistance.mdr import mdr_short_categories, physician_mdr_level
+    from cdss.resistance.esbl_status import mdr_xdr_note
     parts = []
     lvl = physician_mdr_level(mdr_result) if (mdr_result or {}).get("level") else None
     if lvl:
@@ -462,6 +463,10 @@ def section_resistance_line(*, H, mdr_result, esbl_state, carbapenemase_type=Non
         parts.append(f"<b>{_esc(lvl)}</b> — NS in {(mdr_result or {}).get('resistant_count', 0)} of "
                      f"{(mdr_result or {}).get('total_tested', 0)} tested categories "
                      f"(Magiorakos 2012): {_esc(', '.join(cats))}")
+        # v7.9: the QA sheet and this line now say the same thing about XDR
+        _x = mdr_xdr_note(mdr_result)
+        if _x:
+            parts.append(_esc(_x))
     if carbapenemase_type:
         parts.append(f"<b>{_esc(carbapenemase_type)}</b> carbapenemase confirmed by the laboratory")
     elif esbl_state:

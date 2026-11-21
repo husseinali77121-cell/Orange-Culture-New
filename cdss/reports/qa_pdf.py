@@ -71,10 +71,19 @@ def generate_qa_report_pdf(
     _sdd = set(sdd or ())
     try:
         from cdss.resistance.mdr import classify_mdr, mdr_breakdown
+        from cdss.resistance.esbl_status import (mdr_heading, mdr_without_unverified,
+                                                mdr_xdr_note, unverified_results)
         _mdr = classify_mdr(organism, sir_map or {}) if sir_map else {}
         _mdr_rows = mdr_breakdown(_mdr, sir_map or {}) if (_mdr or {}).get("total_tested") else []
+        # v7.9: the same heading as the physician advisory (no bare "XDR" here
+        # while the advisory says "MDR"), and the results that cannot be used
+        # as printed (cefepime "I" where CLSI has no I) are marked.
+        _unv = unverified_results(organism, sir_map or {}, _sdd)
+        _mdr_unv = mdr_without_unverified(organism, sir_map or {}, _mdr, _unv) if _mdr else {}
+        _mdr_head = mdr_heading(_mdr) if _mdr else ""
+        _mdr_xdr = mdr_xdr_note(_mdr, list_categories=True) if _mdr else ""
     except Exception:
-        _mdr, _mdr_rows = {}, []
+        _mdr, _mdr_rows, _unv, _mdr_unv, _mdr_head, _mdr_xdr = {}, [], [], {}, "", ""
 
     def _ar(text: str) -> str:
         return _md_inline(bidi_isolate(text))
@@ -237,15 +246,29 @@ table.cols > tbody > tr > td.gap {{ width:4mm; }}
         # it. The internal sheet shows the count: each tested category, its
         # agents with their results, and whether it counted as non-susceptible.
         if _mdr_rows:
-            _lvl = (_mdr or {}).get("level") or "not MDR"
-            H.append(f'<div class="sec-ttl">🧮 MDR classification — {_esc(str(_lvl))}: '
-                     f'non-susceptible in {(_mdr or {}).get("resistant_count", 0)} of '
-                     f'{(_mdr or {}).get("total_tested", 0)} tested categories</div>')
+            H.append(f'<div class="sec-ttl">🧮 MDR classification: {_esc(_mdr_head)}</div>')
             H.append('<div class="small">Magiorakos 2012: a category is non-susceptible when '
                      '&ge; 1 agent in it is I or R; MDR = non-susceptible in &ge; 3 categories. '
-                     'Several resistant agents in ONE category count once.</div>')
+                     'Several resistant agents in ONE category count once. XDR / PDR are '
+                     'confirmed only when every category of the organism\'s table was tested.</div>')
+            if _mdr_xdr:
+                H.append(f'<div class="sir-line" style="color:#922b21">⚠️ {_esc(_mdr_xdr)}. '
+                         'Test them before reporting XDR; the established level is '
+                         f'{_esc((_mdr_head or "").split(" — ")[0])}.</div>')
+            if _unv:
+                _rest = (_mdr_unv or {}).get("categories_resting_on_unverified") or []
+                H.append('<div class="sir-line" style="color:#b7770d">⏳ Pending verification '
+                         f'(CLSI has no I here — SDD or R by MIC): {_esc(", ".join(_unv))}. '
+                         + (f'Category verdict resting on it alone: {_esc(", ".join(_rest))} — '
+                            'recalculate after the MIC.' if _rest else
+                            'No category verdict rests on it alone — the level stands either way.')
+                         + ((' Level without it: ' + _esc(str((_mdr_unv or {}).get('level_without')
+                                                                 or 'not MDR')) + '.')
+                            if (_mdr_unv or {}).get("changed") else '')
+                         + '</div>')
             for _row in _mdr_rows:
                 _ag = ", ".join(f"{_esc(d)} <span class='sir-{r}'>{_esc(r)}</span>"
+                                + (" <i>(unverified)</i>" if d in _unv else "")
                                 for d, r in _row["agents"])
                 H.append(f'<div class="sir-line">{"❌" if _row["non_susceptible"] else "✅"} '
                          f'<b>{_esc(_row["category"])}</b>: {_ag}</div>')

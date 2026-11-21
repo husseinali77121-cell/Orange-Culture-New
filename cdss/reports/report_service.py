@@ -157,6 +157,7 @@ from cdss.resistance.mdr import (
     physician_mdr_level,
     classify_mdr,
 )
+from cdss.resistance.esbl_status import mdr_xdr_note
 from cdss.resistance.mechanism import (
     predict_esbl,
 )
@@ -652,7 +653,10 @@ def generate_decision_tree_image(
         # v7.4 (external case review): "6/9" was printed beside THREE category
         # names (the list was cut at 3). Every counted category is named now,
         # in short form, with the rule that produced the level.
-        alerts.append(f"{_lvl_txt}: NS in {rc} of {rt} tested categories (Magiorakos)")
+        # v7.9: a provisional XDR says so on the same line (the box has no room for one more)
+        _prov = (mdr_result or {}).get("provisional") and mdr_lvl in ("XDR", "PDR")
+        alerts.append(f"{_lvl_txt}: NS in {rc} of {rt} tested" + (f" · {mdr_lvl} not confirmed"
+                      if _prov else " categories (Magiorakos)"))
         if mdr_cats:
             alerts.append("NS: " + ", ".join(mdr_short_categories(mdr_cats, compact=True)))
 
@@ -802,7 +806,7 @@ def generate_decision_tree_image(
 
     # v7.4: "SAFE" overstated it (AWaRe is stewardship, not patient safety)
     columns = [
-        ("✅ APPROPRIATE (AST S)", "Ranked for this site · route shown",  preferred,  GREEN_BD, GREEN_BG, GREEN_TXT),
+        ("✅ CANDIDATES (AST S)", "In-vitro active · confirm clinically",  preferred,  GREEN_BD, GREEN_BG, GREEN_TXT),
         ("⚠️  USE WITH CAUTION", "Use with caution",         use_caution,     AMBER_BD, AMBER_BG, AMBER_TXT),
         (avoid_title,            avoid_subtitle,             contraindicated,  RED_BD,   RED_BG,   RED_TXT),
         ("🛡️  RESERVE (WHO)",     "Last-resort agents (MDR/XDR)", reserve,      BLUE_BD,  BLUE_BG,  BLUE_TXT),
@@ -1121,6 +1125,12 @@ def _text_esbl_title(esbl_r, aux_tests) -> str:
             }.get(_st, "SUSPECTED ESBL PRODUCER (resistance pattern only -- not confirmed)")
 
 
+def _xdr_lines(mdr_r) -> List[str]:
+    """v7.9: the text report states a provisional XDR the same way as the PDFs."""
+    note = mdr_xdr_note(mdr_r, list_categories=True)
+    return [note + "."] if note else []
+
+
 def generate_report(
     patient_name:    str,
     age:             int,
@@ -1247,7 +1257,7 @@ def generate_report(
                   f"Non-susceptible ({mdr_r['resistant_count']}/{mdr_r['total_tested']}): "
                   + ", ".join(physician_mdr_categories(
                       mdr_r, sir_map, {d.get("name") for d in (allowed or []) + (warned or [])})),
-                  f"Action: {info['action']}", ""]
+                  f"Action: {info['action']}"] + _xdr_lines(mdr_r) + [""]
         esbl_r = predict_esbl(organism, sir_map)
         prob   = esbl_r.get("probability")
         if prob == "carbapenemase":
