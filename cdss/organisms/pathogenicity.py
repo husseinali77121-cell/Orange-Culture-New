@@ -163,7 +163,7 @@ def _org_in(name: str, group) -> bool:
 #  New keys: engine_version, category, threshold, notes, missing_inputs,
 #  confidence, references, evidence.
 # ════════════════════════════════════════════════════════════════════════════
-PATHO_ENGINE_VERSION = "3.3 (2026-11-20)"
+PATHO_ENGINE_VERSION = "3.4 (2026-11-21)"
 
 # ── Option lists (single source for the UI) ─────────────────────────────────
 HOST_SCI_PARA = "Paraplegia (spinal cord injury)"
@@ -231,6 +231,70 @@ _SCI_SHORT = {
     "Malaise / Lethargy / Sense of unease (SCI)": "malaise / lethargy",
     "New incontinence / Leaking around catheter": "new leakage / incontinence",
 }
+
+
+# v7.9 (external case review, 2026-11-21): a 30-year-old with tetraplegia,
+# entered as "autonomic dysreflexia, new" on the strength of SWEATING above the
+# injury level, came out "Likely TRUE INFECTION -- Treat", confidence High.
+# Autonomic dysreflexia (AD) is defined by a blood-pressure rise (systolic
+# >= 20 mmHg above the person's baseline in adults); sweating / flushing alone
+# only raise the suspicion, and a blocked catheter, a full bladder, the bowel or
+# the skin are commoner triggers than infection. The engine now asks.
+AD_SYMPTOM = "Autonomic dysreflexia (SCI)"
+AD_ASSESSMENT_OPTIONS = [
+    "مش محدد",
+    "Confirmed — SBP ≥ 20 mmHg above baseline; catheter, bladder, bowel, skin checked — no other trigger",
+    "Suspected only — sweating / flushing / headache, BP rise not documented",
+    "Explained by another trigger — blocked catheter / full bladder / constipation / pressure ulcer",
+]
+
+# v7.9: "Suprapubic catheter" said which device, not how the urine was taken.
+# The specimen from a catheter is valid only from the disinfected sampling port
+# (best: a freshly replaced catheter when the old one has been in >= 2 weeks);
+# the drainage bag and the skin around the catheter are not urine specimens.
+CATHETER_SAMPLE_SITES = [
+    "مش محدد",
+    "Sampling port (disinfected) of the catheter in place",
+    "Sampling port of a freshly replaced catheter",
+    "Drainage bag — not acceptable for culture",
+    "Around the catheter / skin insertion site — not a urine specimen",
+]
+
+
+def _ad_state(v: str) -> Optional[str]:
+    """'confirmed' | 'suspected' | 'other' | None (not answered)."""
+    c = str(v or "").lower()
+    if not c or "مش محدد" in c:
+        return None
+    if c.startswith("confirmed"):
+        return "confirmed"
+    if c.startswith("explained") or "another trigger" in c:
+        return "other"
+    if c.startswith("suspected"):
+        return "suspected"
+    return None
+
+
+def _sample_site(v: str) -> Optional[str]:
+    """'port' | 'fresh' | 'bag' | 'skin' | None (not answered)."""
+    c = str(v or "").lower()
+    if not c or "مش محدد" in c:
+        return None
+    if "freshly" in c:
+        return "fresh"
+    if "bag" in c:
+        return "bag"
+    if "insertion" in c or "around the catheter" in c:
+        return "skin"
+    if "port" in c:
+        return "port"
+    return None
+
+
+def catheter_collection(collection_method: str) -> bool:
+    """True for a urine specimen taken from an indwelling (urethral / suprapubic) catheter."""
+    c = str(collection_method or "").lower()
+    return any(k in c for k in ("indwelling", "foley", "suprapubic catheter"))
 
 
 def _course(symptom_course: str) -> Optional[str]:
@@ -344,6 +408,12 @@ _TK_GRAM_VARIABLE = ("acinetobacter", "gardnerella", "bacillus", "clostridi",
 # English form here; test_round3.py fails if the engine can emit a note that
 # has none.
 _NOTES_EN = [
+    ("🚨 الـ autonomic dysreflexia حالة طارئة", "Autonomic dysreflexia is a medical emergency - do not wait for the culture: sit the patient upright, loosen tight clothing, measure BP every 2-5 min, check the catheter for blockage / kinking and the bladder for distension, then the bowel and skin; if the BP stays raised after the trigger is removed, treat per the AD protocol (Consortium for Spinal Cord Medicine 2020)."),
+    ("♿ الـ dysreflexia مُفسَّرة بمحفّز آخر", "Autonomic dysreflexia explained by another trigger (blocked catheter, full bladder, constipation, pressure ulcer) is not counted as a UTI symptom; re-assess if it recurs after that trigger is removed."),
+    ("🧪 عينة من كيس التجميع", "Drainage-bag urine is not acceptable for culture: bacteria multiply in the bag. Re-collect from the disinfected sampling port (of a freshly replaced catheter if the current one has been in place >= 2 weeks) - IDSA CA-UTI 2009."),
+    ("🧪 عينة من حول القسطرة", "A sample from around the catheter / the skin insertion site is not a urine specimen (skin and tract flora). Re-collect from the disinfected sampling port (of a freshly replaced catheter if the current one has been in place >= 2 weeks) - IDSA CA-UTI 2009."),
+    ("🧪 مكان سحب العينة من القسطرة غير مُدخل", "Catheter sampling site not recorded: only urine from the disinfected sampling port is valid (from a freshly replaced catheter if the current one has been in place >= 2 weeks); bag urine and samples from around the catheter are rejected (IDSA CA-UTI 2009)."),
+    ("🧪 عينة من قسطرة مُغيَّرة حديثاً", "Specimen from a freshly replaced catheter: reflects bladder urine rather than the old catheter's biofilm (IDSA CA-UTI 2009)."),
     ("الكائن غير محدد النوع", "Organism not identified to species level: the assessment rests on genus / Gram reaction only. Identification can change the interpretation (e.g. S. aureus is always a pathogen; coagulase-negative staphylococci are common contaminants)."),
     ("البول العكر أو كريه الرائحة", "Cloudy or foul-smelling urine alone is not evidence of infection and not an indication to culture or treat (IDSA CA-UTI 2009)."),
     ("تشوش/هذيان بلا أعراض بولية", "Delirium without urinary symptoms or fever in an older patient: look for another cause and observe rather than treat bacteriuria (IDSA ASB 2019)."),
@@ -395,6 +465,9 @@ _CATEGORY_EN = {
         ["Correlate with CSF cells, glucose, protein and Gram stain: normal values point to contamination.",
          "Repeat the lumbar puncture if clinical suspicion persists - neither ignore the result nor treat on it alone.",
          "If the patient has a shunt / EVD or recent neurosurgery, record it under host factors - the interpretation changes."]),
+    "URINE_SPECIMEN_REJECT": ("Not a bladder-urine specimen: drainage-bag urine grows bacteria in the bag, and a sample from around the catheter carries skin / tract flora. The result cannot be interpreted.",
+        ["Re-collect from the disinfected sampling port - from a freshly replaced catheter if the current one has been in place >= 2 weeks (IDSA CA-UTI 2009).",
+         "If the patient is clinically unwell (fever / sepsis): take the proper specimen first, then start empirical therapy - do not delay treatment waiting for it."]),
     "SPECIMEN_REJECT": ("Inadequate specimen (epithelial cells >= 25/LPF): the result reflects oral flora, not the lower respiratory tract.",
         ["Reject the specimen and request a properly collected sputum (early morning, after rinsing the mouth).",
          "Consider induced sputum or BAL / endotracheal aspirate if an adequate specimen cannot be obtained."]),
@@ -446,6 +519,8 @@ _MISSING_AR = {
     "Specimen type not recognised": "نوع العينة غير معروف",
     "Urinalysis / pyuria (AAP)": "تحليل البول / الصديد (شرط AAP للرضيع)",
     "Symptom course (new vs baseline)": "هل الأعراض جديدة / أسوأ من المعتاد؟",
+    "Autonomic dysreflexia confirmation (BP vs baseline, other triggers)":
+        "تأكيد الـ autonomic dysreflexia (الضغط مقابل المعتاد، استبعاد المحفزات الأخرى)",
 }
 
 
@@ -742,6 +817,8 @@ def _site_urine(
     urinalysis_result,
     uro_procedure,
     symptom_course="",
+    ad_assessment="",
+    catheter_sample_site="",
 ):
     """URINE: score this specimen's own evidence (moved from assess_pathogenicity)."""
     coll_l = collection_method.lower()
@@ -782,6 +859,26 @@ def _site_urine(
     has_upper = bool(sym & _upper)
     has_specific = bool(sym & _specific)
     sci_entered = [x for x in SCI_TYPE_SYMPTOMS if x in sym]
+    # v7.9 (external case review): autonomic dysreflexia counts only when it
+    # is CONFIRMED (BP rise) and no other trigger explains it. Entered on
+    # sweating / flushing alone it is "possible" at most; explained by a
+    # catheter / bladder / bowel / skin trigger it is not a UTI symptom.
+    ad_entered = AD_SYMPTOM in sym and (neurogenic or catheterised)
+    ad = _ad_state(ad_assessment) if ad_entered else None
+    ad_other = ad_entered and ad == "other"
+    if ad_entered:
+        special_flags.append("AD_ENTERED")
+        notes.append("🚨 الـ autonomic dysreflexia حالة طارئة — لا تنتظر المزرعة: اجلس المريض، فك "
+                     "الملابس الضيقة، قِس الضغط كل 2–5 دقائق، افحص القسطرة (انسداد / التواء) وامتلاء "
+                     "المثانة ثم الأمعاء والجلد؛ لو الضغط ظل مرتفعاً بعد إزالة المحفز عالجه حسب "
+                     "بروتوكول الـ AD (Consortium for Spinal Cord Medicine 2020).")
+    if ad_other:
+        sci_entered = [x for x in sci_entered if x != AD_SYMPTOM]
+        special_flags.append("AD_OTHER_TRIGGER")
+        notes.append("♿ الـ dysreflexia مُفسَّرة بمحفّز آخر (قسطرة مسدودة، مثانة ممتلئة، إمساك، قرحة "
+                     "فراش) — لا تُحتسب عَرَضاً للـ UTI؛ أعِد التقييم لو تكررت بعد إزالة المحفز.")
+    ad_unconfirmed = ad_entered and ad in (None, "suspected")
+    ad_only = ad_unconfirmed and sci_entered == [AD_SYMPTOM]
     has_sci_sym = bool(sci_entered) and (neurogenic or catheterised)
     # v7.4 (external case review): these symptoms count only when NEW / worse than
     # baseline and unexplained (IDSA CA-UTI 2009); "present at baseline" makes them
@@ -796,6 +893,7 @@ def _site_urine(
     symptomatic = has_upper or has_specific or has_sci_sym or infant_nonspecific
     explicit_asym = ("Asymptomatic" in sym) and not symptomatic
     only_nonspecific = bool(sym) and not symptomatic and not explicit_asym
+    ad_explained_only = ad_other and not symptomatic
     symptoms_stated = bool(sym)
 
     if has_upper:
@@ -806,10 +904,24 @@ def _site_urine(
     elif has_sci_sym:
         # v7.4: name the symptoms ENTERED (the line listed the four textbook
         # examples, three of which the patient did not have).
-        if course == "new":
+        if course == "new" and ad_only:
+            # v7.9: sweating / flushing without a documented BP rise
+            add("symptoms", 12, "➕ Possible autonomic dysreflexia (BP rise not documented), new — "
+                                "an atypical UTI symptom only once confirmed (SBP ≥ 20 mmHg above "
+                                "baseline) and a blocked catheter / full bladder / bowel / skin "
+                                "trigger is excluded; sweating alone does not confirm it")
+            special_flags += ["AD_UNCONFIRMED", "AD_ONLY_UNCONFIRMED"]
+            missing.append("Autonomic dysreflexia confirmation (BP vs baseline, other triggers)")
+        elif course == "new":
+            _ad_conf = (ad == "confirmed")
             add("symptoms", 22, f"✅ New / worsening {_sci_names}, no other cause found — "
                                 "compatible with UTI with a catheter / neurogenic bladder "
-                                "(IDSA CA-UTI 2009)")
+                                "(IDSA CA-UTI 2009)"
+                                + ("; confirmed dysreflexia supports, but does not prove, UTI"
+                                   if _ad_conf else ""))
+            if ad_unconfirmed:
+                # another SCI symptom carries the weight; AD itself still to confirm
+                special_flags.append("AD_UNCONFIRMED")
         else:
             # Not answered: the symptom keeps its weight (it WAS entered) but the
             # verdict is capped at "possible" below -- an unanswered question must
@@ -819,8 +931,14 @@ def _site_urine(
                                 "not yet confirmed")
             special_flags.append("SCI_SYMPTOMS_UNCONFIRMED")
             missing.append("Symptom course (new vs baseline)")
+            if ad_unconfirmed:
+                special_flags.append("AD_UNCONFIRMED")
     elif infant_nonspecific:
         add("symptoms", 15, "➕ Non-specific symptoms in an infant — UTI presents this way under 2 yr")
+    elif ad_explained_only:
+        add("symptoms", -10, "⚠️ Autonomic dysreflexia explained by another trigger (catheter / "
+                             "bladder / bowel / skin) — not attributed to UTI; bacteriuria is "
+                             "expected with a catheter / neurogenic bladder")
     elif explicit_asym:
         add("symptoms", -20, "⚠️ Asymptomatic — bacteriuria without symptoms is not a UTI")
     elif only_nonspecific and sci_baseline:
@@ -840,6 +958,27 @@ def _site_urine(
     if "Confusion / Delirium only (no urinary symptoms)" in sym and not symptomatic:
         notes.append("ℹ️ تشوش/هذيان بلا أعراض بولية ولا حمى في مريض مسن: ابحث عن سبب آخر "
                      "وراقب بدل علاج الـ bacteriuria (IDSA ASB 2019).")
+
+    # ── Catheter sampling site (v7.9, external case review) ──────────────
+    if catheter_collection(collection_method):
+        _site = _sample_site(catheter_sample_site)
+        if _site in ("bag", "skin"):
+            special_flags.append("CATHETER_SPECIMEN_INVALID")
+            add("collection", -30, "⛔ " + ("Drainage-bag urine" if _site == "bag" else
+                                           "Sample from around the catheter / skin insertion site")
+                + " — not a valid urine specimen; the count and the organism cannot be interpreted")
+            notes.append("🧪 عينة من كيس التجميع: بول الكيس غير مقبول للمزرعة — البكتيريا تتكاثر فيه. "
+                         "أعِد السحب من منفذ العينات بعد تطهيره."
+                         if _site == "bag" else
+                         "🧪 عينة من حول القسطرة / مكان دخولها في الجلد: ليست عينة بول (فلورا الجلد "
+                         "والمسار). أعِد السحب من منفذ العينات بعد تطهيره.")
+        elif _site == "fresh":
+            notes.append("🧪 عينة من قسطرة مُغيَّرة حديثاً: تعكس بول المثانة وليس الـ biofilm على "
+                         "القسطرة القديمة (IDSA CA-UTI 2009).")
+        elif _site is None:
+            notes.append("🧪 مكان سحب العينة من القسطرة غير مُدخل: الصالح فقط بول من منفذ العينات بعد "
+                         "تطهيره (من قسطرة جديدة لو القديمة ≥ أسبوعين)؛ بول الكيس أو من حول القسطرة "
+                         "يُرفض (IDSA CA-UTI 2009).")
 
     # ── Organism ─────────────────────────────────────────────────────────
     if (is_enterobacterales or "pseudomonas" in org_l or is_enterococcus
@@ -1559,6 +1698,19 @@ def _verdict(*, insufficient, missing, score, special_flags):
             "كرّر البزل القطني إذا كان الاشتباه السريري قائماً — لا تتجاهل النتيجة ولا تعالج عليها وحدها.",
             "لو المريض عنده shunt/EVD أو جراحة أعصاب حديثة: سجّلها في عوامل المضيف — التفسير يتغير.",
         ]
+    elif "CATHETER_SPECIMEN_INVALID" in special_flags:
+        # v7.9: urine from the drainage bag or from around the catheter
+        category = "URINE_SPECIMEN_REJECT"
+        verdict = "⛔ SPECIMEN NOT VALID (catheter bag / skin site) -- Re-collect"
+        color = "warning"
+        interpretation = ("العينة ليست بولاً من المثانة: بول كيس التجميع تتكاثر فيه البكتيريا، والعينة "
+                          "من حول القسطرة تحمل فلورا الجلد والمسار. النتيجة لا تُفسَّر.")
+        recommendations = [
+            "أعِد أخذ العينة من منفذ أخذ العينات بعد تطهيره — ومن قسطرة جديدة لو القديمة مركّبة من ≥ أسبوعين "
+            "(IDSA CA-UTI 2009).",
+            "لو المريض مريض إكلينيكياً (حمى / sepsis): خذ العينة الصحيحة أولاً ثم ابدأ العلاج التجريبي — "
+            "لا تؤخّر العلاج انتظاراً لها.",
+        ]
     elif "MW_REJECT" in special_flags:
         category = "SPECIMEN_REJECT"
         verdict = "🟢 SPECIMEN INADEQUATE -- Reject & Repeat"
@@ -1778,6 +1930,13 @@ _FLAG_RECS: List[Tuple[str, bool, str, str]] = [
      "أدخل تحليل البول / الصديد: AAP يشترط pyuria مع العدّ لتشخيص UTI تحت سنتين.",
      "Enter the urinalysis / pus cells: AAP requires pyuria with the count to "
      "diagnose UTI under 2 years."),
+    ("AD_UNCONFIRMED", False,
+     "أكّد الـ autonomic dysreflexia قبل نسبها للـ UTI: ارتفاع الضغط الانقباضي ≥ 20 مم زئبق عن المعتاد "
+     "للمريض مع التعرق / الاحمرار فوق مستوى الإصابة؛ واستبعد أولاً انسداد القسطرة وامتلاء المثانة "
+     "والإمساك وقرح الفراش. التعرق وحده لا يؤكدها.",
+     "Confirm autonomic dysreflexia before attributing it to UTI: systolic BP >= 20 mmHg above the "
+     "patient's baseline with sweating / flushing above the injury level; exclude a blocked catheter, "
+     "bladder distension, constipation and pressure ulcers first. Sweating alone does not confirm it."),
     ("SCI_SYMPTOMS_UNCONFIRMED", False,
      "أكّد إن الأعراض جديدة أو أسوأ من المعتاد ومفيش سبب تاني لها (IDSA CA-UTI 2009): لو "
      "موجودة من قبل وبنفس الدرجة فده bacteriuria مرتبطة بالقسطرة / المثانة العصبية ولا يُعالَج "
@@ -1808,6 +1967,39 @@ def _flag_recommendations(special_flags, category) -> Tuple[List[str], List[str]
     return ar, en
 
 
+# v7.9: autonomic dysreflexia is managed NOW, whatever the culture says --
+# the first line of the recommendations, not a note at the bottom.
+_AD_NOW = {
+    "en": ("🚨 Autonomic dysreflexia is an emergency: sit upright, BP every 2-5 min, check the "
+           "catheter / bladder, bowel and skin now - do not wait for the culture."),
+    "ar": ("🚨 الـ autonomic dysreflexia حالة طارئة: اجلس المريض، قِس الضغط كل 2–5 دقائق، وافحص "
+           "القسطرة / المثانة والأمعاء والجلد الآن — لا تنتظر المزرعة."),
+}
+
+
+def _ceilings(score: int, special_flags) -> int:
+    """Upper limits set by the flags (moved out of assess_pathogenicity, v7.9)."""
+    if "BAG_SPECIMEN" in special_flags:
+        score = min(score, 65)   # AAP: a bag-specimen positive is never diagnostic on its own
+    if any(f in special_flags for f in ("INFANT_NO_PYURIA", "INFANT_PYURIA_UNKNOWN",
+                                        "INFANT_MIDSTREAM")):
+        score = min(score, 65)   # v7.2: AAP needs pyuria AND a catheter / SPA count: never "TRUE" without
+    # v7.4: catheter / SCI symptoms not confirmed as new, and the afebrile 8-60 day
+    # infant (outside AAP 2021): "possible" at most -- the decision is clinical.
+    # v7.9: autonomic dysreflexia entered on sweating / flushing alone, likewise.
+    if any(f in special_flags for f in ("SCI_SYMPTOMS_UNCONFIRMED", "INFANT_AFEBRILE_8_60",
+                                        "AD_ONLY_UNCONFIRMED")):
+        score = min(score, 65)
+    if "CATHETER_SPECIMEN_INVALID" in special_flags:
+        score = min(score, 40)   # v7.9: drainage-bag / skin-site "urine"
+    return score
+
+
+def _ad_first(recs: List[str], special_flags, lang: str) -> None:
+    if "AD_ENTERED" in special_flags:
+        recs.insert(0, _AD_NOW[lang])
+
+
 def assess_pathogenicity(
     specimen: str,
     organism: str,
@@ -1832,6 +2024,8 @@ def assess_pathogenicity(
     collection_method: str = "",
     # v7.4: are the catheter / neurogenic-bladder symptoms new or at baseline?
     symptom_course: str = "",
+    ad_assessment: str = "",
+    catheter_sample_site: str = "",
 ) -> dict:
     """Pathogenicity engine v3 — is this isolate an infection, colonisation or
     contamination?
@@ -1934,7 +2128,9 @@ def assess_pathogenicity(
                 pus_cells_text=pus_cells_text, references=references, sci=sci, sex=sex,
                 special_flags=special_flags, symptoms=symptoms,
                 threshold_text=threshold_text, urinalysis_result=urinalysis_result,
-                uro_procedure=uro_procedure, symptom_course=symptom_course or "")
+                uro_procedure=uro_procedure, symptom_course=symptom_course or "",
+                ad_assessment=ad_assessment or "",
+                catheter_sample_site=catheter_sample_site or "")
 
     # ══════════════════════════════════════════════════════════════════
     # SPUTUM / RESPIRATORY
@@ -2036,15 +2232,7 @@ def assess_pathogenicity(
         score = 45            # device + one bottle: "possible", repeat sets -- never "do not treat"
     if "SKIN_FLORA_SETS_UNKNOWN" in special_flags and score < 25:
         score = 25            # sets not entered: "repeat recommended", not "do not treat"
-    if "BAG_SPECIMEN" in special_flags:
-        score = min(score, 65)   # AAP: a bag-specimen positive is never diagnostic on its own
-    if any(f in special_flags for f in ("INFANT_NO_PYURIA", "INFANT_PYURIA_UNKNOWN",
-                                        "INFANT_MIDSTREAM")):
-        score = min(score, 65)   # v7.2: AAP needs pyuria AND a catheter / SPA count: never "TRUE" without
-    # v7.4: catheter / SCI symptoms not confirmed as new, and the afebrile 8-60 day
-    # infant (outside AAP 2021): "possible" at most -- the decision is clinical.
-    if any(f in special_flags for f in ("SCI_SYMPTOMS_UNCONFIRMED", "INFANT_AFEBRILE_8_60")):
-        score = min(score, 65)
+    score = _ceilings(score, special_flags)
     if "CA_SYSTEMIC_SIGNS" in special_flags and score < 45:
         score = 45            # v7.4: systemic signs + significant catheter count: never "repeat / no treatment"
     _core_missing = [m for m in missing if m in ("Symptoms", "Colony count",
@@ -2110,6 +2298,7 @@ def assess_pathogenicity(
         ]
     _flag_ar, _flag_en = _flag_recommendations(special_flags, category)
     recommendations += _flag_ar
+    _ad_first(recommendations, special_flags, "ar")
     if missing and not insufficient:
         recommendations.append("بيانات ناقصة تُضعف الثقة في التقييم: "
                                + "، ".join(_MISSING_AR.get(m, m) for m in missing) + ".")
@@ -2129,6 +2318,7 @@ def assess_pathogenicity(
                               "not change.")
     recommendations_en = list(_recs_en)
     recommendations_en += _flag_en
+    _ad_first(recommendations_en, special_flags, "en")
     if missing and not insufficient:
         recommendations_en.append("Missing data lower the confidence of this assessment: " + ", ".join(missing) + ".")
     notes_en = [n for n in (_note_en(x) for x in notes) if n]
@@ -2186,6 +2376,13 @@ NO_TREAT_CATEGORIES: Dict[str, Tuple[str, str, str]] = {
         "Chronic-wound colonisation without signs of infection: no systemic antibiotic.",
         "استعمار جرح مزمن بلا علامات عدوى: لا مضاد حيوي جهازي.",
         "Wound colonisation, no signs of infection"),
+    "URINE_SPECIMEN_REJECT": (
+        "Urine from the drainage bag / around the catheter is not a valid specimen: re-collect from "
+        "the sampling port - do not treat on this result (an unwell patient is treated empirically "
+        "after the proper specimen is taken).",
+        "بول من كيس التجميع / من حول القسطرة ليس عينة صالحة: أعِد أخذها من منفذ العينات — لا علاج "
+        "بناءً على هذه النتيجة (المريض غير المستقر يُعالَج تجريبياً بعد أخذ العينة الصحيحة).",
+        "Invalid catheter specimen - re-collect"),
     "SPECIMEN_REJECT": (
         "Inadequate sputum (oral flora): reject and repeat - do not treat on this result.",
         "عينة بلغم غير مناسبة (فلورا الفم): تُرفض وتُعاد — لا علاج بناءً عليها.",
