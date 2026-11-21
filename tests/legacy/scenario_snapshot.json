@@ -7678,6 +7678,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
@@ -7734,6 +7735,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -7786,6 +7788,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -7887,6 +7890,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
@@ -7932,6 +7936,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "QC004",
    "QC006",
    "SPEC-URN:Norfloxacin",
@@ -8003,6 +8008,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -8174,6 +8180,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -22603,6 +22610,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
@@ -22659,6 +22667,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -22711,6 +22720,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -22812,6 +22822,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
@@ -22857,6 +22868,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "QC004",
    "QC006",
    "SPEC-URN:Norfloxacin",
@@ -22928,6 +22940,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -23099,6 +23112,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -35504,6 +35518,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
@@ -35560,6 +35575,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -35612,6 +35628,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -35713,6 +35730,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
@@ -35758,6 +35776,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "QC004",
    "QC006",
    "SPEC-URN:Norfloxacin",
@@ -35829,6 +35848,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -36000,6 +36020,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -50019,6 +50040,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
@@ -50075,6 +50097,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -50127,6 +50150,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -50228,6 +50252,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
@@ -50273,6 +50298,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "QC004",
    "QC006",
    "SPEC-URN:Norfloxacin",
@@ -50344,6 +50370,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -50515,6 +50542,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -66461,6 +66489,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "nobp_fosfomycin_oral_non_ecoli:Fosfomycin",
@@ -66520,6 +66549,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "nobp_fosfomycin_oral_non_ecoli:Fosfomycin",
    "rare_colistin_disc:Colistin"
@@ -66571,6 +66601,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "nobp_fosfomycin_oral_non_ecoli:Fosfomycin",
    "rare_colistin_disc:Colistin"
@@ -66673,6 +66704,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "nobp_fosfomycin_oral_non_ecoli:Fosfomycin",
@@ -66726,6 +66758,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "QC004",
    "QC006",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
@@ -66800,6 +66833,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "nobp_fosfomycin_oral_non_ecoli:Fosfomycin",
    "rare_colistin_disc:Colistin"
@@ -66928,6 +66962,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "nobp_fosfomycin_oral_non_ecoli:Fosfomycin",
    "rare_colistin_disc:Colistin"
@@ -81266,6 +81301,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
@@ -81322,6 +81358,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -81374,6 +81411,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -81475,6 +81513,7 @@
   ],
   "preg_warn": [],
   "qc_ids": [
+   "PL5:klebsiella_genus_only",
    "QC006",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
@@ -81520,6 +81559,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "QC004",
    "QC006",
    "SPEC-URN:Norfloxacin",
@@ -81591,6 +81631,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
@@ -81762,6 +81803,7 @@
   "preg_warn": [],
   "qc_ids": [
    "PL2:ertapenem_ns",
+   "PL5:klebsiella_genus_only",
    "SPEC-URN:Norfloxacin",
    "nobp_cefoperazone:Cefoperazone + Sulbactam",
    "rare_colistin_disc:Colistin"
