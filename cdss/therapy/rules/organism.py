@@ -280,10 +280,10 @@ def rule_fq_discordance(cx, dg, out):
     _ns = [d for d in ("Ofloxacin", "Norfloxacin", "Ciprofloxacin", "Levofloxacin")
            if cx.sir.get(d) in ("I", "R")]
     out.note(dg.name, "warn", (
-        f"{dg.name} = S بينما {', '.join(_ns)} غير حساس: مقاومة فلوروكينولون منخفضة المستوى (طفرة "
-        "gyrA أولى). معايير Ofloxacin / Norfloxacin في CLSI لم تُعدَّل في 2019 (بخلاف Ciprofloxacin / "
-        "Levofloxacin) فقد تُقرأ S رغم الطفرة — اختبر Ciprofloxacin و Levofloxacin (MIC) قبل "
-        "الاعتماد عليه."), "fq_low_level")
+        f"{dg.name} = S بينما {', '.join(_ns)} غير حساس: احتمال مقاومة فلوروكينولون منخفضة "
+        "المستوى — الآلية غير مؤكدة. معايير Ofloxacin / Norfloxacin في CLSI لم تُعدَّل في 2019 (بخلاف "
+        "Ciprofloxacin / Levofloxacin) فقد تُقرأ S رغم المقاومة المنخفضة — اختبر Ciprofloxacin و "
+        "Levofloxacin (MIC) قبل الاعتماد على هذه المجموعة. نتيجة الـ AST نفسها تظل S."), "fq_low_level")
 
 
 def rule_organism_cautions(cx, dg, out):
