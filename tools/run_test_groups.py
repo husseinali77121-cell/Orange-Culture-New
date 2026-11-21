@@ -35,7 +35,7 @@ GROUPS = {
                          "test_v7_1_review.py"]),
     "resistance_pathogenicity": ("ESBL / AmpC / CRE / MDR-XDR-PDR; infection vs colonisation",
                                  ["test_v7_2_review.py", "test_v7_3_review.py",
-                                  "test_v7_4_review.py"]),
+                                  "test_v7_4_review.py", "test_v7_9_review.py"]),
     "ocr": ("reading AST tables from report images (needs Tesseract; skipped without it)",
             ["test_v7_8_ocr.py"]),
     "reports": ("text, PDF and image agree", ["test_report_split.py", "test_fonts.py"]),
